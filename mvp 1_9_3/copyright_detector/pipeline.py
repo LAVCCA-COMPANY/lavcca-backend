@@ -379,6 +379,11 @@ class CopyrightAnalysisPipeline:
             cached = self.db.check_video_cached(video_hash)
             if cached:
                 logger.info("cache_hit_returning", job_id=job_id)
+                # 호출자가 요청한 job_id 로 결과를 식별할 수 있도록 교체하고,
+                # 원래 분석한 작업 ID 는 cached_from_job_id 에 남긴다.
+                cached = dict(cached)
+                cached["cached_from_job_id"] = cached.get("job_id")
+                cached["job_id"] = job_id
                 return cached
 
         # ─── Step 3: DB 작업 생성 ───

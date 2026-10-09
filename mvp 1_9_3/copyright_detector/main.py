@@ -248,7 +248,8 @@ async def main():
 
     # 저장
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    job_id = results.get("job_id", "unknown")
+    # 호출자가 --job-id 를 줬으면 결과 파일명은 반드시 그 값을 쓴다(통합 실행기가 이 이름으로 찾음).
+    job_id = args.job_id or results.get("job_id", "unknown")
 
     saved_files = []
 

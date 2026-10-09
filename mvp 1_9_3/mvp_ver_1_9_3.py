@@ -25,7 +25,7 @@ import os
 import re
 import sys
 import json
-import time
+import uuid
 import subprocess
 from pathlib import Path
 
@@ -95,9 +95,12 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
         return None
 
     COPYRIGHT_RESULTS.mkdir(parents=True, exist_ok=True)
-    started_at = time.time()
 
-    cmd = [sys.executable, "main.py", abs_video, "--format", "json"]
+    # 이번 실행 전용 job_id → 결과 파일명(result_{job_id}_*.json)으로 정확히 찾는다.
+    #   (동시 실행 시 다른 작업의 결과가 섞이지 않도록 mtime 기반 탐색은 쓰지 않음)
+    job_id = "NATAM_" + uuid.uuid4().hex[:12].upper()
+
+    cmd = [sys.executable, "main.py", abs_video, "--format", "json", "--job-id", job_id]
     if force:
         cmd.append("--force")
 
@@ -118,25 +121,13 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
         print(f"⚠️  저작권 분석 실행 실패: {e}")
         return None
 
-    # 이번 실행에서 새로 생성된 결과 JSON 을 mtime 기준으로 탐색
-    latest, latest_m = None, started_at - 1.0
-    for p in COPYRIGHT_RESULTS.glob("result_*.json"):
-        try:
-            m = p.stat().st_mtime
-        except OSError:
-            continue
-        if m >= started_at and m > latest_m:
-            latest, latest_m = p, m
-    if latest is None:  # 폴백: 가장 최근 결과라도 사용
-        cands = sorted(COPYRIGHT_RESULTS.glob("result_*.json"),
-                       key=lambda p: p.stat().st_mtime)
-        latest = cands[-1] if cands else None
-
-    if latest is None:
-        print("⚠️  저작권 결과 JSON 을 찾지 못했습니다(요약은 위 로그 참조).")
+    # 이번 실행의 job_id 로 저장된 결과 JSON 만 읽는다(없으면 실패로 처리, 다른 결과로 대체하지 않음)
+    matches = sorted(COPYRIGHT_RESULTS.glob(f"result_{job_id}_*.json"))
+    if not matches:
+        print(f"⚠️  저작권 결과 JSON 을 찾지 못했습니다(job_id={job_id}, 요약은 위 로그 참조).")
         return None
     try:
-        return json.loads(latest.read_text(encoding="utf-8"))
+        return json.loads(matches[-1].read_text(encoding="utf-8"))
     except Exception as e:
         print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) — 요약은 위 로그 참조.")
         return None

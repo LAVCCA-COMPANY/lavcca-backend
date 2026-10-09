@@ -91,7 +91,7 @@ class DatabaseManager:
                     AnalysisJob.video_hash == video_hash,
                     AnalysisJob.status == AnalysisStatus.COMPLETED
                 ).order_by(AnalysisJob.created_at.desc())
-            ).scalar_one_or_none()
+            ).scalars().first()   # --force 재분석으로 같은 해시의 완료 작업이 여러 개일 수 있음
 
             if job and job.report:
                 logger.info("cache_hit", video_hash=video_hash, job_id=job.job_id)
