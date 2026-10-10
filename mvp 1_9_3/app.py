@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template, send_file
-import threading, os, uuid, time
+import threading, os, uuid, time, traceback
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -20,8 +20,9 @@ def _report_html(md_path: str) -> str:
     """생성된 최종 MD 리포트를 HTML로 변환(표/코드블록 포함). 실패 시 원문을 <pre>로."""
     try:
         text = Path(md_path).read_text(encoding='utf-8')
-    except Exception as e:
-        return f'<pre>리포트 파일을 읽을 수 없습니다: {e}</pre>'
+    except Exception:
+        traceback.print_exc()  # 상세(경로 포함)는 서버 로그에만
+        return '<pre>리포트 파일을 읽을 수 없습니다.</pre>'
     if _md is None:
         import html as _h
         return '<pre>' + _h.escape(text) + '</pre>'
@@ -93,16 +94,10 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
                                                       include_copyright=do_copyright)
             _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
 
-        elif os.path.exists(user_input):
-            report, json_path = v193.analyze_only(system, user_input, fresh=fresh)
-            copyright_results = (v193.run_copyright_detection(user_input, force=fresh)
-                                 if do_copyright else None)
-            md_path, pdf_path = v193.finalize_reports(report, json_path, copyright_results,
-                                                      include_copyright=do_copyright)
-            _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
-
         else:
             # 텍스트 입력 → 영상이 없어 저작권 분석은 수행하지 않고 NATAM 분석만 수행
+            # (웹 입력은 서버 파일 경로로 해석하지 않는다 — 경로처럼 보여도 텍스트로 취급.
+            #  로컬 파일 분석은 CLI(mvp_ver_1_9_3.py)에서만 지원)
             classification = system.classify_controversy(user_input)
             natam_result = mvp.assess_natam_risk(
                 client             = system.client,
@@ -150,8 +145,12 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
 
         _update_job(job_id, status='done', report=report)
 
-    except Exception as e:
-        _update_job(job_id, status='error', error=str(e))
+    except Exception:
+        # 예외 메시지에는 서버 경로·내부 정보가 섞일 수 있으므로 상세는 서버 로그에만 남긴다.
+        print(f"[run_analysis] job {job_id} 실패")
+        traceback.print_exc()
+        _update_job(job_id, status='error',
+                    error='분석 중 오류가 발생했습니다. 입력을 확인한 뒤 다시 시도해 주세요.')
 
 
 @app.route('/')
@@ -213,4 +212,5 @@ def download(job_id, file_type):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # 인증이 없으므로 이 PC에서만 접속 가능하게 한다. 외부 공개는 인증 도입 후에만 (README 참고).
+    app.run(host='127.0.0.1', port=5000, debug=False)
