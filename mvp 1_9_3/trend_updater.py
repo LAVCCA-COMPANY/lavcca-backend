@@ -37,6 +37,9 @@ from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _install_gemini_defaults
 BASE_DIR        = Path(__file__).parent
 RULES_PATH      = BASE_DIR / "rules.yaml"
 CASE_DB_PATH    = BASE_DIR / "case_db.json"
+# case_db.json 은 1_9_3 에서 폐기됨(_deprecated/) — 유사 사례는 similar_case_engine + casedb/ 가 담당.
+# 사례(cases)는 더 이상 pending 에 적재하지 않는다. 키워드·학습문장만 갱신.
+CASES_ENABLED   = False
 SAMPLES_PATH    = BASE_DIR / "controversy_samples.json"   # ML 분류 학습 문장
 PENDING_PATH    = BASE_DIR / "pending_updates.json"
 SEEN_PATH       = BASE_DIR / ".trend_seen.json"   # 이미 본 기사 링크 기록(중복 호출 방지)
@@ -326,7 +329,7 @@ def dedup(structured: dict) -> dict:
         new_keywords.append(k)
 
     new_cases = []
-    for c in structured["cases"]:
+    for c in (structured["cases"] if CASES_ENABLED else []):
         title = (c.get("title") or "").strip()
         if not title or c.get("controversy_type") not in CASE_TYPES:
             continue

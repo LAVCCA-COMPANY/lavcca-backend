@@ -39,6 +39,10 @@ system = mvp.CrisisConsultantSystem(
     report_dir         = 'reports',
 )
 
+# 공유 system 객체(비용 계측·캐시 등 분석 1건 단위 상태 포함)는 동시 분석에 안전하지 않으므로
+# NATAM 분석은 한 번에 하나씩 실행한다. 저작권 서브프로세스는 이 락 밖에서 병렬로 돈다.
+_analysis_lock = threading.Lock()
+
 # 분석 작업 상태 저장 (job_id → 상태/결과). 여러 요청 스레드가 동시에
 # 접근하므로 락으로 보호하고, 오래된 작업은 새 작업 생성 시 정리한다.
 JOB_TTL_SECONDS = 3600
@@ -74,11 +78,12 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
         _update_job(job_id, status='running')
 
         if mvp.is_youtube_url(user_input):
-            report, json_path = v193.analyze_only(system, user_input, download_dir='downloads',
-                                                  fresh=fresh)
-            local_video = (report.get('youtube_meta') or {}).get('video_path')
-            copyright_results = (v193.run_copyright_detection(local_video, force=fresh)
-                                 if (do_copyright and local_video) else None)
+            runner = v193.CopyrightRunner(force=fresh) if do_copyright else None
+            with _analysis_lock:
+                report, json_path = v193.analyze_only(
+                    system, user_input, download_dir='downloads', fresh=fresh,
+                    on_video_ready=runner.start if runner else None)
+            copyright_results = runner.result() if runner else None
             md_path, pdf_path = v193.finalize_reports(report, json_path, copyright_results,
                                                       include_copyright=do_copyright)
             _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
@@ -86,36 +91,43 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
         elif mvp.is_google_drive_url(user_input):
             dl = mvp.download_google_drive_video(user_input, 'downloads')
             local_video = dl['video_path']
-            report, json_path = v193.analyze_only(system, local_video, fresh=fresh)
-            copyright_results = (v193.run_copyright_detection(local_video, force=fresh)
-                                 if do_copyright else None)
+            runner = v193.CopyrightRunner(force=fresh) if do_copyright else None
+            if runner:
+                runner.start(local_video)
+            with _analysis_lock:
+                report, json_path = v193.analyze_only(system, local_video, fresh=fresh)
+            copyright_results = runner.result() if runner else None
             md_path, pdf_path = v193.finalize_reports(report, json_path, copyright_results,
                                                       include_copyright=do_copyright)
             _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
 
         elif os.path.exists(user_input):
-            report, json_path = v193.analyze_only(system, user_input, fresh=fresh)
-            copyright_results = (v193.run_copyright_detection(user_input, force=fresh)
-                                 if do_copyright else None)
+            runner = v193.CopyrightRunner(force=fresh) if do_copyright else None
+            if runner:
+                runner.start(user_input)
+            with _analysis_lock:
+                report, json_path = v193.analyze_only(system, user_input, fresh=fresh)
+            copyright_results = runner.result() if runner else None
             md_path, pdf_path = v193.finalize_reports(report, json_path, copyright_results,
                                                       include_copyright=do_copyright)
             _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
 
         else:
             # 텍스트 입력 → 영상이 없어 저작권 분석은 수행하지 않고 NATAM 분석만 수행
-            classification = system.classify_controversy(user_input)
-            natam_result = mvp.assess_natam_risk(
-                client             = system.client,
-                system_instruction = system.system_instruction,
-                transcript_text    = '',
-                summary            = user_input,
-                gen_model          = mvp.GEN_MODEL,
-            )
-            # 위험 신호(NATAM A/B축 + 분류) 기반 트리거로 유사 사례 검색
-            cases, dists, summary = system.find_similar_cases(
-                base_text=user_input, natam_result=natam_result,
-                classification=classification, k=3, make_summary=True,
-            )
+            with _analysis_lock:
+                classification = system.classify_controversy(user_input)
+                natam_result = mvp.assess_natam_risk(
+                    client             = system.client,
+                    system_instruction = system.system_instruction,
+                    transcript_text    = '',
+                    summary            = user_input,
+                    gen_model          = mvp.GEN_MODEL,
+                )
+                # 위험 신호(NATAM A/B축 + 분류) 기반 트리거로 유사 사례 검색
+                cases, dists, summary = system.find_similar_cases(
+                    base_text=user_input, natam_result=natam_result,
+                    classification=classification, k=3, make_summary=True,
+                )
             report = {
                 'meta': {'input_query': user_input},
                 'classification': classification,

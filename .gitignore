@@ -27,3 +27,6 @@ transcripts/
 # local case database (generated data, exceeds GitHub 100MB limit)
 casedb/
 copyright_detector/_gitignore_test_tmp/
+
+# trend_updater 가 이미 본 기사 링크 (로컬 상태)
+.trend_seen.json

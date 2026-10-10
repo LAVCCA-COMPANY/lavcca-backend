@@ -3,7 +3,8 @@
 review_updates.py  —  pending_updates.json 검토/반영 CLI
 
 trend_updater.py 가 쌓아둔 '검토 대기' 항목을 사람이 하나씩 확인하고,
-승인한 것만 실제 rules.yaml / case_db.json 에 머지한다.
+승인한 것만 실제 rules.yaml / controversy_samples.json 에 머지한다.
+(case_db.json 사례 머지는 비활성 — CASES_ENABLED 참고)
 
 조작:
     y  = 승인(반영)   |   n = 거절(폐기)   |   s = 보류(다음에 다시)   |   q = 종료
@@ -18,6 +19,9 @@ import yaml
 BASE_DIR     = Path(__file__).parent
 RULES_PATH   = BASE_DIR / "rules.yaml"
 CASE_DB_PATH = BASE_DIR / "case_db.json"
+# case_db.json 은 1_9_3 에서 폐기됨(_deprecated/) — 유사 사례는 similar_case_engine + casedb/ 가 담당.
+# 예전 pending 에 남아 있는 사례는 건드리지 않고 건너뛴다(검토 완료 판정에서도 제외).
+CASES_ENABLED = False
 SAMPLES_PATH = BASE_DIR / "controversy_samples.json"   # ML 학습 문장
 PENDING_PATH = BASE_DIR / "pending_updates.json"
 
@@ -138,7 +142,7 @@ def main():
 
         # 사례 검토
         kept_case = []
-        for c in run.get("cases", []):
+        for c in (run.get("cases", []) if CASES_ENABLED else []):
             print(f"\n[사례] {c.get('title')}")
             print(f"   유형: {c.get('controversy_type')} / 확산: {c.get('spread_stage')}")
             print(f"   요약: {c.get('summary')}")
@@ -152,7 +156,8 @@ def main():
                 kept_case.append(c)
             else:
                 rejected += 1
-        run["cases"] = kept_case
+        if CASES_ENABLED:
+            run["cases"] = kept_case
 
         # 학습 문장 검토 (controversy_samples.json)
         #   y = 제안 라벨 그대로 반영 | 라벨 직접입력(예: L01,L11) = 고쳐서 반영
@@ -185,7 +190,7 @@ def main():
         run["samples"] = kept_sample
 
         # 남은 게 없으면 처리 완료로 표시
-        leftover = run["keywords"] or run["cases"] or run["samples"]
+        leftover = run["keywords"] or run["samples"] or (CASES_ENABLED and run.get("cases"))
         run["status"] = "pending" if leftover else "done"
         run["reviewed_at"] = datetime.now().isoformat(timespec="seconds")
 
@@ -208,7 +213,7 @@ def _save(pending):
 def _report(kw, case, sample, rej):
     print("\n" + "─" * 60)
     print(f"✅ 반영: 키워드 {kw}개 · 사례 {case}개 · 학습문장 {sample}개 / 🗑 거절 {rej}개")
-    print("   rules.yaml / case_db.json / controversy_samples.json 업데이트 완료.")
+    print("   rules.yaml / controversy_samples.json 업데이트 완료.")
     if sample:
         print("   ⚠️ 학습문장이 추가됐습니다 → python classifier_model.py 로 재학습해야 모델에 반영됩니다.")
 

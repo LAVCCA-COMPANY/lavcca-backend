@@ -16,8 +16,10 @@ v1.9.2(크리에이터 위기/논란 분석)와 copyright_detector(저작권 침
   · 리포트는 NATAM 분석 직후 곧바로 만들지 않는다. 저작권 분석까지 끝난 뒤
     두 결과를 병합해 '통합 템플릿(report_template_v1_9_3.md)' 기반으로
     MD·PDF·JSON 3종을 한 번에 생성한다.
-      - analyze_video_full 내부의 조기 리포트 생성은 잠시 억제(monkeypatch)하고
-        분석 결과(report)만 받아온 뒤, 저작권을 합쳐 최종 리포트를 만든다.
+      - analyze_video_full(emit_reports=False) 로 분석 결과(report)만 받아온 뒤,
+        저작권을 합쳐 최종 리포트를 만든다.
+  · 저작권 분석은 영상 파일이 준비되는 즉시(on_video_ready) 별도 스레드에서 시작해
+    NATAM 분석과 병렬로 돈다(CopyrightRunner).
 
 사용법:  python mvp_ver_1_9_3.py     (실행 후 URL/파일경로/텍스트 입력)
 """
@@ -27,6 +29,7 @@ import sys
 import json
 import uuid
 import subprocess
+import threading
 from pathlib import Path
 
 # ── 항상 이 스크립트(=NATAM) 폴더를 작업 디렉터리로 고정 ──────────────
@@ -76,7 +79,8 @@ _CR_TYPE_LABEL = {
 # ════════════════════════════════════════════════════════════════════
 # 저작권 분석 (copyright_detector 를 독립 프로세스로 실행)
 # ════════════════════════════════════════════════════════════════════
-def run_copyright_detection(video_path: str, force: bool = False) -> dict | None:
+def run_copyright_detection(video_path: str, force: bool = False,
+                            log_prefix: str = "") -> dict | None:
     """
     로컬 영상 파일에 대해 copyright_detector/main.py 를 서브프로세스로 실행한다.
 
@@ -112,7 +116,7 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
     try:
         # 서브프로세스 출력도 통합 로그에 포함되도록 스트리밍(가능하면). 아니면 기존 방식.
         if run_logging is not None:
-            rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR))
+            rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR), prefix=log_prefix)
         else:
             rc = subprocess.run(cmd, cwd=str(COPYRIGHT_DIR), check=False).returncode
         if rc != 0:
@@ -131,6 +135,45 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
     except Exception as e:
         print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) — 요약은 위 로그 참조.")
         return None
+
+
+class CopyrightRunner:
+    """
+    저작권 분석을 NATAM 분석과 병렬로 실행한다.
+      runner = CopyrightRunner(force=fresh)
+      analyze_only(..., on_video_ready=runner.start)   # 영상 경로 확정 즉시 시작
+      copyright_results = runner.result()              # NATAM 끝난 뒤 합류
+    start() 는 한 번만 동작하고, result() 는 시작되지 않았으면 None.
+    """
+
+    def __init__(self, force: bool = False):
+        self.force   = force
+        self.started = False
+        self._thread = None
+        self._result = None
+
+    def start(self, video_path: str) -> None:
+        if self.started:
+            return
+        self.started = True
+
+        def _run():
+            try:
+                self._result = run_copyright_detection(video_path, force=self.force,
+                                                       log_prefix="[©] ")
+            except Exception as e:   # 스레드 예외가 조용히 사라지지 않도록
+                print(f"⚠️  저작권 분석 스레드 오류: {e}")
+
+        self._thread = threading.Thread(target=_run, name="copyright", daemon=True)
+        self._thread.start()
+
+    def result(self) -> dict | None:
+        if self._thread is None:
+            return None
+        if self._thread.is_alive():
+            print("⏳ 저작권 분석 마무리 대기 중...")
+        self._thread.join()
+        return self._result
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -322,29 +365,23 @@ class CrisisReportEngineV193(mvp.CrisisReportEngine):
 # NATAM 분석 실행 (내부 조기 리포트 생성은 억제) + 통합 리포트 생성
 # ════════════════════════════════════════════════════════════════════
 def analyze_only(system, video_input: str, download_dir: str | None = None,
-                 fresh: bool = False):
+                 fresh: bool = False, on_video_ready=None):
     """
-    analyze_video_full 을 실행하되 '내부 MD/PDF 생성'을 잠시 억제한다.
+    analyze_video_full 을 '내부 MD/PDF 생성 없이'(emit_reports=False) 실행한다.
     저작권 결과를 합쳐 최종 리포트를 만들어야 하므로, 여기서는 분석 결과(report)만 받는다.
     (내부 JSON은 저작권 없이 한 번 저장되지만, finalize 단계에서 덮어쓴다.)
+    ※ 예전에는 공유 객체(system.report_engine, mvp._gen_pdf)를 몽키패치했는데,
+      app.py 에서 작업이 겹치면 원본 복원이 꼬여 리포트가 영구히 안 만들어질 수 있어 인자로 바꿈.
 
     fresh=True 면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터 다시 분석한다.
+    on_video_ready(video_path) 는 영상 파일이 준비되는 즉시 호출된다(저작권 병렬 시작용).
     """
-    orig_create  = system.report_engine.create_report
-    orig_gen_pdf = getattr(mvp, "_gen_pdf", None)
-    system.report_engine.create_report = lambda report: None       # MD 조기생성 억제
-    if orig_gen_pdf is not None:
-        mvp._gen_pdf = lambda report, output_dir="reports": None    # PDF 조기생성 억제
-    try:
-        kwargs = dict(video_input=video_input,
-                      output_dir="samples/transcripts", use_cache=True, fresh=fresh)
-        if download_dir:
-            kwargs["download_dir"] = download_dir
-        report, json_path, _md, _pdf = system.analyze_video_full(**kwargs)
-    finally:
-        system.report_engine.create_report = orig_create
-        if orig_gen_pdf is not None:
-            mvp._gen_pdf = orig_gen_pdf
+    kwargs = dict(video_input=video_input,
+                  output_dir="samples/transcripts", use_cache=True, fresh=fresh,
+                  emit_reports=False, on_video_ready=on_video_ready)
+    if download_dir:
+        kwargs["download_dir"] = download_dir
+    report, json_path, _md, _pdf = system.analyze_video_full(**kwargs)
     return report, json_path
 
 
@@ -532,15 +569,16 @@ def main():
         if mvp.is_youtube_url(user_input):
             fresh = ask_reanalyze_choice()
             do_copyright = ask_copyright_choice()
+            runner = CopyrightRunner(force=fresh) if do_copyright else None
             report, json_path = analyze_only(system, user_input, download_dir="downloads",
-                                             fresh=fresh)
+                                             fresh=fresh,
+                                             on_video_ready=runner.start if runner else None)
             mvp.print_report(report)
 
             copyright_results = None
-            if do_copyright:
-                local_video = (report.get("youtube_meta") or {}).get("video_path")
-                if local_video:
-                    copyright_results = run_copyright_detection(local_video, force=fresh)
+            if runner is not None:
+                if runner.started:
+                    copyright_results = runner.result()
                 else:
                     print("⚠️  다운로드된 영상 경로를 찾을 수 없어 저작권 분석을 건너뜁니다.")
 
@@ -556,10 +594,13 @@ def main():
             # 한 번만 내려받아 두 분석이 같은 파일을 쓰도록 미리 다운로드
             dl = mvp.download_google_drive_video(user_input, "downloads")
             local_video = dl['video_path']
+            runner = CopyrightRunner(force=fresh) if do_copyright else None
+            if runner is not None:
+                runner.start(local_video)
             report, json_path = analyze_only(system, local_video, fresh=fresh)
             mvp.print_report(report)
 
-            copyright_results = run_copyright_detection(local_video, force=fresh) if do_copyright else None
+            copyright_results = runner.result() if runner is not None else None
             md_path, pdf_path = finalize_reports(report, json_path, copyright_results,
                                                  include_copyright=do_copyright)
             _print_report_paths(json_path, md_path, pdf_path)
@@ -572,10 +613,13 @@ def main():
                 continue
             fresh = ask_reanalyze_choice()
             do_copyright = ask_copyright_choice()
+            runner = CopyrightRunner(force=fresh) if do_copyright else None
+            if runner is not None:
+                runner.start(user_input)
             report, json_path = analyze_only(system, user_input, fresh=fresh)
             mvp.print_report(report)
 
-            copyright_results = run_copyright_detection(user_input, force=fresh) if do_copyright else None
+            copyright_results = runner.result() if runner is not None else None
             md_path, pdf_path = finalize_reports(report, json_path, copyright_results,
                                                  include_copyright=do_copyright)
             _print_report_paths(json_path, md_path, pdf_path)

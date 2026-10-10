@@ -59,6 +59,8 @@ def evaluate(golden_path: str) -> dict:
     predict = _load_predict_fn()
     with open(golden_path, "r", encoding="utf-8-sig") as f:
         golden = json.load(f)
+    # 라벨을 아직 채우지 않은(검수 보류) 항목은 평가에서 제외
+    golden = [g for g in golden if g.get("labels")]
 
     # 카테고리별 TP/FP/FN 집계
     tp = defaultdict(int); fp = defaultdict(int); fn = defaultdict(int)

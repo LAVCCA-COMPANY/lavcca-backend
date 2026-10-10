@@ -171,7 +171,7 @@ def teardown():
     _state["file"] = None
 
 
-def stream_subprocess(cmd, cwd=None, env=None) -> int:
+def stream_subprocess(cmd, cwd=None, env=None, prefix: str = "") -> int:
     """
     서브프로세스를 실행하며 출력(stdout+stderr)을 라인 단위로 받아 print()로 되흘린다.
       → Tee 를 거쳐 콘솔 + 통합 로그파일에 함께 기록된다. 자식 프로세스의 returncode 반환.
@@ -191,7 +191,7 @@ def stream_subprocess(cmd, cwd=None, env=None) -> int:
         return -1
     try:
         for line in p.stdout:
-            print(line.rstrip("\n"))     # → Tee → 콘솔 + 파일
+            print(prefix + line.rstrip("\n"))     # → Tee → 콘솔 + 파일
     finally:
         p.wait()
     return p.returncode

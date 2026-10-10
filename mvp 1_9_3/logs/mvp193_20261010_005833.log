@@ -1,0 +1,112 @@
+============================================================
+  mvp193 통합 실행 로그
+  생성: 2026-10-10 00:58:33
+  경로: C:\Users\user\Desktop\NATAM\mvp 1_9_3\logs\mvp193_20261010_005833.log
+============================================================
+
+[00:58:33] ===============================================================
+[00:58:33] 🛡️©️  CRISIS CONSULTANT v1.9.3 — 위기관리 + 저작권 통합 분석기
+[00:58:33]      NATAM v2.0 위기 분석  ⨉  copyright_detector 저작권 침해 감지
+[00:58:33]      리포트: 통합 MD · PDF · JSON 3종 동시 생성
+[00:58:33]      📝 통합 로그: C:\Users\user\Desktop\NATAM\mvp 1_9_3\logs\mvp193_20261010_005833.log
+[00:58:33] ===============================================================
+[00:58:34] 🤖 전사 엔진: Gemini Files API (Whisper 모델 로드 생략)
+[00:58:34] ⏳ 유사 사례 엔진 로드 중...
+[00:58:34] ⚠️ 유사 사례 인덱스 로드 실패: 인덱스 파일 없음: c:\Users\user\Desktop\NATAM\mvp 1_9_3\casedb\casedb_embeddings.npy — 먼저 `python similar_case_engine.py build` 실행
+[00:58:34]    → `python similar_case_engine.py build` 로 인덱스를 먼저 생성하세요.
+[00:58:38] ✅ ML 분류 모델 로드 완료 (클래스 10개: ['L01', 'L02', 'L03', 'L04', 'L06', 'L07', 'L08', 'L09', 'L11', 'L12'])
+[00:58:38] ✅ 시스템 준비 완료! (유사 사례 DB: 0건)
+[00:58:38] 
+[00:58:38] ───────────────────────────────────────────────────────────────
+[00:58:38] 유튜브 URL 입력      →  NATAM 위기 분석  (저작권 분석 함께할지 선택)
+[00:58:38] 영상 파일 경로 입력  →  NATAM 위기 분석  (저작권 분석 함께할지 선택)
+[00:58:38] 텍스트 입력          →  NATAM 위기 분석만 (영상이 없어 저작권 분석 불가)
+[00:58:38] [q]                  →  종료
+[00:58:38]    ↳ URL·영상 입력 후 [Y] 위기+저작권 / [n] 위기 분석만 을 고릅니다.
+[00:59:09] 💬 입력:    🔁  같은 영상 재분석 시?  [Enter] 이어서(캐시 재사용·빠름)  /  [f] 처음부터(이전 transcript 삭제) :    → 처음부터 재분석합니다 (이전 전사·교정 캐시 삭제).
+[00:59:12]    ©️  저작권 침해 분석도 함께 수행할까요?  [Y] 위기+저작권(기본)  /  [n] 위기 분석만 :    → 위기 분석 + 저작권 침해 분석을 수행합니다.
+[00:59:12] 
+[00:59:12] ===============================================================
+[00:59:12] 🔗 유튜브 URL 감지: https://www.youtube.com/watch?v=r_6UCvgtwik&t=3s
+[00:59:12] ===============================================================
+[00:59:12] 📊 유튜브 메타데이터 수집 중: https://www.youtube.com/watch?v=r_6UCvgtwik&t=3s
+[00:59:15] ✅ 메타데이터 수집 완료
+[00:59:15]    제목: 납치 생방송에서 탈출하라
+[00:59:15]    채널: 이도원 (구독자: 524,000명)
+[00:59:15]    조회수: 530,261 | 좋아요: 7,952 | 댓글: 224
+[00:59:15]    업로드: 20251201 | 길이: 876초
+[00:59:15] 
+[00:59:15] 📥 영상 다운로드 중...
+[00:59:15] [youtube] Extracting URL: https://www.youtube.com/watch?v=r_6UCvgtwik&t=3s 
+[00:59:15] [youtube] r_6UCvgtwik: Downloading webpage 
+[00:59:16] [youtube] r_6UCvgtwik: Downloading android player API JSON 
+[00:59:16] [youtube] r_6UCvgtwik: Downloading web client config 
+[00:59:16] [youtube] r_6UCvgtwik: Downloading web player API JSON 
+[00:59:17] [info] r_6UCvgtwik: Downloading 1 format(s): 18 
+[00:59:17] [download] downloads\납치 생방송에서 탈출하라_r_6UCvgtwik.mp4 has already been downloaded 
+[00:59:17] 
+[00:59:17] [VideoConvertor] Not converting media file "downloads\납치 생방송에서 탈출하라_r_6UCvgtwik.mp4"; already is in target format mp4 
+[00:59:17] ✅ 다운로드 완료 → downloads\납치 생방송에서 탈출하라_r_6UCvgtwik.mp4
+[00:59:17] 
+[00:59:17] ===============================================================
+[00:59:17] 🎬 영상 분석 시작: 납치 생방송에서 탈출하라_r_6UCvgtwik.mp4
+[00:59:17] ===============================================================
+[00:59:17] 🧹 처음부터 재분석 — 이전 캐시 삭제: 납치 생방송에서 탈출하라_r_6UCvgtwik_raw.json, 납치 생방송에서 탈출하라_r_6UCvgtwik_refined.json, 납치 생방송에서 탈출하라_r_6UCvgtwik_batch_cache/
+[00:59:17] 🤖 [1/3] Gemini 전사 시작...
+[00:59:17] 🤖 Gemini 전사 시작: downloads\납치 생방송에서 탈출하라_r_6UCvgtwik.mp4
+[00:59:17]    📤 파일 업로드 중...
+[00:59:23]    ⏳ 파일 처리 중...
+[00:59:28]    ⏳ 파일 처리 중...
+[00:59:34]    ⏳ 파일 처리 중...
+[00:59:39]    ✅ 업로드 완료, 전사 요청 중...
+[00:59:39]    ⚠️ Gemini 일시 오류(과부하/혼잡) — 5초 후 재시도 (1/4)
+[00:59:44]    ⚠️ Gemini 일시 오류(과부하/혼잡) — 10초 후 재시도 (2/4)
+[00:59:55]    ⚠️ Gemini 일시 오류(과부하/혼잡) — 20초 후 재시도 (3/4)
+[01:00:15]    ⚠️ Gemini 일시 오류(과부하/혼잡) — 40초 후 재시도 (4/4)
+[01:00:58]    ⚠️ Gemini 전사 실패(429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.5-flash\nPlease retry in 7h59m3.910259519s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.5-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '28743s'}]}}) → 로컬 Whisper 전사로 폴백합니다
+[01:00:58]    🔄 Whisper 폴백 모델 로딩 중... (장치: CUDA, 모델: turbo)
+[01:01:11] 🎙️  전사 시작: downloads\납치 생방송에서 탈출하라_r_6UCvgtwik.mp4
+[01:01:15] Detected language: Korean
+[01:01:48]  27%|█████████████████████████████████████████████████████▍                                                                                                                                                   | 23286/87583 [00:33<01:31, 701.33frames/s]
+[01:01:48] Traceback (most recent call last):
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_3.py"[0m, line [35m685[0m, in [35m<module>[0m
+[01:01:48]     [31mmain[0m[1;31m()[0m
+[01:01:48]     [31m~~~~[0m[1;31m^^[0m
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_3.py"[0m, line [35m544[0m, in [35mmain[0m
+[01:01:48]     report, json_path = [31manalyze_only[0m[1;31m(system, user_input, download_dir="downloads",[0m
+[01:01:48]                         [31m~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[01:01:48]                                      [1;31mfresh=fresh)[0m
+[01:01:48]                                      [1;31m^^^^^^^^^^^^[0m
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_3.py"[0m, line [35m352[0m, in [35manalyze_only[0m
+[01:01:48]     report, json_path, _md, _pdf = [31msystem.analyze_video_full[0m[1;31m(**kwargs)[0m
+[01:01:48]                                    [31m~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^[0m
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_2.py"[0m, line [35m3002[0m, in [35manalyze_video_full[0m
+[01:01:48]     raw = self.transcribe_with_gemini(video_path)
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_2.py"[0m, line [35m1847[0m, in [35mtranscribe_with_gemini[0m
+[01:01:48]     return [31mself._transcribe_with_whisper[0m[1;31m(video_path)[0m
+[01:01:48]            [31m~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^[0m
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_2.py"[0m, line [35m1765[0m, in [35m_transcribe_with_whisper[0m
+[01:01:48]     return [31mself.transcribe[0m[1;31m(video_path)[0m
+[01:01:48]            [31m~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^[0m
+[01:01:48]   File [35m"c:\Users\user\Desktop\NATAM\mvp 1_9_3\mvp_ver_1_9_2.py"[0m, line [35m1736[0m, in [35mtranscribe[0m
+[01:01:48]     result = self.whisper_model.transcribe(
+[01:01:48]         video_path,
+[01:01:48]     ...<3 lines>...
+[01:01:48]         fp16=(self.device == "cuda"),
+[01:01:48]     )
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\whisper\transcribe.py"[0m, line [35m295[0m, in [35mtranscribe[0m
+[01:01:48]     result: DecodingResult = [31mdecode_with_fallback[0m[1;31m(mel_segment)[0m
+[01:01:48]                              [31m~~~~~~~~~~~~~~~~~~~~[0m[1;31m^^^^^^^^^^^^^[0m
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\whisper\transcribe.py"[0m, line [35m201[0m, in [35mdecode_with_fallback[0m
+[01:01:48]     decode_result = model.decode(segment, options)
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\torch\utils\_contextlib.py"[0m, line [35m124[0m, in [35mdecorate_context[0m
+[01:01:48]     return func(*args, **kwargs)
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\whisper\decoding.py"[0m, line [35m824[0m, in [35mdecode[0m
+[01:01:48]     result = DecodingTask(model, options).run(mel)
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\torch\utils\_contextlib.py"[0m, line [35m124[0m, in [35mdecorate_context[0m
+[01:01:48]     return func(*args, **kwargs)
+[01:01:48]   File [35m"C:\Users\user\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\whisper\decoding.py"[0m, line [35m734[0m, in [35mrun[0m
+[01:01:48]     tokens = tokens.repeat_interleave(self.n_group, dim=0).to(audio_features.device)
+[01:01:48] [1;35mKeyboardInterrupt[0m
+
+종료: 2026-10-10 01:01:48

@@ -220,13 +220,26 @@ def cer(reference: str, hypothesis: str) -> float:
 # 💰 비용/토큰 계측 — 분석 1건당 단가 추적 (SaaS 가격 근거)
 # ════════════════════════════════════════════════════════
 class CostTracker:
-    """genai 응답의 usage_metadata를 누적해 분석 1건당 토큰·USD를 집계."""
+    """genai 응답의 usage_metadata를 누적해 분석 1건당 토큰·USD를 집계.
+
+    - 응답을 받은 호출은 재시도(JSON 파싱 실패 후 재호출 등)까지 모두 집계된다.
+      예외로 응답 자체가 없는 호출(429/503 등)은 usage 가 없어 집계되지 않는다.
+    - thinking 토큰은 출력 단가로 과금되므로 out_tokens 에 합산하고 따로도 기록한다.
+    - 분석 1건 시작 시 reset() 해야 이전 분석 값이 섞이지 않는다.
+    - 유사사례 쿼리 임베딩(similar_case_engine), 저작권 서브프로세스 비용은 미포함.
+    """
 
     def __init__(self):
-        self.calls = 0
-        self.in_tokens = 0
-        self.out_tokens = 0
         self._lock = threading.Lock()
+        self.reset()
+
+    def reset(self):
+        with self._lock:
+            self.calls = 0
+            self.in_tokens = 0
+            self.out_tokens = 0
+            self.thinking_tokens = 0
+            self.by_label = {}
 
     def add(self, resp, label: str = ""):
         if not ENABLE_COST_METERING:
@@ -234,22 +247,32 @@ class CostTracker:
         um = getattr(resp, "usage_metadata", None)
         if um is None:
             return
-        pin  = getattr(um, "prompt_token_count", 0) or 0
-        pout = getattr(um, "candidates_token_count", 0) or 0
+        pin   = getattr(um, "prompt_token_count", 0) or 0
+        pout  = getattr(um, "candidates_token_count", 0) or 0
+        think = getattr(um, "thoughts_token_count", 0) or 0
         with self._lock:
             self.calls += 1
             self.in_tokens += pin
-            self.out_tokens += pout
+            self.out_tokens += pout + think
+            self.thinking_tokens += think
+            b = self.by_label.setdefault(label or "other", {"calls": 0, "in": 0, "out": 0})
+            b["calls"] += 1
+            b["in"]    += pin
+            b["out"]   += pout + think
 
     def summary(self) -> dict:
-        usd = (self.in_tokens / 1000.0) * _PRICE_PER_1K_IN \
-            + (self.out_tokens / 1000.0) * _PRICE_PER_1K_OUT
-        return {
-            "llm_calls":   self.calls,
-            "in_tokens":   self.in_tokens,
-            "out_tokens":  self.out_tokens,
-            "est_usd":     round(usd, 6),
-        }
+        with self._lock:
+            usd = (self.in_tokens / 1000.0) * _PRICE_PER_1K_IN \
+                + (self.out_tokens / 1000.0) * _PRICE_PER_1K_OUT
+            return {
+                "llm_calls":       self.calls,
+                "in_tokens":       self.in_tokens,
+                "out_tokens":      self.out_tokens,       # thinking 포함
+                "thinking_tokens": self.thinking_tokens,
+                "by_label":        {k: dict(v) for k, v in self.by_label.items()},
+                "price_per_1k":    {"in": _PRICE_PER_1K_IN, "out": _PRICE_PER_1K_OUT},
+                "est_usd":         round(usd, 6),
+            }
 
 
 # ════════════════════════════════════════════════════════
@@ -412,6 +435,7 @@ def assess_natam_risk(
     transcript_text:    str,
     summary:            str,
     gen_model:          str = GEN_MODEL,
+    cost:               "CostTracker | None" = None,
 ) -> dict:
     """
     NATAM Risk Framework v2.0 기반 A축·B축 리스크 평가.
@@ -494,6 +518,8 @@ def assess_natam_risk(
                         "thinking_config":    {"thinking_budget": 0},  # 추론에 출력예산 낭비 방지
                     },
                 )
+                if cost is not None:
+                    cost.add(resp, "natam")
                 parsed = _safe_json_parse(resp.text, "NATAM 리스크 평가")
                 if parsed is not None:
                     return parsed
@@ -1575,12 +1601,21 @@ def load_rules(yaml_path):
     if not os.path.exists(yaml_path): return {}
     try:
         with open(yaml_path,'r',encoding='utf-8') as f: lines = f.readlines()
-        fixed = [l.lstrip() if not l.lstrip().startswith('#') else l.lstrip() for l in lines]
-        raw = yaml.safe_load(''.join(fixed))
     except: return {}
-    if not isinstance(raw, dict): return {}
-    policies = raw.get('risk_policies', raw)
-    return policies if isinstance(policies, dict) else {}
+    # 정상 YAML 을 먼저 그대로 파싱한다. 들여쓰기를 지우는 보정(lstrip)을 먼저 하면
+    # 중첩 구조(risk_policies → 정책 → keywords)가 평탄화돼 정책이 0개로 로드된다.
+    # 보정은 그대로 파싱이 실패할 때만 쓰는 폴백.
+    for text in (''.join(lines), ''.join(l.lstrip() for l in lines)):
+        try:
+            raw = yaml.safe_load(text)
+        except Exception:
+            continue
+        if not isinstance(raw, dict): continue
+        policies = raw.get('risk_policies', raw)
+        if isinstance(policies, dict) and any(isinstance(v, dict) for v in policies.values()):
+            return policies
+    print(f"⚠️ 룰 로드 실패 또는 정책 0개: {yaml_path} — 룰 스캔이 동작하지 않습니다.")
+    return {}
 
 def rule_engine(text, rules):
     for pname, detail in rules.items():
@@ -2610,6 +2645,7 @@ class CrisisConsultantSystem:
             model=GEN_MODEL, contents=prompt,
             config={"response_mime_type": "application/json", "temperature": 0.1},
         )
+        self.cost.add(resp, "classify")
         result = _safe_json_parse(resp.text, "논란 유형 분류")
         return result if result else {"labels": [], "primary": "Unknown", "reason": resp.text.strip()}
 
@@ -2642,6 +2678,7 @@ class CrisisConsultantSystem:
                 "temperature": 0.1,
             },
         )
+        self.cost.add(resp, "segment_classify")
         result = _safe_json_parse(resp.text, "자막 세그먼트 분류")
         return result if result else []
 
@@ -2790,6 +2827,7 @@ class CrisisConsultantSystem:
                 model=GEN_MODEL, contents=prompt,
                 config={'response_mime_type': 'application/json', 'temperature': 0.2},
             )
+            self.cost.add(response, "summary")
             result = _safe_json_parse(response.text, "사건 개요 요약")
             if result is None:
                 raise ValueError("사건 개요 JSON 파싱 실패")
@@ -2935,9 +2973,12 @@ class CrisisConsultantSystem:
         gemini_batch: int  = 20,
         use_cache:    bool = True,
         fresh:        bool = False,   # True면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터
+        emit_reports: bool = True,    # False면 MD/PDF 생성 생략(JSON만) — v1.9.3 이 통합 리포트를 따로 만든다
+        on_video_ready = None,        # callable(video_path): 로컬 영상 경로가 확정되는 즉시 호출(저작권 병렬 시작용)
     ) -> tuple:
         t0 = time.time()
         youtube_meta = None
+        self.cost.reset()   # 분석 1건 단위 집계 (이전 분석 누적값 제거)
 
         # ── URL 감지: 유튜브 → 다운로드+메타, Google Drive → 다운로드, 로컬 → 그대로 ─────
         if is_youtube_url(video_input):
@@ -2954,6 +2995,12 @@ class CrisisConsultantSystem:
             video_path = _gdrive_dl['video_path']
         else:
             video_path = video_input
+
+        if on_video_ready is not None:
+            try:
+                on_video_ready(video_path)
+            except Exception as e:   # 콜백 실패가 NATAM 분석을 막지 않도록
+                print(f"⚠️ on_video_ready 콜백 실패: {e}")
 
         print(f"\n{'='*63}")
         print(f"🎬 영상 분석 시작: {os.path.basename(video_path)}")
@@ -3033,7 +3080,7 @@ class CrisisConsultantSystem:
         fut_natam  = bg_exec.submit(
             assess_natam_risk,
             self.client, self.system_instruction,
-            raw_transcript_text, natam_summary_input, GEN_MODEL,
+            raw_transcript_text, natam_summary_input, GEN_MODEL, self.cost,
         )
         fut_search = bg_exec.submit(self.search_and_analyze, raw_query)
         fut_frames = bg_exec.submit(self.analyze_video_frames, video_path)
@@ -3233,6 +3280,9 @@ class CrisisConsultantSystem:
         json_path = os.path.join(self.report_dir, f"report_{base}.json")
         _save_json(report, json_path)
         print(f"\n💾 JSON 저장 완료 → {json_path}")
+
+        if not emit_reports:
+            return report, json_path, None, None
 
         print("📄 MD 리포트 생성 중...")
         md_path = self.report_engine.create_report(report)

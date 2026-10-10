@@ -1,0 +1,54 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Write(**/.env)",
+      "Read(**/*credentials*.json)",
+      "Edit(**/*credentials*.json)",
+      "Write(**/*credentials*.json)",
+      "Read(**/*.sqlite)",
+      "Read(**/*.sqlite3)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git filter-repo:*)",
+      "Bash(git filter-branch:*)"
+    ],
+    "ask": [
+      "Edit(mvp 1_9_2/**)",
+      "Write(mvp 1_9_2/**)",
+      "Edit(**/rules.yaml)",
+      "Edit(**/controversy_labels.yaml)",
+      "Edit(**/worst_actions_map.yaml)",
+      "Edit(**/report_template_v1_9_3.md)",
+      "Edit(.github/**)",
+      "Write(.github/**)",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/hooks/**)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(aws:*)",
+      "Bash(supabase:*)",
+      "Bash(terraform:*)",
+      "Bash(docker push:*)",
+      "Bash(pip install:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
