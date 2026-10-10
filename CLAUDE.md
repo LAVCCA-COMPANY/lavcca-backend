@@ -80,9 +80,11 @@ Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
    `--format json`. This is deliberate, not incidental: the detector assumes
    its own working directory for its `.env`, its SQLite DB, and other
    relative paths, so it cannot simply be imported.
-3. Reads the result back by **polling `copyright_detector/results/` for the
-   newest `result_*.json`** written after the subprocess started — there is
-   no in-memory/IPC channel between the two processes.
+3. Reads the result back from a **per-run temporary folder** passed as
+   `--output` (deleted afterwards) — there is no in-memory/IPC channel
+   between the two processes. Non-zero exit, no result file, or a malformed
+   result means "failed" (`None`); never fall back to another run's file in
+   the shared `copyright_detector/results/`.
 
 If you change the subprocess invocation, the result-file contract, or the
 copyright detector's CLI args, both sides (`mvp_ver_1_9_3.py` and
@@ -141,8 +143,10 @@ These are not interchangeable — because the detector runs with its own
 
 ## Testing
 
-There is currently **no conventional automated test suite** (no
-pytest/unittest suite wired to a runner). `copyright_detector/tools/`
+There is no CI. A small pytest suite in `mvp 1_9_3/tests/` covers the
+copyright result hand-off and the detector's video cache; run it from
+`mvp 1_9_3/` with `python -m pytest tests -q` (needs `pytest`, `sqlalchemy`,
+`structlog`, `python-dotenv`). `copyright_detector/tools/`
 contains an eval harness and sample labels, but that's a manual evaluation
 tool, not CI. Do not claim something is "tested" or "verified" unless you
 actually ran it in this session — describe what you ran and its output.
