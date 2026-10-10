@@ -25,7 +25,8 @@ import os
 import re
 import sys
 import json
-import time
+import shutil
+import tempfile
 import subprocess
 from pathlib import Path
 
@@ -60,7 +61,6 @@ except Exception as _e:
 # ── 저작권 감지기 경로 ────────────────────────────────────────────────
 COPYRIGHT_DIR     = SCRIPT_DIR / "copyright_detector"
 COPYRIGHT_MAIN    = COPYRIGHT_DIR / "main.py"
-COPYRIGHT_RESULTS = COPYRIGHT_DIR / "results"
 
 # ── 통합 리포트 템플릿 (NATAM 섹션 + 저작권 섹션8) ───────────────────
 V193_TEMPLATE = "report_template_v1_9_3.md"
@@ -82,7 +82,10 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
 
     · cwd = copyright_detector → 자체 .env / sqlite / 상대경로가 그대로 동작.
     · 진행 로그·요약은 서브프로세스가 직접 콘솔에 출력(실시간 확인 가능).
-    · 저장된 결과 JSON을 읽어 통합 리포트용 dict 로 반환. 실패 시 None.
+    · 결과는 이 실행 전용 임시 폴더(--output)에만 쓰게 하고, 그 폴더의 결과만 읽는다.
+      공용 results/ 의 '최신 파일'을 고르면 실패·동시 실행 시 다른 영상의 결과가
+      섞이므로 쓰지 않는다. 임시 폴더는 성공·실패와 무관하게 항상 삭제한다.
+    · 비정상 종료 / 결과 파일 없음 / 형식 오류 → None (리포트는 '실패·판단 보류').
     """
     if not COPYRIGHT_MAIN.exists():
         print(f"⚠️  copyright_detector/main.py 를 찾을 수 없어 저작권 분석을 건너뜁니다.\n"
@@ -94,52 +97,45 @@ def run_copyright_detection(video_path: str, force: bool = False) -> dict | None
         print(f"⚠️  저작권 분석용 영상 파일을 찾을 수 없어 건너뜁니다: {abs_video}")
         return None
 
-    COPYRIGHT_RESULTS.mkdir(parents=True, exist_ok=True)
-    started_at = time.time()
-
-    cmd = [sys.executable, "main.py", abs_video, "--format", "json"]
-    if force:
-        cmd.append("--force")
-
     print("\n" + "=" * 63)
     print("©️   저작권 침해 분석 시작  (copyright_detector)")
     print(f"     대상: {os.path.basename(abs_video)}")
     print("=" * 63)
 
+    out_dir = tempfile.mkdtemp(prefix="natam_cr_")
     try:
-        # 서브프로세스 출력도 통합 로그에 포함되도록 스트리밍(가능하면). 아니면 기존 방식.
-        if run_logging is not None:
-            rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR))
-        else:
-            rc = subprocess.run(cmd, cwd=str(COPYRIGHT_DIR), check=False).returncode
-        if rc != 0:
-            print(f"⚠️  저작권 분석 프로세스가 비정상 종료(코드 {rc}).")
-    except Exception as e:
-        print(f"⚠️  저작권 분석 실행 실패: {e}")
-        return None
-
-    # 이번 실행에서 새로 생성된 결과 JSON 을 mtime 기준으로 탐색
-    latest, latest_m = None, started_at - 1.0
-    for p in COPYRIGHT_RESULTS.glob("result_*.json"):
+        cmd = [sys.executable, "main.py", abs_video, "--format", "json",
+               "--output", out_dir]
+        if force:
+            cmd.append("--force")
         try:
-            m = p.stat().st_mtime
-        except OSError:
-            continue
-        if m >= started_at and m > latest_m:
-            latest, latest_m = p, m
-    if latest is None:  # 폴백: 가장 최근 결과라도 사용
-        cands = sorted(COPYRIGHT_RESULTS.glob("result_*.json"),
-                       key=lambda p: p.stat().st_mtime)
-        latest = cands[-1] if cands else None
+            # 서브프로세스 출력도 통합 로그에 포함되도록 스트리밍(가능하면). 아니면 기존 방식.
+            if run_logging is not None:
+                rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR))
+            else:
+                rc = subprocess.run(cmd, cwd=str(COPYRIGHT_DIR), check=False).returncode
+        except Exception as e:
+            print(f"⚠️  저작권 분석 실행 실패: {e}")
+            return None
+        if rc != 0:
+            print(f"⚠️  저작권 분석 프로세스가 비정상 종료(코드 {rc}) → 결과 미사용(판단 보류).")
+            return None
 
-    if latest is None:
-        print("⚠️  저작권 결과 JSON 을 찾지 못했습니다(요약은 위 로그 참조).")
-        return None
-    try:
-        return json.loads(latest.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) — 요약은 위 로그 참조.")
-        return None
+        files = list(Path(out_dir).glob("result_*.json"))
+        if len(files) != 1:
+            print(f"⚠️  저작권 결과 JSON 이 {len(files)}개 — 1개여야 함 → 결과 미사용(판단 보류).")
+            return None
+        try:
+            result = json.loads(files[0].read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) → 결과 미사용(판단 보류).")
+            return None
+        if not isinstance(result, dict) or not isinstance(result.get("summary"), dict):
+            print("⚠️  저작권 결과 형식 오류(summary 없음) → 결과 미사용(판단 보류).")
+            return None
+        return result
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
 
 
 # ════════════════════════════════════════════════════════════════════
