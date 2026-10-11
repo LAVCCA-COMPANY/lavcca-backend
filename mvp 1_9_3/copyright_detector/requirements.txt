@@ -1,53 +1,41 @@
+# 저작권 탐지기 단독 실행용 의존성 (이 폴더의 Dockerfile 이 사용).
+# 메인 앱과 함께 쓸 때는 저장소 루트 requirements/ 의 lock 파일을 사용한다 (requirements/README.md).
+# 범위는 requirements/copyright.in 과 같게 유지할 것.
+
 # Core
-python-dotenv>=1.0.0
-pydantic>=2.0.0
+python-dotenv>=1.0,<2
+numpy>=2,<3
+requests>=2.31,<3              # 음악 인식(ACRCloud/AudD)·Google Vision 은 REST 직접 호출
 
-# Video Processing
-opencv-python>=4.8.0
-ffmpeg-python>=0.2.0
+# Video / Image
+# easyocr 가 opencv-python-headless 를 끌어오므로 같은 cv2 를 제공하는 opencv-python 과 함께 설치하지 않는다
+opencv-python-headless>=4.8,<5
+Pillow>=10,<13
+imagehash>=4.3,<5
 
-# Audio Analysis
-numpy>=1.24.0
-scipy>=1.11.0
-
-# Music Recognition APIs (acrcloud-sdk 제거 — HTTP로 직접 호출)
-requests>=2.31.0
-aiohttp>=3.9.0
-
-# Image Analysis
-Pillow>=10.0.0
-imagehash>=4.3.0
-
-# OCR / Font Detection
-pytesseract>=0.3.10
-easyocr>=1.7.0
-
-# Google Cloud Vision
-google-cloud-vision>=3.4.0
+# OCR
+easyocr>=1.7,<2
 
 # Database
-sqlalchemy>=2.0.0
-alembic>=1.12.0
+sqlalchemy>=2,<3
 
-# AWS
-boto3>=1.34.0
-botocore>=1.34.0
-
-# Reporting
-jinja2>=3.1.0
-pandas>=2.1.0
+# AWS (Rekognition — USE_REKOGNITION=false 가 기본)
+boto3>=1.34,<2
 
 # Logging
-structlog>=23.1.0
+structlog>=23,<27
 
-# ML / Vision models
-torch>=2.0.0
-torchvision>=0.15.0
-transformers>=4.30.0
+# ML / Vision models (CLIP)
+torch>=2.4,<3
+torchvision>=0.19,<1
+transformers>=4.40,<5
 
-# CLI output / Search
-rich>=13.0.0
-serpapi>=0.1.5
+# CLI output
+rich>=13,<16
+
+# Yandex 역검색 (SerpAPI): `from serpapi import GoogleSearch` 는 google-search-results 패키지가 제공한다.
+# PyPI 의 'serpapi' 패키지는 GoogleSearch 가 없고 같은 모듈명(serpapi)을 써서 충돌하므로 설치하지 않는다.
+google-search-results>=2.4,<3
 
 # Video download
 # 유튜브가 자주 바뀌어 구버전이면 'HTTP 403 Forbidden'이 난다.

@@ -1,0 +1,41 @@
+# NATAM 로컬 개발용 compose. 사용법: requirements/README.md
+services:
+  natam-web:
+    build: .
+    image: natam:dev
+    ports:
+      - "127.0.0.1:5000:5000"          # 인증 도입 전까지 이 PC(localhost)에만 게시
+    env_file:
+      - path: .env                     # GEMINI_API_KEY 등 (커밋 금지, .env.example 참고)
+        required: false
+    environment:
+      # 저작권 탐지기 DB: cwd 상대경로 대신 볼륨 경로
+      DATABASE_URL: sqlite:////data/copyright_db.sqlite
+    volumes:
+      - "natam-reports:/app/mvp 1_9_3/reports"
+      - "natam-downloads:/app/mvp 1_9_3/downloads"
+      - "natam-transcripts:/app/mvp 1_9_3/samples"
+      - "./casedb:/app/mvp 1_9_3/casedb:ro"     # 사례 DB 없으면 유사 사례 검색만 비활성
+      - "natam-models:/models"                  # EasyOCR / CLIP / Whisper 모델 캐시
+      - "natam-data:/data"
+    mem_limit: 8g
+    restart: unless-stopped
+
+  # 테스트 (외부 API 호출 없음): docker compose --profile tools run --rm tests
+  tests:
+    profiles: ["tools"]
+    build:
+      context: .
+      args:
+        LOCK: requirements/lock/linux-py312-dev.txt
+    image: natam:test
+    environment:
+      PYTHON_DOTENV_DISABLED: "1"
+    command: ["python", "-m", "pytest", "tests", "-q", "-p", "no:cacheprovider"]
+
+volumes:
+  natam-reports: {}
+  natam-downloads: {}
+  natam-transcripts: {}
+  natam-models: {}
+  natam-data: {}

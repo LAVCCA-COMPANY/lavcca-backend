@@ -207,8 +207,9 @@ class AWSConfig:
     # Lambda (경량 태스크용)
     lambda_function: str = os.getenv("LAMBDA_FUNCTION", "copyright-detector")
 
-    # Rekognition (AWS 이미지 분석)
-    use_rekognition: bool = os.getenv("USE_REKOGNITION", "true").lower() == "true"
+    # Rekognition (AWS 이미지 분석) — 호출당 과금 + 프레임이 AWS 로 전송되므로 기본 비활성.
+    # AWS 자격증명이 있는 환경(ECS 태스크 역할 등)에서도 "true" 로 명시해야만 사용한다.
+    use_rekognition: bool = os.getenv("USE_REKOGNITION", "false").lower() == "true"
 
     # SQS (비동기 처리)
     sqs_queue_url: str = os.getenv("SQS_QUEUE_URL", "")

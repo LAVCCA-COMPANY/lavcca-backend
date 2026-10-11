@@ -1,0 +1,36 @@
+# 비밀정보·사용자 데이터·산출물은 이미지에 넣지 않는다
+.git
+.env
+**/.env
+**/*credentials*.json
+**/*.pem
+**/*.key
+**/*.sqlite
+**/*.sqlite.bak*
+**/*.sqlite3
+
+# 개발 도구 / 에이전트 설정
+.codex
+.claude
+.vscode
+AGENTS.md
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+
+# 레거시·고아 코드
+mvp 1_9_2
+copyright_detector
+
+# 로컬 산출물 (볼륨으로 마운트)
+mvp 1_9_3/reports
+mvp 1_9_3/downloads
+mvp 1_9_3/samples
+mvp 1_9_3/transcripts
+mvp 1_9_3/casedb
+mvp 1_9_3/_deprecated
+mvp 1_9_3/copyright_detector/results
+mvp 1_9_3/copyright_detector/reports/output
+mvp 1_9_3/copyright_detector/temp
+**/*.npy
+**/*.faiss

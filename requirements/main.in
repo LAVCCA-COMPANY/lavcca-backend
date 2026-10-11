@@ -1,0 +1,22 @@
+# NATAM 메인 엔진 (mvp 1_9_3/app.py, mvp_ver_1_9_3.py, mvp_ver_1_9_2.py, similar_case_engine.py, pdf_*.py)
+# 직접 의존성 + 호환 범위. 실제 설치 버전은 requirements/lock/*.txt 로 고정한다.
+flask>=3.1,<4
+markdown>=3.5,<4
+python-dotenv>=1.0,<2
+pyyaml>=6,<7
+numpy>=2,<3
+requests>=2.31,<3
+joblib>=1.4,<2
+scikit-learn==1.8.0            # controversy_model.joblib 이 1.8.0 으로 저장됨 — 모델 재학습 전 변경 금지
+reportlab>=4,<6
+pymupdf>=1.24,<2
+pillow>=10,<13
+opencv-python-headless>=4.8,<5 # 5.x 는 미검증
+google-genai>=1.0,<3
+openai-whisper==20250625       # mvp_ver_1_9_2 가 최상단에서 import → 전사 엔진이 gemini 여도 필수 (torch 동반)
+torch>=2.4,<3
+faiss-cpu>=1.8,<2
+easyocr>=1.7,<2
+gdown>=5,<6
+yt-dlp>=2026.7.0               # 유튜브 변경으로 403 이 나면 최신으로 갱신 후 lock 재생성
+gunicorn>=23,<24 ; sys_platform != "win32"   # 컨테이너 WSGI (Windows 로컬은 python app.py)

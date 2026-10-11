@@ -142,14 +142,19 @@ These are not interchangeable — because the detector runs with its own
   and an explicit `cwd`, which matters more on Windows (no shell-relative
   path resolution the way a POSIX shell might do it) — keep that pattern if
   you touch `run_copyright_detection()`.
-- README notes the project targets **Python 3.14**.
+- The standard runtime is **Python 3.12** (Docker and local). Dependencies are
+  pinned with hashes in `requirements/lock/*.txt` (generated from
+  `requirements/*.in`; regenerate with the command in `requirements/README.md`
+  instead of editing locks by hand).
 
 ## Testing
 
-There is no CI. A small pytest suite in `mvp 1_9_3/tests/` covers the
-copyright result hand-off and the detector's video cache; run it from
-`mvp 1_9_3/` with `python -m pytest tests -q` (needs `pytest`, `sqlalchemy`,
-`structlog`, `python-dotenv`). `copyright_detector/tools/`
+There is no CI. A pytest suite in `mvp 1_9_3/tests/` covers the copyright
+result hand-off, the detector's video cache, web security (P0), stability
+(P1) and runtime defaults; it fakes the engines and blocks the network. Run it
+from `mvp 1_9_3/` with `python -m pytest tests -q` (needs `pytest`,
+`sqlalchemy`, `structlog`, `python-dotenv`, `flask`, `markdown`, `numpy`,
+`requests` — or install `requirements/lock/*-dev.txt`). `copyright_detector/tools/`
 contains an eval harness and sample labels, but that's a manual evaluation
 tool, not CI. Do not claim something is "tested" or "verified" unless you
 actually ran it in this session — describe what you ran and its output.
