@@ -71,7 +71,7 @@ AXIS_TO_CORPUS_RISK = {
     "B-01": ["특정 인물·집단 낙인 리스크", "갈등 증폭 리스크"],
     "B-02": ["갈등 증폭 리스크", "감정 선동 리스크"],
     "B-03": [],  # 저작권: 코퍼스 대응 없음(별도 엔진 담당)
-    "B-04": ["특정 인물·집단 낙인 리스크", "밈화·조롱 소비 리스크"],
+    "B-04": [],  # 성적 표현: 낙인·밈 카테고리로 끌면 다른 사건이 올라온다. 의미검색만.
     "B-05": ["광고주 비친화성 리스크"],
 }
 
@@ -221,8 +221,10 @@ def build_trigger(
             q_parts.append(str(classification["reason"]))
         for lb in (classification.get("labels") or []):
             q_parts.append(str(lb))
-    if base_text:
-        q_parts.append(base_text)
+    # 확정 위험 문장이 있으면 사건 개요는 넣지 않는다. 개요가 임베딩을 묽게 만든다.
+    # 위험 문장이 없을 때만 개요를 짧게 붙인다(텍스트 입력·무논란 영상).
+    if base_text and not risk_sentences:
+        q_parts.append(base_text[:800])
     query_text = "\n".join(p for p in q_parts if p and p.strip())[:max_query_len]
 
     # ── 키워드: 위험 문장 + 발화 축 이름/근거 + 분류 라벨에서 추출 ──

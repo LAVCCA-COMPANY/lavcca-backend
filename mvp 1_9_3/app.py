@@ -115,27 +115,57 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
         else:
             # 텍스트 입력 → 영상이 없어 저작권 분석은 수행하지 않고 NATAM 분석만 수행
             with _analysis_lock:
+                segments = [{"start": 0, "end": 0, "text": user_input, "corrected_text": user_input}]
                 classification = system.classify_controversy(user_input)
+                transcript_analysis = system.analyze_transcript_segments(segments)
+                two_tier = system.two_tier_classify(segments)
+                transcript_analysis = mvp._reconcile_transcript_with_tier2(
+                    transcript_analysis, two_tier)
+                classification = mvp._classification_from_tier2(classification, two_tier)
+                confirmed = [
+                    (a.get("quote") or user_input).strip()
+                    for a in (two_tier.get("adjudicated") or [])
+                    if a.get("is_controversy") is True
+                ]
                 natam_result = mvp.assess_natam_risk(
                     client             = system.client,
                     system_instruction = system.system_instruction,
-                    transcript_text    = '',
+                    transcript_text    = "\n".join(confirmed) if confirmed else user_input,
                     summary            = user_input,
                     gen_model          = mvp.GEN_MODEL,
                 )
-                # 위험 신호(NATAM A/B축 + 분류) 기반 트리거로 유사 사례 검색
-                cases, dists, summary = system.find_similar_cases(
+                cases, dists, _ = system.find_similar_cases(
                     base_text=user_input, natam_result=natam_result,
-                    classification=classification, k=3, make_summary=True,
+                    risk_sentences=confirmed[:8],
+                    classification=classification, k=5, make_summary=False,
                 )
+                shown = mvp._select_similar_cases(cases, dists)
+                summary = ""
+                if shown:
+                    summary = system._summarize_pattern(
+                        "\n".join(confirmed) or user_input[:800],
+                        [c for c, _, _ in shown],
+                    )
+            sim_manifest = system.sim_engine.manifest if system.sim_engine else {}
             report = {
-                'meta': {'input_query': user_input},
+                'meta': {
+                    'input_query': user_input,
+                    'natam_evaluation_status': natam_result.get('evaluation_status'),
+                    'similar_index': {
+                        'count': sim_manifest.get('count'),
+                        'full_n': sim_manifest.get('full_n'),
+                        'partial': bool(sim_manifest.get('partial')),
+                    },
+                },
                 'classification': classification,
                 'natam_risk': natam_result,
+                'two_tier': two_tier,
+                'transcript_analysis': transcript_analysis,
                 'similar_cases': [
                     {
-                        'rank':          c.get('rank'),
+                        'rank':          rank,
                         'title':         c.get('제목', c.get('title', '')),
+                        '제목':           c.get('제목', ''),
                         '리스크':         c.get('리스크', ''),
                         '세부 태그':      c.get('세부 태그', ''),
                         '기사 요약':      c.get('기사 요약', ''),
@@ -143,8 +173,13 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
                         '관련 법 및 정책': c.get('관련 법 및 정책', ''),
                         '뉴스 링크':      c.get('뉴스 링크', ''),
                         '언론사':         c.get('언론사', ''),
-                        'distance':      c.get('distance'),
-                    } for c in cases
+                        'distance':      dist,
+                        'match_quality': quality,
+                        'score':         c.get('score'),
+                        'dense':         c.get('dense'),
+                        'keyword_score': c.get('keyword_score'),
+                        'category_hit':  c.get('category_hit'),
+                    } for rank, (c, dist, quality) in enumerate(shown, 1)
                 ],
                 'pattern_summary': summary,
                 'copyright': None,
@@ -225,4 +260,7 @@ def download(job_id, file_type):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # 기본은 이 PC에서만 연다. 외부에 열려면 FLASK_HOST=0.0.0.0 을 명시한다.
+    host = os.getenv("FLASK_HOST", "127.0.0.1")
+    port = int(os.getenv("FLASK_PORT", "5000"))
+    app.run(host=host, port=port, debug=False)

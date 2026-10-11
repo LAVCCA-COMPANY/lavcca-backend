@@ -183,6 +183,7 @@
 > NATAM(Network Audience Tension & Algorithmic Mapping) 프레임워크 기반 리스크 평가입니다.
 > 단계: 🟢 SAFE / 🔵 CARE / 🟡 ALERT / 🟠 DANGER / 🔴 CRITICAL
 > **본 평가는 위험 신호 탐지 및 확산 가능성 예측이며, 법률 판단·도덕적 심판을 포함하지 않습니다.**
+> 평가 상태: {NATAM_EVAL_STATUS}
 
 ### 6-1. A축 — 커뮤니티 리스크 (사건화·확산 가능성)
 
@@ -273,6 +274,7 @@
 > 🎬 `copyright_detector` 자동 분석 결과입니다. 영상 내 음악·영상클립·이미지·로고·폰트의
 > 저작권 침해 가능성과 유튜브 Content ID·수익화 영향을 예측합니다.
 > **본 분석은 자동 탐지 결과이며, 최종 저작권 판단은 권리자·법률 검토가 필요합니다.**
+> {CR_ENGINE_STATUS}
 
 **분석 상태 : {CR_STATUS}**
 

@@ -55,10 +55,10 @@ except Exception as _e:   # noqa: BLE001
 # ════════════════════════════════════════════════════════
 
 API_KEY                  = os.getenv("GEMINI_API_KEY", "")
-EMBED_MODEL              = os.getenv("EMBED_MODEL", "models/gemini-embedding-2")    # 001 → 2 (최신)
-GEN_MODEL                = os.getenv("GEN_MODEL",   "models/gemini-3.5-flash")       # 2.5 → 3.5 (최신 flash)
+EMBED_MODEL              = os.getenv("EMBED_MODEL", "models/gemini-embedding-2")    # 최신 임베딩. 기존 인덱스는 매니페스트 모델을 유지
+GEN_MODEL                = os.getenv("GEN_MODEL",   "models/gemini-3.8-flash")       # 3.5 → 3.8 (현재 stable Flash)
 WHISPER_MODEL            = "turbo"
-GEMINI_REFINE_MODEL      = os.getenv("GEMINI_REFINE_MODEL", "models/gemini-3.5-flash")
+GEMINI_REFINE_MODEL      = os.getenv("GEMINI_REFINE_MODEL", "models/gemini-3.8-flash")
 TRANSCRIBE_ENGINE        = os.getenv("TRANSCRIBE_ENGINE", "gemini")  # "whisper" | "gemini" | "clova"
 CONTROVERSY_MODEL_PATH   = "controversy_model.joblib"  # ML 분류 모델
 _REFINE_CONCURRENCY      = 4                           # Gemini 교정 배치 동시 실행 수
@@ -74,7 +74,7 @@ FFMPEG_BIN        = os.getenv("FFMPEG_BIN", "ffmpeg")     # 영상→오디오 �
 #   Tier1(SVM): 재현율 우선 → 의심 구간을 '넓게' 트리거 (낮은 임계값)
 #   Tier2(LLM): 트리거된 구간만 맥락+유사사례+룰매칭과 함께 최종 판정
 TIER1_TRIGGER_THRESHOLD = float(os.getenv("TIER1_TRIGGER_THRESHOLD", "0.15"))  # 0.3 → 0.15 (recall↑)
-TIER2_CONTEXT_WINDOW    = 1     # (단건 폴백용) 트리거 세그먼트 앞뒤 N개를 맥락으로 동봉
+TIER2_CONTEXT_WINDOW    = 2     # 판정 대상 앞뒤 N개만 맥락으로 동봉(전체 자막 재전송 안 함)
 TIER2_MAX_SEGMENTS      = 25    # (구) 단건 Tier2 상한 — 배치 전량판정으로 대체됨
 ENABLE_TIER2            = os.getenv("ENABLE_TIER2", "1") == "1"
 
@@ -87,9 +87,12 @@ TIER2_MAX_ADJUDICATE = int(os.getenv("TIER2_MAX_ADJUDICATE", "300"))  # 폭주 �
 #   한 문장이 여러 유형에 걸릴 수 있으므로 top-1만 쓰지 않고 임계값 이상을 전부 노출.
 SEG_LABEL_MULTI_THRESHOLD = float(os.getenv("SEG_LABEL_MULTI_THRESHOLD", "0.3"))
 
-# 유사 사례(5-1): 이 거리 '이하'(=충분히 유사)인 사례만 최대 3개 표시. 없으면 공백.
-#   ※ 거리는 낮을수록 유사(FAISS L2). 관측값이 대체로 커서 기본 0.5면 대부분 공백일 수 있음.
-SIMILAR_CASE_MAX_DISTANCE = float(os.getenv("SIMILAR_CASE_MAX_DISTANCE", "0.5"))
+# 유사 사례 거리 = 1 − 코사인(IndexFlatIP, L2 정규화). 낮을수록 가깝다.
+#   · STRONG 이하 → 리포트에 '유사'
+#   · MAX 이하    → '참고'(점수와 함께 남김). 그 밖은 제외.
+#   기본 0.5는 저장 리포트 7건 중 5건을 통째로 지웠다(관측 최소거리 0.75~0.83).
+SIMILAR_CASE_STRONG_DISTANCE = float(os.getenv("SIMILAR_CASE_STRONG_DISTANCE", "0.45"))
+SIMILAR_CASE_MAX_DISTANCE    = float(os.getenv("SIMILAR_CASE_MAX_DISTANCE", "0.85"))
 
 # 고심각도 라벨 — false negative 비용이 큰 카테고리.
 #   이 라벨이 Tier1에서 잡히면 '무조건' Tier2 LLM 검토를 강제한다(심각도별 컴퓨트 라우팅).
@@ -100,12 +103,27 @@ HIGH_SEVERITY_LABELS = set(
 
 # ── 비용 계측 토글 (SaaS 가격 산정 근거) ──
 ENABLE_COST_METERING = os.getenv("ENABLE_COST_METERING", "1") == "1"
-# 1K 토큰당 USD.  ⚠️ 아래 기본값은 구(2.5-flash) 추정치이며 gemini-3.5-flash 실단가가 아님.
-#   Google AI 가격표에서 3.5-flash 입력/출력 단가를 확인해 아래 env 로 주입할 것:
-#     $env:PRICE_PER_1K_IN="..."; $env:PRICE_PER_1K_OUT="..."
-#   (정확한 단가를 넣기 전까지 report.meta.cost.est_usd 는 어림치임)
-_PRICE_PER_1K_IN  = float(os.getenv("PRICE_PER_1K_IN",  "0.000075"))
-_PRICE_PER_1K_OUT = float(os.getenv("PRICE_PER_1K_OUT", "0.00030"))
+# 1K 토큰당 USD. Gemini 3.8 Flash 표준 단가(2026-10-11, ai.google.dev).
+#   2026-12-31까지 입력 $0.75/1M, 출력 $3.75/1M. 2027-01-01부터 $1.50 / $7.50.
+#   다른 티어면 env 로 덮어쓴다: PRICE_PER_1K_IN / PRICE_PER_1K_OUT
+_PRICE_PER_1K_IN  = float(os.getenv("PRICE_PER_1K_IN",  "0.00075"))
+_PRICE_PER_1K_OUT = float(os.getenv("PRICE_PER_1K_OUT", "0.00375"))
+
+# 3.8 Flash는 thinking_budget 대신 thinking_level(low|medium|high). minimal은 에러.
+#   JUDGMENT_THINKING_BUDGET=0 이면 판정 호출도 low. 기본은 판정만 medium.
+JUDGMENT_THINKING_BUDGET = int(os.getenv("JUDGMENT_THINKING_BUDGET", "1024"))
+_THINKING_LEVELS = ("low", "medium", "high")
+
+
+def _thinking_config(for_judgment: bool = False) -> dict:
+    """생성 호출용 사고 설정. 3.8 Flash는 level만 받는다."""
+    if for_judgment and JUDGMENT_THINKING_BUDGET > 0:
+        level = os.getenv("JUDGMENT_THINKING_LEVEL", "medium")
+    else:
+        level = os.getenv("GEN_THINKING_LEVEL", "low")
+    if level not in _THINKING_LEVELS:
+        level = "low"
+    return {"thinking_level": level}
 
 # ── Gemini 안전 필터 완화 ──────────────────────────────────
 #   이 시스템은 유해·성적·혐오 콘텐츠를 '판정·분석'하는 도구다.
@@ -137,7 +155,7 @@ def _install_gemini_defaults(client):
     client.models.generate_content 를 감싸 모든 호출에 공통 기본값을 주입한다.
     - safety_settings: 성적/혐오 콘텐츠 분석 시 응답 잘림(SAFETY) 방지
     - max_output_tokens: 미지정 호출의 토큰-한도 잘림 방지 안전망
-    - thinking_budget=0: 사고 토큰이 출력 예산을 먹어 JSON이 잘리는 것 방지
+    - thinking_level=low: 3.8 Flash 기본(medium)보다 짧게 생각해 JSON 잘림을 줄인다
     setdefault 이므로 개별 호출이 명시한 값은 그대로 유지된다.
     """
     _orig = client.models.generate_content
@@ -148,7 +166,7 @@ def _install_gemini_defaults(client):
             cfg = dict(cfg) if cfg else {}
         cfg.setdefault("safety_settings",   SAFETY_SETTINGS)
         cfg.setdefault("max_output_tokens", _DEFAULT_MAX_OUTPUT_TOKENS)
-        cfg.setdefault("thinking_config",   {"thinking_budget": 0})
+        cfg.setdefault("thinking_config",   _thinking_config(False))
         if _GEMINI_SEED > 0:
             cfg.setdefault("seed", _GEMINI_SEED)   # 재현성: 동일 입력 → 동일 출력
         kwargs["config"] = cfg
@@ -426,7 +444,80 @@ NATAM_LEVEL_EMOJI = {
     "ALERT":    "🟡",
     "DANGER":   "🟠",
     "CRITICAL": "🔴",
+    "UNKNOWN":  "⚪",
+    "N/A":      "⚪",
 }
+
+# 사례 근거 강제 문구(system.system_instruction)는 NATAM 프롬프트에 사례가 없어
+# 등급을 흔든다. 판정 호출은 이 문구만 쓴다.
+NATAM_JUDGMENT_INSTRUCTION = (
+    "당신은 NATAM Risk Framework를 적용하는 리스크 신호 탐지기다.\n"
+    "법률 판단, 사실 확정, 도덕적 심판, 대응 추천을 하지 않는다.\n"
+    "제공된 자막과 개요에 있는 표현만 근거로 단계와 한 줄 근거를 적는다.\n"
+    "사례 데이터가 이 프롬프트에 없으면 사례를 지어내지 않는다.\n"
+    "신호가 없으면 SAFE, 판단할 정보가 없으면 UNKNOWN을 쓴다."
+)
+
+_NATAM_EVAL_LABEL = {
+    "ok":      "항목별 평가 완료",
+    "partial": "일부 항목 미판정(UNKNOWN) — 종합은 판정된 항목만 반영",
+    "coarse":  "항목별 평가 실패 — 축 종합만 유효, 개별 칸은 미판정",
+    "failed":  "평가 실패 — 등급은 미판정(UNKNOWN). SAFE로 읽지 말 것",
+}
+
+
+def _spread_text(text: str, limit: int = 6000) -> str:
+    """긴 텍스트는 앞·중간·뒤를 나눠 담는다. 앞부분만 자르면 후반 발화가 빠진다."""
+    text = text or ""
+    if len(text) <= limit:
+        return text
+    chunk = max(400, limit // 3)
+    mid = len(text) // 2
+    half = chunk // 2
+    return (
+        text[:chunk]
+        + "\n…(중략)…\n"
+        + text[max(0, mid - half):mid + half]
+        + "\n…(중략)…\n"
+        + text[-chunk:]
+    )
+
+
+def _natam_unknown_sheet(status: str, reason: str) -> dict:
+    """전 항목을 UNKNOWN으로 채운다. 실패를 SAFE로 위장하지 않는다."""
+    cell = {"level": "UNKNOWN", "reason": reason}
+    return {
+        "A": {k: dict(cell) for k in NATAM_A_AXES},
+        "B": {k: dict(cell) for k in NATAM_B_AXES},
+        "overall_a": "UNKNOWN",
+        "overall_b": "UNKNOWN",
+        "evaluation_status": status,
+    }
+
+
+def _natam_highest(items: dict) -> str:
+    levels = [
+        v.get("level") for v in items.values()
+        if isinstance(v, dict) and v.get("level") in NATAM_LEVELS
+    ]
+    if not levels:
+        return "UNKNOWN"
+    return max(levels, key=lambda lv: NATAM_LEVELS.index(lv))
+
+
+def _fill_natam_axis(raw: dict, axes: dict) -> dict:
+    """응답에 없는 축은 SAFE가 아니라 UNKNOWN. 등급 문자열이 이상해도 UNKNOWN."""
+    out = {}
+    for key in axes:
+        item = raw.get(key) if isinstance(raw, dict) else None
+        if not isinstance(item, dict) or item.get("level") not in NATAM_LEVELS:
+            out[key] = {"level": "UNKNOWN", "reason": "응답에 항목 없음 — 미판정"}
+        else:
+            out[key] = {
+                "level": item.get("level"),
+                "reason": item.get("reason") or "—",
+            }
+    return out
 
 
 def assess_natam_risk(
@@ -439,6 +530,7 @@ def assess_natam_risk(
 ) -> dict:
     """
     NATAM Risk Framework v2.0 기반 A축·B축 리스크 평가.
+    system_instruction 인자는 하위 호환용이다. 판정에는 NATAM_JUDGMENT_INSTRUCTION 을 쓴다.
 
     Gemini에게 콘텐츠 텍스트(자막 요약 + 사건 개요)를 제공하고
     각 축 항목에 대해 SAFE / CARE / ALERT / DANGER / CRITICAL 단계를 반환받음.
@@ -468,8 +560,11 @@ def assess_natam_risk(
     a_items_desc = "\n".join(_fmt_axis(k, v) for k, v in NATAM_A_AXES.items())
     b_items_desc = "\n".join(_fmt_axis(k, v) for k, v in NATAM_B_AXES.items())
 
-    # 분석 텍스트가 너무 길면 앞부분만 사용
-    input_text = f"[사건 개요]\n{summary}\n\n[자막 내용 요약]\n{transcript_text[:2000]}"
+    # 앞부분만 자르지 않는다. 길면 앞·중간·뒤를 함께 넣는다.
+    input_text = (
+        f"[사건 개요]\n{_spread_text(summary, 2000)}\n\n"
+        f"[자막]\n{_spread_text(transcript_text, 6000)}"
+    )
 
     prompt = f"""당신은 NATAM Risk Framework v2.0을 적용하는 리스크 분석 전문가입니다.
 
@@ -511,11 +606,11 @@ def assess_natam_risk(
                 resp = client.models.generate_content(
                     model=gen_model, contents=p,
                     config={
-                        "system_instruction": system_instruction,
+                        "system_instruction": NATAM_JUDGMENT_INSTRUCTION,
                         "response_mime_type": "application/json",
                         "temperature":        0.0,   # 0.1 → 0: 항목별 등급 흔들림 최소화(재현성)
                         "max_output_tokens":  max_tokens,        # 15개 항목 잘림 방지
-                        "thinking_config":    {"thinking_budget": 0},  # 추론에 출력예산 낭비 방지
+                        "thinking_config":    _thinking_config(True),
                     },
                 )
                 if cost is not None:
@@ -534,25 +629,24 @@ def assess_natam_risk(
                 return None
         return None
 
-    def _highest(items):
-        levels = [v.get("level", "SAFE") for v in items.values()]
-        return max(levels, key=lambda l: NATAM_LEVELS.index(l) if l in NATAM_LEVELS else 0)
-
-    # ① 정밀 평가 (항목별)
+    # ① 정밀 평가 (항목별). 빠진 축은 SAFE로 메우지 않는다.
     result = _call(prompt, 8192)
     if result is not None:
-        a_result = result.get("A", {}) or {}
-        b_result = result.get("B", {}) or {}
-        for k in NATAM_A_AXES:
-            if k not in a_result:
-                a_result[k] = {"level": "SAFE", "reason": "해당 신호 미감지"}
-        for k in NATAM_B_AXES:
-            if k not in b_result:
-                b_result[k] = {"level": "SAFE", "reason": "해당 신호 미감지"}
-        return {"A": a_result, "B": b_result,
-                "overall_a": _highest(a_result), "overall_b": _highest(b_result)}
+        a_result = _fill_natam_axis(result.get("A") or {}, NATAM_A_AXES)
+        b_result = _fill_natam_axis(result.get("B") or {}, NATAM_B_AXES)
+        missing = any(
+            v.get("level") == "UNKNOWN"
+            for v in (*a_result.values(), *b_result.values())
+        )
+        return {
+            "A": a_result, "B": b_result,
+            "overall_a": _natam_highest(a_result),
+            "overall_b": _natam_highest(b_result),
+            "evaluation_status": "partial" if missing else "ok",
+        }
 
-    # ② 간이 종합 평가 폴백 (출력이 작아 성공 확률이 높음)
+    # ② 간이 종합 평가. 축 종합만 채우고 개별 칸은 UNKNOWN으로 남긴다.
+    #    종합 등급을 15개 항목에 복사하면 발화하지 않은 축까지 위험으로 올라간다.
     print("   ↩️ NATAM 정밀 평가 실패 → 간이 종합 평가로 폴백")
     simple_prompt = (
         "다음 콘텐츠의 NATAM 리스크를 종합 평가하라. A축(커뮤니티 리스크)과 "
@@ -561,22 +655,25 @@ def assess_natam_risk(
         f"[콘텐츠]\n{input_text}\n"
         '[출력] {"overall_a":"CARE","overall_b":"SAFE","reason_a":"...","reason_b":"..."}'
     )
-    simple = _call(simple_prompt, 512)
+    simple = _call(simple_prompt, 1024)
     if simple is not None:
-        oa = simple.get("overall_a") if simple.get("overall_a") in NATAM_LEVELS else "CARE"
-        ob = simple.get("overall_b") if simple.get("overall_b") in NATAM_LEVELS else "SAFE"
+        oa = simple.get("overall_a") if simple.get("overall_a") in NATAM_LEVELS else "UNKNOWN"
+        ob = simple.get("overall_b") if simple.get("overall_b") in NATAM_LEVELS else "UNKNOWN"
         ra = simple.get("reason_a", "간이 종합 평가")
         rb = simple.get("reason_b", "간이 종합 평가")
-        a = {k: {"level": oa, "reason": f"종합 평가 적용 — {ra}"} for k in NATAM_A_AXES}
-        b = {k: {"level": ob, "reason": f"종합 평가 적용 — {rb}"} for k in NATAM_B_AXES}
-        return {"A": a, "B": b, "overall_a": oa, "overall_b": ob}
+        a = {k: {"level": "UNKNOWN", "reason": f"항목별 미판정. 축 종합 {oa} — {ra}"}
+             for k in NATAM_A_AXES}
+        b = {k: {"level": "UNKNOWN", "reason": f"항목별 미판정. 축 종합 {ob} — {rb}"}
+             for k in NATAM_B_AXES}
+        return {"A": a, "B": b, "overall_a": oa, "overall_b": ob,
+                "evaluation_status": "coarse"}
 
-    # ③ 최후 폴백 — '평가 실패' 대신 보수적 CARE로 채워 리포트엔 항상 내용이 남게 함
-    print("   ⚠️ NATAM 간이 평가도 실패 → 보수적 CARE 적용")
-    reason = "자동 평가 일시 지연 — 보수적 주의 단계 적용(수동 확인 권장)"
-    a = {k: {"level": "CARE", "reason": reason} for k in NATAM_A_AXES}
-    b = {k: {"level": "CARE", "reason": reason} for k in NATAM_B_AXES}
-    return {"A": a, "B": b, "overall_a": "CARE", "overall_b": "CARE"}
+    # ③ 최후 폴백 — CARE/SAFE로 채우지 않고 미판정으로 남긴다.
+    print("   ⚠️ NATAM 간이 평가도 실패 → UNKNOWN (평가 실패)")
+    return _natam_unknown_sheet(
+        "failed",
+        "자동 평가 실패 — 미판정. SAFE로 읽지 말 것(수동 확인 필요)",
+    )
 
 
 def _build_natam_placeholders(natam: dict) -> dict:
@@ -604,10 +701,12 @@ def _build_natam_placeholders(natam: dict) -> dict:
         out[f"NATAM_{ph_key}_REASON"] = item.get("reason", "—")
 
     # 축별 종합
-    oa = natam.get("overall_a", "SAFE")
-    ob = natam.get("overall_b", "SAFE")
+    oa = natam.get("overall_a", "UNKNOWN")
+    ob = natam.get("overall_b", "UNKNOWN")
     out["NATAM_OVERALL_A"] = f"{NATAM_LEVEL_EMOJI.get(oa,'⚪')} {oa}"
     out["NATAM_OVERALL_B"] = f"{NATAM_LEVEL_EMOJI.get(ob,'⚪')} {ob}"
+    status = natam.get("evaluation_status") or ("failed" if not natam.get("A") else "ok")
+    out["NATAM_EVAL_STATUS"] = _NATAM_EVAL_LABEL.get(status, status)
 
     return out
 
@@ -1004,10 +1103,8 @@ def _seg_display_label(label_str: str, exclude=("L12", "L04")) -> str:
     return ", ".join(f"{lid} {_LABEL_DESCS.get(lid, '해당 없음')}" for lid in kept)
 
 
-def _build_similar_case_block(cases: list) -> str:
-    """5-1 유사 사례 블록을 동적 생성. 조건(거리 이하)을 만족하는 사례가 없으면 공백('')."""
-    if not cases:
-        return ""
+def _build_similar_case_block(cases: list, index_note: str = "") -> str:
+    """5-1 유사 사례 블록. 거리 컷을 통과한 사례가 없으면 인덱스 안내만 남긴다."""
     parts = []
     for c in cases[:3]:
         title = _rp_safe(c.get('제목') or c.get('title'), '—')
@@ -1018,17 +1115,44 @@ def _build_similar_case_block(cases: list) -> str:
         press = _rp_safe(c.get('언론사'), '—')
         date  = _rp_safe(c.get('기사 작성일'), '')
         dist  = _rp_safe(c.get('distance'), '—')
+        quality = _rp_safe(c.get('match_quality'), '—')
         risk_disp = f"{risk}" + (f" · {tag}" if tag else "")
+        score_bits = (
+            f"score {_rp_safe(c.get('score'), '—')} · "
+            f"dense {_rp_safe(c.get('dense'), '—')} · "
+            f"키워드 {_rp_safe(c.get('keyword_score'), '—')} · "
+            f"같은 리스크군 {'예' if c.get('category_hit') else '아니오'}"
+        )
         parts.append(
             f"#### 🔵 사례 {_rp_safe(c.get('rank'), '')} — {title}\n\n"
             "| 항목 | 내용 |\n|------|------|\n"
             f"| 리스크 | {risk_disp} |\n"
-            f"| 유사도 거리 | {dist} (낮을수록 유사) |\n"
+            f"| 매칭 | {quality} |\n"
+            f"| 유사도 거리 | {dist} (1−코사인, 낮을수록 유사) |\n"
+            f"| 점수 분해 | {score_bits} |\n"
             f"| 리스크 포인트 | {point} |\n"
             f"| 관련 법·정책 | {law} |\n"
             f"| 출처 | {press} {date} |"
         )
-    return "\n\n".join(parts)
+    body = "\n\n".join(parts)
+    if index_note:
+        body = (body + "\n\n" + index_note).strip()
+    return body
+
+
+def _select_similar_cases(cases: list, dists: list) -> list:
+    """거리 컷 안의 사례만 남기고 유사/참고를 붙인다. 점수 필드는 리포트 JSON에 유지."""
+    picked = []
+    for c, d in zip(cases, dists):
+        try:
+            dist = round(float(d), 4)
+        except (TypeError, ValueError):
+            continue
+        if dist > SIMILAR_CASE_MAX_DISTANCE:
+            continue
+        quality = "유사" if dist <= SIMILAR_CASE_STRONG_DISTANCE else "참고"
+        picked.append((c, dist, quality))
+    return picked[:3]
 
 
 def _build_transcript_rows(ta: list) -> str:
@@ -1146,12 +1270,92 @@ _NATAM_RECO = {
     "브랜드 세이프티 리스크":     "광고주 비친화 표현(과한 욕설·자극적 분위기) 수위 조절",
     "감정 선동 리스크":          "분노 유도·과격한 단정 표현을 팩트 중심 완화 표현으로 교체",
     "기존 논란 결합 리스크":      "과거 논란과 연결될 수 있는 소재에 맥락 설명 추가",
-    "괴롭힘·모욕 표현 리스크":    "인신공격·조롱 발언 구간 삭제 또는 중립 표현으로 교체",
+    "괴롭힘·혐오·차별 표현 리스크": "인신공격·집단 비하 구간을 삭제하거나 중립 표현으로 교체",
     "폭력·위협·불법행위 리스크":  "폭력·위협·위험행동 조장 구간 삭제 또는 경고 문구 추가",
-    "혐오·차별 표현 리스크":      "성별·인종·지역 일반화/혐오 표현 삭제 (플랫폼 정책 위반 소지)",
+    "저작권 리스크":            "음악·영상·이미지·폰트·로고의 사용 권한과 출처를 확인",
     "성적 표현·대상화 리스크":    "성적 암시·대상화 표현 수위 조절 또는 연령 제한 검토",
-    "광고친화성·상업 신뢰 리스크": "협찬 표기 여부 확인 및 브랜드 세이프티 충돌 요소 완화",
+    "광고친화성 정책 리스크":     "광고·협찬 고지 여부와 과장 표현을 확인",
 }
+
+
+def _similar_index_note(meta: dict) -> str:
+    idx = (meta or {}).get("similar_index") or {}
+    if not idx.get("partial"):
+        return ""
+    try:
+        count = int(idx.get("count") or 0)
+        full_n = int(idx.get("full_n") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if full_n <= 0:
+        return ""
+    return (
+        f"> 유사 사례 인덱스는 {count:,} / {full_n:,}건만 임베딩된 부분 인덱스입니다. "
+        "나머지 사례는 검색에 없습니다."
+    )
+
+
+def _coerce_flag(value):
+    """JSON이 문자열 'false'를 주면 True로 읽히지 않게 불리언으로 맞춘다."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        token = value.strip().lower()
+        if token in ("true", "1", "yes"):
+            return True
+        if token in ("false", "0", "no"):
+            return False
+    return None
+
+
+_TIER2_SEV_RANK = {
+    "CRITICAL": 5, "DANGER": 4, "WARNING": 3, "ALERT": 3,
+    "CAUTION": 2, "CARE": 1, "NONE": 0,
+}
+
+
+def _classification_from_tier2(classification: dict, two_tier: dict) -> dict:
+    """리포트 상단 분류를 SVM 앞부분 판정이 아니라 Tier2 확정 라벨로 다시 집계."""
+    adjudicated = (two_tier or {}).get("adjudicated") or []
+    base = dict(classification or {})
+    if not adjudicated:
+        return base
+    confirmed = [
+        a for a in adjudicated
+        if a.get("is_controversy") is True and a.get("category") and a.get("category") != "L12"
+    ]
+    unverified = [
+        a for a in adjudicated
+        if a.get("adjudication") == "unverified" or a.get("is_controversy") is None
+    ]
+    if not confirmed:
+        reason = "Tier2 맥락 판정에서 확정된 논란 문장 없음"
+        if unverified:
+            reason += f" (미판정 {len(unverified)}건은 문장 표의 SVM 라벨을 유지)"
+        base.update({
+            "primary": "L12",
+            "labels": ["L12 해당 없음"],
+            "reason": reason,
+            "source": "tier2",
+        })
+        return base
+    confirmed.sort(key=lambda a: -_TIER2_SEV_RANK.get(str(a.get("severity") or "").upper(), 1))
+    labels = []
+    for item in confirmed:
+        cat = item.get("category")
+        label = f"{cat} {_LABEL_DESCS.get(cat, '')}".strip()
+        if label not in labels:
+            labels.append(label)
+    rationale = (confirmed[0].get("rationale") or "").strip()
+    base.update({
+        "primary": confirmed[0].get("category") or "L12",
+        "labels": labels[:4],
+        "reason": f"Tier2 확정 {len(confirmed)}건 — {rationale}".strip()[:400],
+        "source": "tier2",
+    })
+    return base
 
 
 def _reconcile_transcript_with_tier2(ta: list, two_tier: dict) -> list:
@@ -1179,7 +1383,14 @@ def _reconcile_transcript_with_tier2(ta: list, two_tier: dict) -> list:
         if v is None:
             out.append(seg)
             continue
-        if not v.get("is_controversy"):
+        verdict = v.get("is_controversy")
+        if v.get("adjudication") == "unverified" or verdict is None:
+            # 호출 실패는 논란 확정도, 오탐 제거도 아니다. SVM 라벨을 유지하고 보류를 적는다.
+            out.append({**seg,
+                        "reason": f"Tier2 미판정(보류) — SVM 라벨 유지 "
+                                  f"«{seg.get('label','')}» — {v.get('rationale','')}"})
+            continue
+        if verdict is not True:
             # LLM이 맥락상 오탐으로 판정 → L12로 강등 (표시 필터에서 제외됨)
             out.append({**seg, "label": "L12 해당 없음",
                         "reason": f"Tier2 맥락 판정: 오탐 제거 "
@@ -1552,7 +1763,8 @@ class CrisisReportEngine:
             "CASE_1_TITLE": cv(0,"title"), "CASE_1_TYPE": cv(0,"controversy_type"), "CASE_1_DISTANCE": cv(0,"distance"), "CASE_1_RESPONSE": cr(0), "CASE_1_OUTCOME": cv(0,"outcome","데이터 없음"),
             "CASE_2_TITLE": cv(1,"title"), "CASE_2_TYPE": cv(1,"controversy_type"), "CASE_2_DISTANCE": cv(1,"distance"), "CASE_2_RESPONSE": cr(1), "CASE_2_OUTCOME": cv(1,"outcome","데이터 없음"),
             "CASE_3_TITLE": cv(2,"title"), "CASE_3_TYPE": cv(2,"controversy_type"), "CASE_3_DISTANCE": cv(2,"distance"), "CASE_3_RESPONSE": cr(2), "CASE_3_OUTCOME": cv(2,"outcome","데이터 없음"),
-            "SIMILAR_CASES_BLOCK": _build_similar_case_block(cases),   # 5-1 동적 블록(없으면 공백)
+            "SIMILAR_CASES_BLOCK": _build_similar_case_block(
+                cases, _similar_index_note(meta)),
             "PATTERN_SPREAD_PATH": p_s, "PATTERN_RESPONSE_REACTION": p_r, "PATTERN_TRIGGER": p_t,
             "ACTION_IMMEDIATE_1": actions["immediate"][0], "ACTION_IMMEDIATE_2": actions["immediate"][1],
             "ACTION_SHORT_1":     actions["short"][0],     "ACTION_SHORT_2":     actions["short"][1],
@@ -1852,7 +2064,7 @@ class CrisisConsultantSystem:
                         "response_mime_type": "application/json",
                         "temperature": 0.0,
                         "max_output_tokens": 65536,            # 긴 전사 잘림 방지
-                        "thinking_config": {"thinking_budget": 0},  # 추론에 출력예산 낭비 방지
+                        "thinking_config": _thinking_config(False),
                     },
                 )
                 break
@@ -2254,9 +2466,17 @@ class CrisisConsultantSystem:
     # ────────────────────────────────────────────────────
     # 🏎️ ML 로컬 분류 (controversy_model.joblib)
     # ────────────────────────────────────────────────────
+    def _clf_text(self, text: str) -> str:
+        """학습 때와 같은 전처리. mvp.normalize_text 와는 토큰 규칙이 다르다."""
+        try:
+            from classifier_model import normalize_text as clf_norm
+        except Exception:
+            clf_norm = normalize_text
+        return clf_norm(text or "") or "."
+
     def _ml_classify(self, text: str) -> dict:
         """단일 텍스트를 ML 모델로 즉시 분류 → classify_controversy 형식 반환"""
-        probs   = self.ml_model.predict_proba([text])[0]   # (n_classes,)
+        probs   = self.ml_model.predict_proba([self._clf_text(text)])[0]
         classes = list(self.ml_mlb.classes_)               # ['L01', ..., 'L12']
 
         primary_idx = int(np.argmax(probs))
@@ -2279,10 +2499,7 @@ class CrisisConsultantSystem:
         if not segments:
             return []
 
-        texts = [
-            normalize_text(s.get("corrected_text") or s.get("text", "")) or "."
-            for s in segments
-        ]
+        texts = [self._clf_text(s.get("corrected_text") or s.get("text", "")) for s in segments]
 
         probs_mat    = self.ml_model.predict_proba(texts)        # (n, n_classes)
         preds_mat    = self.ml_model.predict(texts)              # (n, n_classes) binarized
@@ -2342,10 +2559,7 @@ class CrisisConsultantSystem:
         """SVM을 낮은 임계값으로 돌려 '의심 세그먼트' 인덱스/라벨을 넓게 뽑음(재현율↑)."""
         if self.ml_model is None or not segments:
             return []
-        texts = [
-            normalize_text(s.get("corrected_text") or s.get("text", "")) or "."
-            for s in segments
-        ]
+        texts = [self._clf_text(s.get("corrected_text") or s.get("text", "")) for s in segments]
         probs_mat = self.ml_model.predict_proba(texts)
         classes   = list(self.ml_mlb.classes_)
         triggered = []
@@ -2397,13 +2611,22 @@ class CrisisConsultantSystem:
         try:
             resp = self.client.models.generate_content(
                 model=GEN_MODEL, contents=prompt,
-                config={"response_mime_type": "application/json", "temperature": 0.1},
+                config={"response_mime_type": "application/json", "temperature": 0.1,
+                        "thinking_config": _thinking_config(True)},
             )
             self.cost.add(resp, "tier2")
             res = _safe_json_parse(resp.text, f"Tier2 seg {i}") or {}
         except Exception as e:
-            res = {"is_controversy": True, "category": trig["hits"][0]["label"],
-                   "severity": "ALERT", "rationale": f"Tier2 실패, Tier1 유지: {e}", "quote": ""}
+            # 실패를 논란 확정으로 올리지 않는다. SVM 라벨은 표에 남고 상태는 보류.
+            res = {
+                "is_controversy": None,
+                "adjudication": "unverified",
+                "category": trig["hits"][0]["label"],
+                "severity": "UNVERIFIED",
+                "rationale": f"Tier2 호출 실패, 판정 보류: {e}",
+                "quote": "",
+            }
+        res["is_controversy"] = _coerce_flag(res.get("is_controversy"))
         res["segment_idx"]  = i
         res["tier1_labels"] = [h["label"] for h in trig["hits"]]
         res["start"]        = segments[i].get("start")
@@ -2420,23 +2643,42 @@ class CrisisConsultantSystem:
         txt = "\n".join(lines)
         return txt if len(txt) <= max_chars else txt[:max_chars] + "\n…(이하 생략)"
 
-    def _tier2_adjudicate_batch(self, segments, trigs, rule_hits, similar_titles, numbered) -> list:
+    def _tier2_window_text(self, segments, trigs) -> str:
+        """판정 대상과 앞뒤 창만 모은다. 배치마다 전체 자막을 다시 보내지 않는다."""
+        wanted = set()
+        targets = {t["idx"] for t in trigs}
+        for trig in trigs:
+            center = trig["idx"]
+            for j in range(center - TIER2_CONTEXT_WINDOW, center + TIER2_CONTEXT_WINDOW + 1):
+                if 0 <= j < len(segments):
+                    wanted.add(j)
+        lines = []
+        for j in sorted(wanted):
+            mark = "👉" if j in targets else "  "
+            text = (segments[j].get("corrected_text") or segments[j].get("text", "") or "")
+            text = text.replace("\n", " ").strip()
+            lines.append(f"{mark} [{j}] {text}")
+        return "\n".join(lines)
+
+    def _tier2_adjudicate_batch(self, segments, trigs, rule_hits, similar_titles, numbered=None) -> list:
         """
-        여러 트리거를 '전체 자막 맥락'과 함께 한 번의 LLM 호출로 일괄 판정.
-          · 단건(_tier2_adjudicate) 대비 호출 수↓(비용·지연↓) + 전체 맥락 반영으로 정확도↑.
-          · 배치가 놓친 대상은 단건 Tier2로 폴백 → '모든 대상이 맥락 판정'됨을 보장.
+        여러 트리거를 앞뒤 창 맥락과 함께 한 번의 LLM 호출로 일괄 판정.
+          · numbered(전체 자막)는 더 이상 프롬프트에 넣지 않는다. 호출부 호환용으로만 남긴다.
+          · 배치가 놓친 대상은 단건 Tier2로 폴백한다.
         """
+        del numbered
         targets = [t["idx"] for t in trigs]
+        window = self._tier2_window_text(segments, trigs)
         tlab = "; ".join(
             f"[{t['idx']}] " + ", ".join(f"{h['label']}({h['prob']:.2f})" for h in t["hits"])
             for t in trigs
         )
         prompt = (
-            "너는 한국 캔슬컬처 리스크 판정관이다. 아래 [전체 자막] 맥락을 참고해, "
-            "[판정 대상] 각 문장이 '실제 논란 소지'인지 최종 판정하라.\n"
-            "[중요] 반어·인용·부정문·단순 사실전달·타인 발언 인용이면 is_controversy=false. "
-            "화자 본인이 진심으로 한 발화만 true.\n\n"
-            f"[전체 자막]\n{numbered}\n\n"
+            "너는 한국 캔슬컬처 리스크 판정관이다. 아래 [맥락]은 판정 대상(👉)과 "
+            "그 앞뒤 문장만 담았다. 각 👉 문장이 '실제 논란 소지'인지 최종 판정하라.\n"
+            "[중요] 반어·인용·부정문·단순 사실전달·타인 발언 인용·게임/허구 설정이면 "
+            "is_controversy=false. 화자 본인이 진심으로 한 발화만 true.\n\n"
+            f"[맥락]\n{window}\n\n"
             f"[판정 대상 인덱스] {targets}\n"
             f"[대상별 1차 의심 라벨] {tlab}\n"
             f"[룰 매칭] {rule_hits if rule_hits else '없음'}\n"
@@ -2451,7 +2693,8 @@ class CrisisConsultantSystem:
             resp = self.client.models.generate_content(
                 model=GEN_MODEL, contents=prompt,
                 config={"response_mime_type": "application/json", "temperature": 0.1,
-                        "max_output_tokens": 8192, "thinking_config": {"thinking_budget": 0}},
+                        "max_output_tokens": 8192,
+                        "thinking_config": _thinking_config(True)},
             )
             self.cost.add(resp, "tier2")
             data = _safe_json_parse(resp.text, "Tier2 배치")
@@ -2477,6 +2720,7 @@ class CrisisConsultantSystem:
             if v is None:
                 missing.append(t)
                 continue
+            v["is_controversy"] = _coerce_flag(v.get("is_controversy"))
             v["segment_idx"]  = i
             v["tier1_labels"] = [h["label"] for h in t["hits"]]
             v["start"]        = segments[i].get("start")
@@ -2512,22 +2756,21 @@ class CrisisConsultantSystem:
         to_judge   = triggered[:TIER2_MAX_ADJUDICATE]
         tier1_only = triggered[TIER2_MAX_ADJUDICATE:]   # 상한 초과분만(보통 없음)
 
-        # 전체 자막을 1회 번호매김 → 모든 배치가 같은 맥락 공유(정확도↑)
-        numbered = self._numbered_transcript(segments)
+        # 각 배치는 대상 문장과 앞뒤 창만 본다. 전체 자막을 배치 수만큼 다시 보내지 않는다.
         batches  = [to_judge[i:i + TIER2_BATCH_SIZE]
                     for i in range(0, len(to_judge), TIER2_BATCH_SIZE)]
 
         adjudicated = []
         with ThreadPoolExecutor(max_workers=_REFINE_CONCURRENCY) as ex:
             futs = [ex.submit(self._tier2_adjudicate_batch, segments, b,
-                              rule_hits, similar_titles, numbered) for b in batches]
+                              rule_hits, similar_titles) for b in batches]
             for fut in as_completed(futs):
                 try:
                     adjudicated.extend(fut.result())
                 except Exception as e:
                     print(f"   ⚠️ Tier2 배치 판정 실패: {e}")
 
-        confirmed = [a for a in adjudicated if a.get("is_controversy")]
+        confirmed = [a for a in adjudicated if a.get("is_controversy") is True]
         adjudicated.sort(key=lambda a: a.get("segment_idx", 0))
         confirmed.sort(key=lambda a: a.get("segment_idx", 0))
         print(f"   🎯 2-Tier: 트리거 {len(triggered)} → Tier2 판정 {len(adjudicated)}"
@@ -2712,7 +2955,10 @@ class CrisisConsultantSystem:
             "- 객관적으로 참/거짓을 가릴 수 있는 진술(통계·수치, 의학/건강, 금융/투자, "
             "역사적 사실, 과학, 출처·인용 등).\n"
             "[제외 = 검증 대상 아님]\n"
-            "- 개인 의견·감상·취향('내 생각엔', '맛있다'), 농담, 인사말, 단순 잡담.\n\n"
+            "- 개인 의견·감상·취향('내 생각엔', '맛있다'), 농담, 인사말, 단순 잡담.\n"
+            "- 게임·애니·소설 등 허구 설정(스킬, 캐릭터 속성, 세계관, 스토리 전개).\n"
+            "- 창작물 안의 가격·할인·성능을 현실의 금융·과학 사실처럼 다루지 말 것.\n"
+            "- 비유, 과장된 리액션, 가정법.\n\n"
             "[매우 중요] 진위(참/거짓)는 절대 판정하지 마라. '검증이 필요한지'만 표시한다.\n"
             "- domain 은 반드시: 건강/의학, 금융/투자, 통계/수치, 역사/사회, 과학/기술, 인용/출처, 기타 중 하나.\n"
             "- checkworthiness 는 HIGH/MEDIUM/LOW (피해 가능성 큰 건강·금융 주장일수록 HIGH).\n"
@@ -2730,7 +2976,7 @@ class CrisisConsultantSystem:
                     "response_mime_type": "application/json",
                     "temperature": 0.1,
                     "max_output_tokens": 4096,
-                    "thinking_config": {"thinking_budget": 0},
+                    "thinking_config": _thinking_config(True),
                 },
             )
             self.cost.add(resp, "claim_stage1")
@@ -2850,73 +3096,76 @@ class CrisisConsultantSystem:
     # ────────────────────────────────────────────────────
     # 🎞️ 키프레임 분석
     # ────────────────────────────────────────────────────
-    def analyze_video_frames(self, video_path: str) -> list:
-        """키프레임 3개를 추출한 뒤 Gemini 호출을 병렬로 실행해 분석 시간 단축"""
-        print(f"📹 키프레임 분석 중: {os.path.basename(video_path)}")
+    def analyze_video_frames(self, video_path: str, segments: list | None = None,
+                             indices: list | None = None, max_frames: int = 8) -> list:
+        """
+        화면 텍스트 OCR. Gemini '5자 요약'은 하지 않는다.
+        indices 가 있으면 그 세그먼트 시각의 프레임만 본다(Tier1 의심 구간).
+        없으면 25·50·75% 세 지점을 OCR한다.
+        """
+        import tempfile
+        print(f"📹 화면 OCR: {os.path.basename(video_path)}")
         cap = cv2.VideoCapture(video_path)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-        # ── 프레임 추출 (순차, I/O bound) ──────────────────
-        frame_images = {}
-        for i in range(3):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(total_frames * (i + 1) / 4))
-            ret, frame = cap.read()
-            if not ret:
-                continue
-            img_path = f"temp_frame_{i}.jpg"
-            cv2.imwrite(img_path, frame)
-            frame_images[i] = img_path
-        cap.release()
-
-        if not frame_images:
+        if not cap.isOpened():
+            cap.release()
             return []
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0) or 30.0
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        duration = (total / fps) if fps else 0.0
 
-        # ── Gemini 호출 병렬 실행 ──────────────────────────
-        def _analyze_one(idx: int, img_path: str) -> dict | None:
-            try:
-                with PIL.Image.open(img_path) as img:
-                    resp = self.client.models.generate_content(
-                        model=GEN_MODEL,
-                        contents=[
-                            "이 영상 캡처에서 보이는 객관적 요소(자막, 행동, 구도)를 "
-                            "5자 이내로 요약해줘. 감정이나 위험도는 판단하지 마.", img,
-                        ],
-                    )
-                    self.cost.add(resp, "frame")
-                    out = {"idx": idx, "time": f"Point {idx+1}", "tag": resp.text.strip()}
-                    # [4순위] 화면 텍스트 OCR — 자막 욕설/혐오 표현은 음성에 없어도 잡아야 함
-                    ocr_text = _ocr_screen_text(img_path)
-                    if ocr_text:
-                        out["screen_text"] = ocr_text
-                    # [4순위] 한국 특화 시각 트리거(집게손 등 밈/제스처) — 확장 포인트
-                    memes = _detect_korea_visual_triggers(img_path)
-                    if memes:
-                        out["visual_triggers"] = memes
-                    return out
-            except Exception as e:
-                print(f"⚠️ 프레임 {idx+1} 분석 실패: {e}")
-                return None
-            finally:
+        picks = []
+        seen_sec = set()
+        if segments and indices:
+            for idx in indices:
+                if not isinstance(idx, int) or not (0 <= idx < len(segments)):
+                    continue
                 try:
-                    os.remove(img_path)
-                except:
-                    pass
+                    sec = float(segments[idx].get("start") or 0)
+                except (TypeError, ValueError):
+                    sec = 0.0
+                key = int(sec)
+                if key in seen_sec:
+                    continue
+                seen_sec.add(key)
+                picks.append((f"{int(sec // 60):02d}:{int(sec % 60):02d}", sec))
+                if len(picks) >= max_frames:
+                    break
+        if not picks and duration > 0:
+            for n, frac in enumerate((0.25, 0.5, 0.75), 1):
+                picks.append((f"Point {n}", duration * frac))
 
         frames = []
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
-                executor.submit(_analyze_one, idx, path): idx
-                for idx, path in frame_images.items()
-            }
-            for fut in as_completed(futures):
-                result = fut.result()
-                if result:
-                    frames.append(result)
-
-        # 원래 순서대로 정렬
-        frames.sort(key=lambda x: x["idx"])
-        for f in frames:
-            f.pop("idx", None)
+        try:
+            for label, sec in picks:
+                frame_no = int(sec * fps)
+                if total:
+                    frame_no = min(max(frame_no, 0), total - 1)
+                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+                fd, img_path = tempfile.mkstemp(suffix=".jpg", prefix="natam_frame_")
+                os.close(fd)
+                try:
+                    cv2.imwrite(img_path, frame)
+                    ocr_text = _ocr_screen_text(img_path)
+                    memes = _detect_korea_visual_triggers(img_path)
+                finally:
+                    try:
+                        os.remove(img_path)
+                    except OSError:
+                        pass
+                if not ocr_text and not memes:
+                    continue
+                item = {"time": label, "tag": "화면 텍스트 OCR"}
+                if ocr_text:
+                    item["screen_text"] = ocr_text
+                if memes:
+                    item["visual_triggers"] = memes
+                frames.append(item)
+        finally:
+            cap.release()
+        print(f"   ✅ 화면 OCR {len(frames)}건 (프레임 {len(picks)}장)")
         return frames
 
     def rule_scan(self, text: str) -> dict:
@@ -3057,33 +3306,7 @@ class CrisisConsultantSystem:
         norm = self.normalize_transcript(raw)
         print(f"✅ [2/3] 정규화 완료  (수정: {norm['total_modified']}개)")
 
-        raw_query           = " ".join(s.get("text", "") for s in norm['segments'])[:1000]
-        raw_transcript_text = " ".join(s.get("text", "") for s in norm['segments'])[:3000]
-
-        # [2순위] Tier1 SVM 신호를 NATAM 입력으로 명시 연결 — 의심 라벨을 평가 컨텍스트로 제공
-        tier1_trig   = self._tier1_trigger(norm['segments'])
-        tier1_counts = {}
-        for t in tier1_trig:
-            for h in t["hits"]:
-                tier1_counts[h["label"]] = tier1_counts.get(h["label"], 0) + 1
-        tier1_signal = ", ".join(
-            f"{_LABEL_DESCS.get(k, k)}×{v}" for k, v in
-            sorted(tier1_counts.items(), key=lambda x: -x[1])
-        ) or "특이 신호 없음"
-        natam_summary_input = f"[1차 분류기 의심 신호] {tier1_signal}\n{raw_query[:500]}"
-
-        rule_result = self.rule_scan(raw_query)   # 초기 스캔(아래에서 refined+OCR로 union 갱신)
-
-        # ── 배경 실행: 교정과 동시에 NATAM·유사사례·키프레임 처리 ──
-        print("⏳ 배경 분석 시작 (NATAM · 유사사례 · 키프레임) — [3/3] 교정과 병렬 실행")
-        bg_exec    = ThreadPoolExecutor(max_workers=3)
-        fut_natam  = bg_exec.submit(
-            assess_natam_risk,
-            self.client, self.system_instruction,
-            raw_transcript_text, natam_summary_input, GEN_MODEL, self.cost,
-        )
-        fut_search = bg_exec.submit(self.search_and_analyze, raw_query)
-        fut_frames = bg_exec.submit(self.analyze_video_frames, video_path)
+        raw_transcript_text = " ".join(s.get("text", "") for s in norm['segments'])
 
         # ── [3/3] Gemini 교정 (배치 병렬) ────────────────
         if use_cache and os.path.exists(refined_path):
@@ -3113,29 +3336,54 @@ class CrisisConsultantSystem:
         refined_segments = refined_data['segments']
 
         # ── ML 즉시 처리 (로컬, Gemini 호출 없음) ────────
-        if not query:
-            query = " ".join(
-                s.get("corrected_text") or s.get("text", "")
-                for s in refined_segments
-            )[:1000]
         transcript_text = " ".join(
             s.get("corrected_text") or s.get("text", "")
             for s in refined_segments
-        )[:3000]
+        )
+        if not query:
+            query = _spread_text(transcript_text, 1000)
 
         print("\n⚡ ML 분류 즉시 처리 중...")
         transcript_analysis = self.analyze_transcript_segments(refined_segments)
         classification      = self.classify_controversy(query)
         print(f"   ✅ transcript 완료 ({len(transcript_analysis)}개 세그먼트)")
-        print(f"   ✅ classify 완료 → primary: {classification.get('primary','?')}")
+        print(f"   ✅ classify(SVM, 이후 Tier2로 교체) → primary: {classification.get('primary','?')}")
 
-        # ── 요약은 refined 텍스트로 (품질 우선, 교정 완료 후 시작) ──
+        # 요약·사실주장은 교정문만 있으면 된다. NATAM·유사검색보다 먼저 돌려 둔다.
+        bg_exec     = ThreadPoolExecutor(max_workers=2)
         fut_summary = bg_exec.submit(self.summarize_incident, refined_segments, youtube_meta)
-        # ── [L04 Stage1] 검증 필요 주장 추출 (교정문 기반, 병렬) ──
         fut_claims  = bg_exec.submit(self.extract_checkworthy_claims, refined_segments)
 
-        # ── 배경 분석 결과 수집 ───────────────────────────
-        print("⏳ 배경 분석 결과 수집 중...")
+        tier1_trig   = self._tier1_trigger(refined_segments)
+        tier1_counts = {}
+        for t in tier1_trig:
+            for h in t["hits"]:
+                tier1_counts[h["label"]] = tier1_counts.get(h["label"], 0) + 1
+        tier1_signal = ", ".join(
+            f"{_LABEL_DESCS.get(k, k)}×{v}" for k, v in
+            sorted(tier1_counts.items(), key=lambda x: -x[1])
+        ) or "특이 신호 없음"
+
+        # 의심 구간 시각만 OCR. 5자 비전 요약은 하지 않는다.
+        video_frames = self.analyze_video_frames(
+            video_path, refined_segments, [t["idx"] for t in tier1_trig])
+        ocr_screen_text = " ".join(
+            f.get("screen_text", "") for f in video_frames if f.get("screen_text")
+        )
+        rule_result = self.rule_scan_union(raw_transcript_text, transcript_text, ocr_screen_text)
+        if rule_result.get("hit"):
+            print(f"   🚨 룰 매칭 {len(rule_result.get('all_matches', []))}건 "
+                  f"(raw+refined+OCR union)")
+
+        # Tier2는 유사 사례보다 먼저. 검색 쿼리는 확정 문장만 쓴다.
+        rule_words = [m["matched_word"] for m in rule_result.get("all_matches", [])]
+        two_tier_result = self.two_tier_classify(
+            refined_segments, rule_hits=rule_words, similar_titles=[],
+        )
+        transcript_analysis = _reconcile_transcript_with_tier2(
+            transcript_analysis, two_tier_result)
+        classification = _classification_from_tier2(classification, two_tier_result)
+        print(f"   ✅ 분류 재집계(Tier2) → primary: {classification.get('primary','?')}")
 
         def _get(fut, default, label):
             try:
@@ -3146,55 +3394,62 @@ class CrisisConsultantSystem:
                 print(f"   ⚠️ {label} 실패: {e}")
                 return default
 
-        natam_result  = _get(fut_natam,  {"A":{},"B":{},"overall_a":"SAFE","overall_b":"SAFE"}, "NATAM")
-        search_result = _get(fut_search, ([], [], ""), "유사사례 검색")
-        video_frames  = _get(fut_frames, [], "키프레임 분석")
-        summary_data  = _get(
+        summary_data = _get(
             fut_summary,
             {"summary_title":"영상 내용 분석 결과","incident_overview":"전사 데이터를 기반으로 분석되었습니다."},
             "사건 개요",
         )
-        claim_result  = _get(fut_claims, {"claims": [], "count": 0}, "검증대상 주장(Stage1)")
+        claim_result = _get(fut_claims, {"claims": [], "count": 0}, "검증대상 주장(Stage1)")
         bg_exec.shutdown(wait=False)
 
-        cases, dists, summary = search_result if isinstance(search_result, tuple) else ([], [], "")
-        print(f"   NATAM — A축: {natam_result['overall_a']} | B축: {natam_result['overall_b']}")
+        risk_sents = []
+        for verdict in two_tier_result.get("adjudicated") or []:
+            if verdict.get("is_controversy") is not True:
+                continue
+            quote = (verdict.get("quote") or "").strip()
+            if not quote:
+                idx = verdict.get("segment_idx")
+                if isinstance(idx, int) and 0 <= idx < len(refined_segments):
+                    quote = (refined_segments[idx].get("corrected_text")
+                             or refined_segments[idx].get("text") or "").strip()
+            if quote and quote not in risk_sents:
+                risk_sents.append(quote)
+            if len(risk_sents) >= 8:
+                break
+        if risk_sents:
+            query = " ".join(risk_sents)[:1000]
 
-        # ── (v2) 위험 신호 기반 트리거로 유사 사례 재검색(최종 리포트용) ──
-        #   병렬 baseline 검색(raw_query)은 two_tier 힌트로 남기고, 최종 사례는
-        #   NATAM 발화 축 + 위험 문장 + 분류로 만든 트리거 검색 결과로 교체한다.
-        _risk_sents = [
-            (s.get("corrected_text") or s.get("text") or "").strip()
-            for s in (transcript_analysis or [])
-            if _seg_display_label(s.get("label", ""))
-        ]
-        _risk_sents = [s for s in _risk_sents if s][:8]
-        _tc, _td, _ts = self.find_similar_cases(
+        # NATAM은 교정·Tier2 이후의 위험 문장으로만 판정한다. 없으면 앞·중간·뒤 표본.
+        natam_transcript = "\n".join(risk_sents) if risk_sents else _spread_text(transcript_text, 6000)
+        natam_summary = (
+            f"[1차 분류기 의심 신호 — 힌트, 확정 아님]\n{tier1_signal}\n\n"
+            f"{summary_data.get('incident_overview', '')}"
+        )
+        print("⏳ NATAM 판정 (교정·Tier2 이후)")
+        natam_result = assess_natam_risk(
+            self.client, self.system_instruction,
+            natam_transcript, natam_summary, GEN_MODEL, self.cost,
+        )
+        print(f"   NATAM — A축: {natam_result.get('overall_a')} | "
+              f"B축: {natam_result.get('overall_b')} | "
+              f"상태: {natam_result.get('evaluation_status')}")
+
+        # 유사 사례는 한 번만. 쿼리는 확정 문장 + 발화 축이고, 개요 전문은 붙이지 않는다.
+        cases, dists, _ = self.find_similar_cases(
             base_text      = summary_data.get("incident_overview", ""),
             natam_result   = natam_result,
-            risk_sentences = _risk_sents,
+            risk_sentences = risk_sents,
             classification = classification,
-            k              = 3,
-            make_summary   = True,
+            k              = 5,
+            make_summary   = False,
         )
-        if _tc:
-            cases, dists, summary = _tc, _td, _ts
-
-        # ── [하위] 룰스캔 union: raw + refined + 화면 OCR 텍스트 ──
-        ocr_screen_text = " ".join(
-            f.get("screen_text", "") for f in (video_frames or []) if f.get("screen_text")
-        )
-        rule_result = self.rule_scan_union(raw_transcript_text, transcript_text, ocr_screen_text)
-        if rule_result.get("hit"):
-            print(f"   🚨 룰 매칭 {len(rule_result.get('all_matches', []))}건 "
-                  f"(raw+refined+OCR union)")
-
-        # ── [2순위] 2-Tier 분류: SVM 트리거 → LLM 맥락 판정 ──
-        similar_titles = [c.get("title", "") for c in cases]
-        rule_words     = [m["matched_word"] for m in rule_result.get("all_matches", [])]
-        two_tier_result = self.two_tier_classify(
-            refined_segments, rule_hits=rule_words, similar_titles=similar_titles,
-        )
+        shown_cases = _select_similar_cases(cases, dists)
+        summary = ""
+        if shown_cases:
+            summary = self._summarize_pattern(
+                "\n".join(risk_sents) or query,
+                [c for c, _, _ in shown_cases],
+            )
 
         # ── 확산 단계 판정 ────────────────────────────────
         if youtube_meta:
@@ -3211,11 +3466,7 @@ class CrisisConsultantSystem:
         elapsed = round(time.time() - t0, 1)
         print(f"\n⏱️  총 분석 시간: {elapsed}초")
 
-        # ── [정확도 #1] '감지된 발언'을 Tier2 LLM 판정으로 교정 ──
-        #   원시 SVM 오탐을 이미 계산된 맥락 판정으로 덮어씀 (표시 정확도↑)
-        transcript_analysis = _reconcile_transcript_with_tier2(
-            transcript_analysis, two_tier_result)
-
+        sim_manifest = self.sim_engine.manifest if self.sim_engine else {}
         # ── 보고서 구성 ────────────────────────────────────
         report = {
             "meta": {
@@ -3233,12 +3484,18 @@ class CrisisConsultantSystem:
                 "elapsed_sec":      elapsed,
                 "transcribe_engine": TRANSCRIBE_ENGINE,
                 "cost":             self.cost.summary(),
+                "similar_index": {
+                    "count":   sim_manifest.get("count"),
+                    "full_n":  sim_manifest.get("full_n"),
+                    "partial": bool(sim_manifest.get("partial")),
+                },
+                "natam_evaluation_status": natam_result.get("evaluation_status"),
             },
             "rule_scan":      rule_result,
             "two_tier":       two_tier_result,
             "spread_stage":   spread_result,
             "classification": classification,
-            # 거리 ≤ 임계값(충분히 유사)인 사례만, 가까운 순 최대 3개. 없으면 [] → 5-1 공백.
+            # 강한 유사(거리≤STRONG)와 참고(≤MAX)를 구분. 점수 분해를 JSON에 남긴다.
             "similar_cases": [
                 {
                     "rank":             r + 1,
@@ -3247,8 +3504,12 @@ class CrisisConsultantSystem:
                     "리스크":            c.get("리스크", ""),
                     "세부 태그":         c.get("세부 태그", ""),
                     "controversy_type": c.get("controversy_type", ""),
-                    "distance":         round(float(d), 4),
+                    "distance":         dist,
+                    "match_quality":    quality,
                     "score":            c.get("score"),
+                    "dense":            c.get("dense"),
+                    "keyword_score":    c.get("keyword_score"),
+                    "category_hit":     c.get("category_hit"),
                     "기사 요약":         c.get("기사 요약", ""),
                     "리스크 포인트":     c.get("리스크 포인트", ""),
                     "관련 법 및 정책":   c.get("관련 법 및 정책", ""),
@@ -3257,10 +3518,7 @@ class CrisisConsultantSystem:
                     "기사 작성일":       c.get("기사 작성일", ""),
                     "response_pattern": c.get("response_pattern", []),
                 }
-                for r, (c, d) in enumerate(
-                    [(c, d) for c, d in zip(cases, dists)
-                     if round(float(d), 4) <= SIMILAR_CASE_MAX_DISTANCE][:3]
-                )
+                for r, (c, dist, quality) in enumerate(shown_cases)
             ],
             "pattern_summary":     summary.strip() if isinstance(summary, str) else "",
             "worst_actions":       worst_actions,

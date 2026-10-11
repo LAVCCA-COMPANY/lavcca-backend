@@ -29,7 +29,7 @@ import yaml
 from google import genai
 
 # 기존 시스템과 동일한 키/모델 재사용
-from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _install_gemini_defaults
+from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _install_gemini_defaults, _thinking_config
 
 # ────────────────────────────────────────────────
 # 설정
@@ -258,7 +258,7 @@ def structure_with_gemini(articles: list) -> dict:
                     "response_mime_type": "application/json",
                     "temperature": 0.2,
                     "max_output_tokens": 8192,
-                    "thinking_config": {"thinking_budget": 0},
+                    "thinking_config": _thinking_config(False),
                 },
             )
             txt = (resp.text or "").strip()

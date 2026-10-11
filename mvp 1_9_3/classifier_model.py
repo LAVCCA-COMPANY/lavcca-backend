@@ -100,7 +100,8 @@ def train(data_path, save_path):
     cv_folds = 2 if min(label_counts.values()) < 5 else 5
 
     pipeline = Pipeline([
-        ('tfidf', TfidfVectorizer(ngram_range=(1, 2), min_df=1)), # min_df를 1로 낮춰서 적은 데이터도 수용
+        # 공백 어절 TF-IDF는 한국어 활용형을 못 읽는다. 글자 n-gram이 어간을 겹친다.
+        ('tfidf', TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4), min_df=1)),
         ('clf', OneVsRestClassifier(CalibratedClassifierCV(LinearSVC(dual=False, C=1.0), cv=cv_folds)))
     ])
 

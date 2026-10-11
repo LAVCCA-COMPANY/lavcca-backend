@@ -179,6 +179,13 @@ class CopyrightRunner:
 # ════════════════════════════════════════════════════════════════════
 # 저작권 결과 → MD 템플릿 플레이스홀더({CR_*})
 # ════════════════════════════════════════════════════════════════════
+def _copyright_engine_status() -> str:
+    """폰트 분석·학습 DB는 검증 전에는 꺼 둔다. 리포트에 그 상태를 적는다."""
+    learned_on = os.getenv("USE_LEARNED_DB", "false").lower() == "true"
+    learned = "켜짐" if learned_on else "꺼짐(검증 전 기본값. 오학습이 탐지에 섞이지 않음)"
+    return f"폰트 분석: 꺼짐(산세리프 오탐으로 보류). 학습 DB 탐지 반영: {learned}."
+
+
 def build_copyright_placeholders(cr: dict | None) -> dict:
     """copyright_detector 결과 dict 를 report_template_v1_9_3.md 의 {CR_*} 로 변환."""
     if not cr:
@@ -194,6 +201,7 @@ def build_copyright_placeholders(cr: dict | None) -> dict:
             "CR_YOUTUBE_BLOCK": "> 저작권 분석 결과가 없어 유튜브 예측을 표시할 수 없습니다.",
             "CR_BYTYPE_ROWS": "| (데이터 없음) | — |",
             "CR_TIMELINE_ROWS": "| — | — | 저작권 분석 결과 없음 | — | — |",
+            "CR_ENGINE_STATUS": _copyright_engine_status(),
         }
 
     s      = cr.get("summary", {})
@@ -263,6 +271,7 @@ def build_copyright_placeholders(cr: dict | None) -> dict:
         "CR_YOUTUBE_BLOCK": yt_block,
         "CR_BYTYPE_ROWS": bytype_rows,
         "CR_TIMELINE_ROWS": "\n".join(rows),
+        "CR_ENGINE_STATUS": _copyright_engine_status(),
     }
 
 

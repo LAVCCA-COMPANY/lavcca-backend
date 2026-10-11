@@ -68,6 +68,8 @@ EMBED_BACKEND = os.getenv("EMBED_BACKEND", "gemini").lower()   # "gemini" | "loc
 GEMINI_EMBED_MODEL = os.getenv("EMBED_MODEL", "models/gemini-embedding-2")
 GEMINI_EMBED_FALLBACKS = [
     GEMINI_EMBED_MODEL,
+    "models/gemini-embedding-2-preview",
+    "gemini-embedding-2-preview",
     "gemini-embedding-001",
     "models/gemini-embedding-001",
     "models/text-embedding-004",
@@ -139,6 +141,14 @@ def keyword_set(row: dict) -> list:
 def _row_text_blob(m: dict) -> str:
     """키워드 매칭용 결합 텍스트(소문자)."""
     return " ".join(_s(m.get(f)) for f in ("제목", "핵심 문장", "키워드", "세부 태그", "기사 요약")).lower()
+
+
+_KW_TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]+")
+
+
+def keyword_tokens(text: str) -> set:
+    """어절 단위 토큰. 부분문자열(예: '광고' ⊂ '광고추천문') 일치를 막는다."""
+    return {tok.lower() for tok in _KW_TOKEN_RE.findall(text or "") if len(tok) >= 2}
 
 
 # ════════════════════════════════════════════════════════════════
@@ -577,8 +587,8 @@ class SimilarCaseEngine:
             # 키워드 겹침: 쿼리 키워드가 사례 텍스트에 등장하는 비율
             kw_score = 0.0
             if qkw:
-                blob = self._blobs[idx]
-                hits = sum(1 for t in qkw if t in blob)
+                blob_tokens = keyword_tokens(self._blobs[idx])
+                hits = sum(1 for t in qkw if t in blob_tokens)
                 kw_score = hits / len(qkw)
             cat_score = 1.0 if (cats and _s(m.get("리스크")) in cats) else 0.0
             final = W_DENSE * dense + W_KW * kw_score + W_CAT * cat_score

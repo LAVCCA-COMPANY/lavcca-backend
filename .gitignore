@@ -30,3 +30,6 @@ copyright_detector/_gitignore_test_tmp/
 
 # trend_updater 가 이미 본 기사 링크 (로컬 상태)
 .trend_seen.json
+
+# graphify 지식 그래프 산출물 (로컬 분석용)
+graphify-out/

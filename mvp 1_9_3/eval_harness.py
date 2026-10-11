@@ -55,21 +55,50 @@ def _load_predict_fn():
     return predict
 
 
+def _reference_labels(item: dict):
+    """사람 라벨이 있으면 gold. 비어 있고 tier2가 있으면 silver(회귀 추적용)."""
+    labels = [l for l in (item.get("labels") or []) if l]
+    if labels:
+        return set(labels), "gold"
+    tier2 = item.get("tier2") or {}
+    if not tier2:
+        return None, None
+    if tier2.get("is_controversy") is False:
+        return {"L12"}, "silver"
+    category = tier2.get("category")
+    if category:
+        return {category}, "silver"
+    return None, None
+
+
 def evaluate(golden_path: str) -> dict:
     predict = _load_predict_fn()
     with open(golden_path, "r", encoding="utf-8-sig") as f:
         golden = json.load(f)
-    # 라벨을 아직 채우지 않은(검수 보류) 항목은 평가에서 제외
-    golden = [g for g in golden if g.get("labels")]
-
-    # 카테고리별 TP/FP/FN 집계
-    tp = defaultdict(int); fp = defaultdict(int); fn = defaultdict(int)
+    # 사람 라벨이 없으면 저장된 tier2 판정을 silver 기준으로 쓴다. 파일은 고치지 않는다.
+    # 이 수치는 라이브 Tier2 재호출이 아니라, SVM이 그때의 Tier2와 얼마나 맞는지다.
+    usable = []
     for item in golden:
-        gold = set(item["labels"])
+        ref, kind = _reference_labels(item)
+        if ref is None:
+            continue
+        usable.append({**item, "_ref": ref, "_kind": kind})
+    golden = usable
+
+    # 카테고리별 TP/FP/FN 집계 (표시 임계값 0.3)
+    tp = defaultdict(int); fp = defaultdict(int); fn = defaultdict(int)
+    trig_hit = trig_total = 0
+    for item in golden:
+        gold = set(item["_ref"])
         pred = predict(item["text"])
         for lbl in pred & gold: tp[lbl] += 1
         for lbl in pred - gold: fp[lbl] += 1
         for lbl in gold - pred: fn[lbl] += 1
+        risky = gold - {"L12"}
+        if risky:
+            trig_total += 1
+            if predict(item["text"], threshold=0.15) & risky:
+                trig_hit += 1
 
     per_cat = {}
     all_labels = set(tp) | set(fp) | set(fn)
@@ -85,15 +114,26 @@ def evaluate(golden_path: str) -> dict:
                         "support": r_den}
 
     # 고심각도 매크로 재현율 (게이트 지표)
-    hs = [per_cat[l]["recall"] for l in HIGH_SEVERITY_LABELS if l in per_cat]
+    hs = [per_cat[l]["recall"] for l in HIGH_SEVERITY_LABELS
+          if l in per_cat and per_cat[l]["support"] > 0]
     high_sev_recall = round(sum(hs) / len(hs), 4) if hs else None
 
-    return {"n": len(golden), "per_category": per_cat,
-            "high_severity_macro_recall": high_sev_recall}
+    n_gold = sum(1 for g in golden if g["_kind"] == "gold")
+    trigger_recall = round(trig_hit / trig_total, 4) if trig_total else None
+    return {
+        "n": len(golden),
+        "n_gold": n_gold,
+        "n_silver": len(golden) - n_gold,
+        "per_category": per_cat,
+        "high_severity_macro_recall": high_sev_recall,
+        "tier1_trigger_recall": trigger_recall,
+        "reference": "gold" if n_gold and n_gold == len(golden) else "silver" if not n_gold else "mixed",
+    }
 
 
 def _print_report(scores: dict):
-    print(f"\n📊 골든셋 평가 (n={scores['n']})")
+    print(f"\n📊 평가 n={scores['n']} (사람 라벨 {scores.get('n_gold', 0)}, "
+          f"Tier2 silver {scores.get('n_silver', 0)}, 기준={scores.get('reference')})")
     print(f"{'라벨':<6}{'정밀도':>9}{'재현율':>9}{'F1':>9}{'지원':>7}")
     print("─" * 42)
     for lbl, m in scores["per_category"].items():
@@ -102,6 +142,7 @@ def _print_report(scores: dict):
               f"{m['f1']:>9.3f}{m['support']:>7}{flag}")
     print("─" * 42)
     print(f"🔴 고심각도 매크로 재현율: {scores['high_severity_macro_recall']}")
+    print(f"🎯 Tier1 트리거 재현율(임계값 0.15, 위험 라벨 교집합): {scores.get('tier1_trigger_recall')}")
 
 
 def gate(scores: dict) -> bool:
