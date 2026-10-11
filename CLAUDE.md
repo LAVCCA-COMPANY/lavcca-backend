@@ -50,8 +50,11 @@ Markdown/PDF/JSON report.
 
 Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
 
-- **Web UI**: `python app.py` — Flask app on `0.0.0.0:5000`, serves
-  `../templates/index.html`, drives analysis via `mvp_ver_1_9_3`.
+- **Web UI**: `python app.py` — Flask app on `127.0.0.1:5000` (localhost
+  only: there is no authentication, so do not expose it publicly until auth
+  exists), serves `../templates/index.html`, drives analysis via
+  `mvp_ver_1_9_3`. Web input accepts YouTube/Google Drive URLs and text only —
+  never a server-local file path (that is CLI-only).
 - **CLI**: `python mvp_ver_1_9_3.py` — interactive loop; accepts a YouTube
   URL, Google Drive URL, local video/audio path, or raw text, and asks
   whether to run the copyright scan alongside the crisis analysis.

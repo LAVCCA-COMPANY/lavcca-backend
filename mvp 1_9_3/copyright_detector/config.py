@@ -120,6 +120,9 @@ class PipelineConfig:
     #   SerpAPI(Yandex): 플랜에 따라 검색당 ~$0.01+ → 15건 상한
     vision_max_calls_per_job: int = int(os.getenv("VISION_MAX_CALLS_PER_JOB", "40"))
     yandex_max_calls_per_job: int = int(os.getenv("YANDEX_MAX_CALLS_PER_JOB", "15"))
+    #   Yandex 역검색은 프레임을 공개 임시 호스트(0x0.st/tmpfiles.org)에 올려야 해서
+    #   기본 비활성. 영상 프레임 외부 공개에 동의한 경우에만 "true"로 켠다.
+    yandex_public_upload_enabled: bool = os.getenv("YANDEX_PUBLIC_UPLOAD_ENABLED", "false").lower() == "true"
 
     # 다운로드 화질 상한 (px, 세로 해상도)
     #   분석 다운스트림이 모두 축소해서 사용하므로 원본 HD가 불필요:
