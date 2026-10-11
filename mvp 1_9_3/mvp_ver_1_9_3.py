@@ -16,7 +16,7 @@ v1.9.2(크리에이터 위기/논란 분석)와 copyright_detector(저작권 침
   · 리포트는 NATAM 분석 직후 곧바로 만들지 않는다. 저작권 분석까지 끝난 뒤
     두 결과를 병합해 '통합 템플릿(report_template_v1_9_3.md)' 기반으로
     MD·PDF·JSON 3종을 한 번에 생성한다.
-      - analyze_video_full 내부의 조기 리포트 생성은 잠시 억제(monkeypatch)하고
+      - analyze_video_full 내부의 조기 리포트 생성은 make_reports=False 로 끄고
         분석 결과(report)만 받아온 뒤, 저작권을 합쳐 최종 리포트를 만든다.
 
 사용법:  python mvp_ver_1_9_3.py     (실행 후 URL/파일경로/텍스트 입력)
@@ -329,27 +329,18 @@ class CrisisReportEngineV193(mvp.CrisisReportEngine):
 def analyze_only(system, video_input: str, download_dir: str | None = None,
                  fresh: bool = False):
     """
-    analyze_video_full 을 실행하되 '내부 MD/PDF 생성'을 잠시 억제한다.
+    analyze_video_full 을 실행하되 '내부 MD/PDF 생성'은 하지 않는다(make_reports=False).
     저작권 결과를 합쳐 최종 리포트를 만들어야 하므로, 여기서는 분석 결과(report)만 받는다.
     (내부 JSON은 저작권 없이 한 번 저장되지만, finalize 단계에서 덮어쓴다.)
+    공유 엔진/모듈의 함수를 바꿔치기하지 않으므로 동시 요청끼리 간섭하지 않는다.
 
     fresh=True 면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터 다시 분석한다.
     """
-    orig_create  = system.report_engine.create_report
-    orig_gen_pdf = getattr(mvp, "_gen_pdf", None)
-    system.report_engine.create_report = lambda report: None       # MD 조기생성 억제
-    if orig_gen_pdf is not None:
-        mvp._gen_pdf = lambda report, output_dir="reports": None    # PDF 조기생성 억제
-    try:
-        kwargs = dict(video_input=video_input,
-                      output_dir="samples/transcripts", use_cache=True, fresh=fresh)
-        if download_dir:
-            kwargs["download_dir"] = download_dir
-        report, json_path, _md, _pdf = system.analyze_video_full(**kwargs)
-    finally:
-        system.report_engine.create_report = orig_create
-        if orig_gen_pdf is not None:
-            mvp._gen_pdf = orig_gen_pdf
+    kwargs = dict(video_input=video_input, output_dir="samples/transcripts",
+                  use_cache=True, fresh=fresh, make_reports=False)
+    if download_dir:
+        kwargs["download_dir"] = download_dir
+    report, json_path, _md, _pdf = system.analyze_video_full(**kwargs)
     return report, json_path
 
 
