@@ -738,10 +738,10 @@ def download_google_drive_video(url: str, output_dir: str = "downloads") -> dict
     """
     try:
         import gdown
-    except ImportError:
-        print("⚠️  gdown 설치 중...")
-        os.system(f"{sys.executable} -m pip install gdown -q")
-        import gdown
+    except ImportError as e:
+        raise ImportError(
+            "gdown이 없습니다. 위기 엔진 폴더에서 pip install -r requirements.txt 를 실행하세요."
+        ) from e
 
     os.makedirs(output_dir, exist_ok=True)
     file_id = _extract_gdrive_file_id(url)
@@ -798,10 +798,10 @@ def download_youtube_video(url: str, output_dir: str = "downloads") -> dict:
     """
     try:
         import yt_dlp
-    except ImportError:
-        print("⚠️  yt-dlp 가 설치되어 있지 않습니다. 설치 중...")
-        os.system(f"{sys.executable} -m pip install yt-dlp -q")
-        import yt_dlp
+    except ImportError as e:
+        raise ImportError(
+            "yt-dlp가 없습니다. 위기 엔진 폴더에서 pip install -r requirements.txt 를 실행하세요."
+        ) from e
 
     os.makedirs(output_dir, exist_ok=True)
 

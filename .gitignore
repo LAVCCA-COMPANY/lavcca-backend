@@ -33,3 +33,7 @@ copyright_detector/_gitignore_test_tmp/
 
 # graphify 지식 그래프 산출물 (로컬 분석용)
 graphify-out/
+
+# 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
+mvp 1_9_3/reports/
+mvp 1_9_3/logs/
