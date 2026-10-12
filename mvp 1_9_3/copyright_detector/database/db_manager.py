@@ -84,18 +84,26 @@ class DatabaseManager:
             session.commit()
 
     def check_video_cached(self, video_hash: str) -> Optional[Dict]:
-        """동일 영상 이전 분석 결과 확인 (중복 분석 방지)"""
+        """
+        동일 영상 이전 분석 결과 확인 (중복 분석 방지)
+        --force 재분석으로 같은 해시의 COMPLETED 작업이 여러 개일 수 있다
+        → 리포트가 저장된 완료 작업 중 최신(created_at, 동률이면 id) 1건을 반환.
+        """
         with self.get_session() as session:
-            job = session.execute(
-                select(AnalysisJob).where(
+            row = session.execute(
+                select(AnalysisJob.job_id, AnalysisReport.report_json)
+                .join(AnalysisReport, AnalysisReport.job_id == AnalysisJob.job_id)
+                .where(
                     AnalysisJob.video_hash == video_hash,
-                    AnalysisJob.status == AnalysisStatus.COMPLETED
-                ).order_by(AnalysisJob.created_at.desc())
-            ).scalars().first()   # --force 재분석으로 같은 해시의 완료 작업이 여러 개일 수 있음
+                    AnalysisJob.status == AnalysisStatus.COMPLETED,
+                )
+                .order_by(AnalysisJob.created_at.desc(), AnalysisJob.id.desc())
+                .limit(1)
+            ).first()
 
-            if job and job.report:
-                logger.info("cache_hit", video_hash=video_hash, job_id=job.job_id)
-                return job.report.report_json
+            if row:
+                logger.info("cache_hit", video_hash=video_hash, job_id=row.job_id)
+                return row.report_json
         return None
 
     # ─────────────────────────────────────────────

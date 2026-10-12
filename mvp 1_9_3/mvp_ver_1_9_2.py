@@ -3222,7 +3222,7 @@ class CrisisConsultantSystem:
         gemini_batch: int  = 20,
         use_cache:    bool = True,
         fresh:        bool = False,   # True면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터
-        emit_reports: bool = True,    # False면 MD/PDF 생성 생략(JSON만) — v1.9.3 이 통합 리포트를 따로 만든다
+        make_reports: bool = True,    # False면 MD/PDF 생성 생략(호출자가 최종 리포트를 따로 만들 때)
         on_video_ready = None,        # callable(video_path): 로컬 영상 경로가 확정되는 즉시 호출(저작권 병렬 시작용)
     ) -> tuple:
         t0 = time.time()
@@ -3539,7 +3539,7 @@ class CrisisConsultantSystem:
         _save_json(report, json_path)
         print(f"\n💾 JSON 저장 완료 → {json_path}")
 
-        if not emit_reports:
+        if not make_reports:
             return report, json_path, None, None
 
         print("📄 MD 리포트 생성 중...")

@@ -1,5 +1,7 @@
 from flask import Flask, request, jsonify, render_template, send_file
-import threading, os, uuid, time
+import threading, os, uuid, time, traceback, re
+import html as _h
+from html.parser import HTMLParser
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -20,12 +22,74 @@ def _report_html(md_path: str) -> str:
     """생성된 최종 MD 리포트를 HTML로 변환(표/코드블록 포함). 실패 시 원문을 <pre>로."""
     try:
         text = Path(md_path).read_text(encoding='utf-8')
-    except Exception as e:
-        return f'<pre>리포트 파일을 읽을 수 없습니다: {e}</pre>'
+    except Exception:
+        traceback.print_exc()  # 상세(경로 포함)는 서버 로그에만
+        return '<pre>리포트 파일을 읽을 수 없습니다.</pre>'
     if _md is None:
-        import html as _h
         return '<pre>' + _h.escape(text) + '</pre>'
-    return _md.markdown(text, extensions=['tables', 'fenced_code', 'sane_lists'])
+    # 리포트에는 영상 제목·자막·기사 등 외부 텍스트가 섞이므로, 브라우저(innerHTML)로
+    # 보내기 전에 마크다운 서식 태그만 남기고 나머지는 모두 무력화한다.
+    return _sanitize_html(_md.markdown(text, extensions=['tables', 'fenced_code', 'sane_lists']))
+
+
+# 마크다운(tables / fenced_code / sane_lists)이 만드는 서식 태그만 허용
+_ALLOWED_TAGS = {
+    'p', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li',
+    'strong', 'em', 'b', 'i', 'code', 'pre', 'blockquote', 'del', 'sup', 'sub',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'span',
+}
+_DROP_CONTENT_TAGS = {'script', 'style', 'iframe', 'object', 'embed', 'template',
+                      'noscript', 'textarea', 'title', 'svg', 'math'}
+_SAFE_HREF = re.compile(r'^(https?://|mailto:|#)', re.I)
+_SAFE_ALIGN = re.compile(r'^text-align:\s*(left|right|center);?$', re.I)
+_SAFE_CODE_CLASS = re.compile(r'^language-[\w+#.-]+$')
+
+
+class _Sanitizer(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.out, self.drop = [], 0
+
+    def _attrs(self, tag, attrs):
+        kept = []
+        for k, v in attrs:
+            v = v or ''
+            if ((tag == 'a' and k == 'href' and _SAFE_HREF.match(v.strip()))
+                    or (tag in ('th', 'td') and k == 'style' and _SAFE_ALIGN.match(v.strip()))
+                    or (tag == 'th' and k == 'align' and v in ('left', 'right', 'center'))
+                    or (tag == 'code' and k == 'class' and _SAFE_CODE_CLASS.match(v))):
+                kept.append(f' {k}="{_h.escape(v.strip(), quote=True)}"')
+        if tag == 'a':
+            kept.append(' rel="noopener noreferrer"')
+        return ''.join(kept)
+
+    def handle_starttag(self, tag, attrs):
+        if tag in _DROP_CONTENT_TAGS:
+            self.drop += 1
+        elif not self.drop and tag in _ALLOWED_TAGS:
+            self.out.append(f'<{tag}{self._attrs(tag, attrs)}>')
+
+    def handle_startendtag(self, tag, attrs):
+        if not self.drop and tag in _ALLOWED_TAGS:
+            self.out.append(f'<{tag}{self._attrs(tag, attrs)}>')
+
+    def handle_endtag(self, tag):
+        if tag in _DROP_CONTENT_TAGS:
+            self.drop = max(0, self.drop - 1)
+        elif not self.drop and tag in _ALLOWED_TAGS:
+            self.out.append(f'</{tag}>')
+
+    def handle_data(self, data):
+        if not self.drop:
+            self.out.append(_h.escape(data, quote=False))
+
+
+def _sanitize_html(html_text: str) -> str:
+    """허용 목록 밖의 태그·속성(on*, style, javascript: 링크 등)을 제거한 HTML."""
+    s = _Sanitizer()
+    s.feed(html_text)
+    s.close()
+    return ''.join(s.out)
 
 app = Flask(__name__, template_folder=str(SCRIPT_DIR.parent / "templates"))
 
@@ -48,6 +112,11 @@ _analysis_lock = threading.Lock()
 JOB_TTL_SECONDS = 3600
 _jobs_lock = threading.Lock()
 jobs = {}
+
+# 분석 1건이 영상 다운로드·전사·저작권 서브프로세스를 모두 돌리므로 동시 실행 수를 제한한다.
+# 한도를 넘는 요청은 대기열에 쌓지 않고 바로 429로 돌려보낸다.
+MAX_CONCURRENT_JOBS = max(1, int(os.getenv('NATAM_MAX_CONCURRENT_JOBS', '2')))
+_job_slots = threading.BoundedSemaphore(MAX_CONCURRENT_JOBS)
 
 
 def _prune_old_jobs():
@@ -101,19 +170,10 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
                                                       include_copyright=do_copyright)
             _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
 
-        elif os.path.exists(user_input):
-            runner = v193.CopyrightRunner(force=fresh) if do_copyright else None
-            if runner:
-                runner.start(user_input)
-            with _analysis_lock:
-                report, json_path = v193.analyze_only(system, user_input, fresh=fresh)
-            copyright_results = runner.result() if runner else None
-            md_path, pdf_path = v193.finalize_reports(report, json_path, copyright_results,
-                                                      include_copyright=do_copyright)
-            _update_job(job_id, md_path=md_path, pdf_path=pdf_path)
-
         else:
             # 텍스트 입력 → 영상이 없어 저작권 분석은 수행하지 않고 NATAM 분석만 수행
+            # (웹 입력은 서버 파일 경로로 해석하지 않는다 — 경로처럼 보여도 텍스트로 취급.
+            #  로컬 파일 분석은 CLI(mvp_ver_1_9_3.py)에서만 지원)
             with _analysis_lock:
                 segments = [{"start": 0, "end": 0, "text": user_input, "corrected_text": user_input}]
                 classification = system.classify_controversy(user_input)
@@ -197,8 +257,14 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
 
         _update_job(job_id, status='done', report=report)
 
-    except Exception as e:
-        _update_job(job_id, status='error', error=str(e))
+    except Exception:
+        # 예외 메시지에는 서버 경로·내부 정보가 섞일 수 있으므로 상세는 서버 로그에만 남긴다.
+        print(f"[run_analysis] job {job_id} 실패")
+        traceback.print_exc()
+        _update_job(job_id, status='error',
+                    error='분석 중 오류가 발생했습니다. 입력을 확인한 뒤 다시 시도해 주세요.')
+    finally:
+        _job_slots.release()
 
 
 @app.route('/')
@@ -217,14 +283,22 @@ def analyze():
     fresh        = bool(data.get('fresh', False))          # True=처음부터(캐시 삭제)
     do_copyright = bool(data.get('do_copyright', True))    # True=저작권 분석 함께
 
-    job_id = str(uuid.uuid4())
-    with _jobs_lock:
-        _prune_old_jobs()
-        jobs[job_id] = {'status': 'queued', 'created_at': time.time()}
+    # 슬롯은 run_analysis 의 finally 에서 반납한다
+    if not _job_slots.acquire(blocking=False):
+        return jsonify({'error': '현재 진행 중인 분석이 많습니다. 잠시 후 다시 시도해 주세요.'}), 429
 
-    thread = threading.Thread(target=run_analysis,
-                              args=(job_id, user_input, fresh, do_copyright))
-    thread.start()
+    job_id = str(uuid.uuid4())
+    try:
+        with _jobs_lock:
+            _prune_old_jobs()
+            jobs[job_id] = {'status': 'queued', 'created_at': time.time()}
+        threading.Thread(target=run_analysis,
+                         args=(job_id, user_input, fresh, do_copyright)).start()
+    except BaseException:
+        # 스레드가 시작되지 못했으면 run_analysis 의 finally 도 돌지 않으므로 여기서 반납
+        _job_slots.release()
+        _update_job(job_id, status='error', error='분석을 시작하지 못했습니다.')
+        raise
 
     return jsonify({'job_id': job_id})
 
@@ -260,7 +334,5 @@ def download(job_id, file_type):
 
 
 if __name__ == '__main__':
-    # 기본은 이 PC에서만 연다. 외부에 열려면 FLASK_HOST=0.0.0.0 을 명시한다.
-    host = os.getenv("FLASK_HOST", "127.0.0.1")
-    port = int(os.getenv("FLASK_PORT", "5000"))
-    app.run(host=host, port=port, debug=False)
+    # 인증이 없으므로 이 PC에서만 접속 가능하게 한다. 외부 공개는 인증 도입 후에만 (README 참고).
+    app.run(host='127.0.0.1', port=5000, debug=False)

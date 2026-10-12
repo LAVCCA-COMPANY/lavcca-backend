@@ -16,7 +16,7 @@ v1.9.2(크리에이터 위기/논란 분석)와 copyright_detector(저작권 침
   · 리포트는 NATAM 분석 직후 곧바로 만들지 않는다. 저작권 분석까지 끝난 뒤
     두 결과를 병합해 '통합 템플릿(report_template_v1_9_3.md)' 기반으로
     MD·PDF·JSON 3종을 한 번에 생성한다.
-      - analyze_video_full(emit_reports=False) 로 분석 결과(report)만 받아온 뒤,
+      - analyze_video_full(make_reports=False) 로 분석 결과(report)만 받아온 뒤,
         저작권을 합쳐 최종 리포트를 만든다.
   · 저작권 분석은 영상 파일이 준비되는 즉시(on_video_ready) 별도 스레드에서 시작해
     NATAM 분석과 병렬로 돈다(CopyrightRunner).
@@ -27,6 +27,8 @@ import os
 import re
 import sys
 import json
+import shutil
+import tempfile
 import uuid
 import subprocess
 import threading
@@ -63,7 +65,6 @@ except Exception as _e:
 # ── 저작권 감지기 경로 ────────────────────────────────────────────────
 COPYRIGHT_DIR     = SCRIPT_DIR / "copyright_detector"
 COPYRIGHT_MAIN    = COPYRIGHT_DIR / "main.py"
-COPYRIGHT_RESULTS = COPYRIGHT_DIR / "results"
 
 # ── 통합 리포트 템플릿 (NATAM 섹션 + 저작권 섹션8) ───────────────────
 V193_TEMPLATE = "report_template_v1_9_3.md"
@@ -86,7 +87,10 @@ def run_copyright_detection(video_path: str, force: bool = False,
 
     · cwd = copyright_detector → 자체 .env / sqlite / 상대경로가 그대로 동작.
     · 진행 로그·요약은 서브프로세스가 직접 콘솔에 출력(실시간 확인 가능).
-    · 저장된 결과 JSON을 읽어 통합 리포트용 dict 로 반환. 실패 시 None.
+    · 결과는 이 실행 전용 임시 폴더(--output)에만 쓰게 하고, 그 폴더의 결과만 읽는다.
+      공용 results/ 의 '최신 파일'을 고르면 실패·동시 실행 시 다른 영상의 결과가
+      섞이므로 쓰지 않는다. 임시 폴더는 성공·실패와 무관하게 항상 삭제한다.
+    · 비정상 종료 / 결과 파일 없음 / 형식 오류 → None (리포트는 '실패·판단 보류').
     """
     if not COPYRIGHT_MAIN.exists():
         print(f"⚠️  copyright_detector/main.py 를 찾을 수 없어 저작권 분석을 건너뜁니다.\n"
@@ -98,43 +102,48 @@ def run_copyright_detection(video_path: str, force: bool = False,
         print(f"⚠️  저작권 분석용 영상 파일을 찾을 수 없어 건너뜁니다: {abs_video}")
         return None
 
-    COPYRIGHT_RESULTS.mkdir(parents=True, exist_ok=True)
-
-    # 이번 실행 전용 job_id → 결과 파일명(result_{job_id}_*.json)으로 정확히 찾는다.
-    #   (동시 실행 시 다른 작업의 결과가 섞이지 않도록 mtime 기반 탐색은 쓰지 않음)
+    # 결과는 임시 폴더로 격리하고, job_id 는 저작권 DB·로그에서 이번 실행을 추적하는 용도로 붙인다.
     job_id = "NATAM_" + uuid.uuid4().hex[:12].upper()
-
-    cmd = [sys.executable, "main.py", abs_video, "--format", "json", "--job-id", job_id]
-    if force:
-        cmd.append("--force")
 
     print("\n" + "=" * 63)
     print("©️   저작권 침해 분석 시작  (copyright_detector)")
     print(f"     대상: {os.path.basename(abs_video)}")
     print("=" * 63)
 
+    out_dir = tempfile.mkdtemp(prefix="natam_cr_")
     try:
-        # 서브프로세스 출력도 통합 로그에 포함되도록 스트리밍(가능하면). 아니면 기존 방식.
-        if run_logging is not None:
-            rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR), prefix=log_prefix)
-        else:
-            rc = subprocess.run(cmd, cwd=str(COPYRIGHT_DIR), check=False).returncode
+        cmd = [sys.executable, "main.py", abs_video, "--format", "json",
+               "--output", out_dir, "--job-id", job_id]
+        if force:
+            cmd.append("--force")
+        try:
+            # 서브프로세스 출력도 통합 로그에 포함되도록 스트리밍(가능하면). 아니면 기존 방식.
+            if run_logging is not None:
+                rc = run_logging.stream_subprocess(cmd, cwd=str(COPYRIGHT_DIR), prefix=log_prefix)
+            else:
+                rc = subprocess.run(cmd, cwd=str(COPYRIGHT_DIR), check=False).returncode
+        except Exception as e:
+            print(f"⚠️  저작권 분석 실행 실패: {e}")
+            return None
         if rc != 0:
-            print(f"⚠️  저작권 분석 프로세스가 비정상 종료(코드 {rc}).")
-    except Exception as e:
-        print(f"⚠️  저작권 분석 실행 실패: {e}")
-        return None
+            print(f"⚠️  저작권 분석 프로세스가 비정상 종료(코드 {rc}) → 결과 미사용(판단 보류).")
+            return None
 
-    # 이번 실행의 job_id 로 저장된 결과 JSON 만 읽는다(없으면 실패로 처리, 다른 결과로 대체하지 않음)
-    matches = sorted(COPYRIGHT_RESULTS.glob(f"result_{job_id}_*.json"))
-    if not matches:
-        print(f"⚠️  저작권 결과 JSON 을 찾지 못했습니다(job_id={job_id}, 요약은 위 로그 참조).")
-        return None
-    try:
-        return json.loads(matches[-1].read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) — 요약은 위 로그 참조.")
-        return None
+        files = list(Path(out_dir).glob("result_*.json"))
+        if len(files) != 1:
+            print(f"⚠️  저작권 결과 JSON 이 {len(files)}개 — 1개여야 함 → 결과 미사용(판단 보류).")
+            return None
+        try:
+            result = json.loads(files[0].read_text(encoding="utf-8"))
+        except Exception as e:
+            print(f"⚠️  저작권 결과 JSON 파싱 실패({e}) → 결과 미사용(판단 보류).")
+            return None
+        if not isinstance(result, dict) or not isinstance(result.get("summary"), dict):
+            print("⚠️  저작권 결과 형식 오류(summary 없음) → 결과 미사용(판단 보류).")
+            return None
+        return result
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
 
 
 class CopyrightRunner:
@@ -376,18 +385,17 @@ class CrisisReportEngineV193(mvp.CrisisReportEngine):
 def analyze_only(system, video_input: str, download_dir: str | None = None,
                  fresh: bool = False, on_video_ready=None):
     """
-    analyze_video_full 을 '내부 MD/PDF 생성 없이'(emit_reports=False) 실행한다.
+    analyze_video_full 을 실행하되 '내부 MD/PDF 생성'은 하지 않는다(make_reports=False).
     저작권 결과를 합쳐 최종 리포트를 만들어야 하므로, 여기서는 분석 결과(report)만 받는다.
     (내부 JSON은 저작권 없이 한 번 저장되지만, finalize 단계에서 덮어쓴다.)
-    ※ 예전에는 공유 객체(system.report_engine, mvp._gen_pdf)를 몽키패치했는데,
-      app.py 에서 작업이 겹치면 원본 복원이 꼬여 리포트가 영구히 안 만들어질 수 있어 인자로 바꿈.
+    공유 엔진/모듈의 함수를 바꿔치기하지 않으므로 동시 요청끼리 간섭하지 않는다.
 
     fresh=True 면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터 다시 분석한다.
     on_video_ready(video_path) 는 영상 파일이 준비되는 즉시 호출된다(저작권 병렬 시작용).
     """
-    kwargs = dict(video_input=video_input,
-                  output_dir="samples/transcripts", use_cache=True, fresh=fresh,
-                  emit_reports=False, on_video_ready=on_video_ready)
+    kwargs = dict(video_input=video_input, output_dir="samples/transcripts",
+                  use_cache=True, fresh=fresh, make_reports=False,
+                  on_video_ready=on_video_ready)
     if download_dir:
         kwargs["download_dir"] = download_dir
     report, json_path, _md, _pdf = system.analyze_video_full(**kwargs)

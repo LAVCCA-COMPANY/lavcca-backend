@@ -2,6 +2,7 @@
 analyzers/yandex_searcher.py - Yandex 이미지 역검색 (SerpAPI)
 Yandex는 공개 URL만 지원 → 이미지를 임시 공개 호스트에 업로드 후 검색.
 업로드 실패 시 빈 결과 반환 (에러 로그 없이 조용히 스킵).
+기본 비활성: YANDEX_PUBLIC_UPLOAD_ENABLED=true 일 때만 업로드·검색한다.
 """
 import base64
 import json
@@ -199,6 +200,14 @@ def yandex_reverse_search(frame_bgr: np.ndarray,
     api_key = config.api.serpapi_key
     if not api_key:
         return _empty_result(error="SERPAPI_KEY not configured")
+    # 프레임을 공개 임시 호스트에 올리는 단계가 필수 → 명시적으로 켠 경우에만 실행
+    if not config.pipeline.yandex_public_upload_enabled:
+        return _empty_result(error="yandex public upload disabled")
+    # 검색이 불가능한데 업로드만 먼저 하는 일이 없도록 패키지를 업로드 전에 확인
+    try:
+        from serpapi import GoogleSearch
+    except ImportError:
+        return _empty_result(error="serpapi package not installed")
 
     # ── 캐시 확인 (유사 프레임 재검색 방지) ──
     ph = _frame_phash(frame_bgr)
@@ -226,8 +235,6 @@ def yandex_reverse_search(frame_bgr: np.ndarray,
 
     # ── SerpAPI Yandex Images 역검색 ──
     try:
-        from serpapi import GoogleSearch
-
         params = {
             "engine": "yandex_images",
             "api_key": api_key,
@@ -247,8 +254,6 @@ def yandex_reverse_search(frame_bgr: np.ndarray,
         _cache_set(ph, result)   # 정상 결과만 캐싱 (일시 오류는 재시도 가능하게)
         return result
 
-    except ImportError:
-        return _empty_result(error="serpapi package not installed")
     except Exception as e:
         logger.warning("yandex_search_error", ts=timestamp_ms, error=str(e))
         return _empty_result(error=str(e))
