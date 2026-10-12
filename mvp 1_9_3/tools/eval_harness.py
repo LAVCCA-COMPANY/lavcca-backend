@@ -9,14 +9,14 @@ eval_harness.py  —  골든셋 평가 + 카테고리별 재현율 + 비회귀 �
   '고심각도 카테고리 재현율'을 따로 본다.
 
 사용:
-  1) 골든셋 작성 (golden_set.json):
+  1) 골든셋 작성 (data/golden_set.json, tools/label_golden.py 로 라벨링):
      [
        {"text": "문장 또는 자막 한 줄", "labels": ["L03"]},
        {"text": "...", "labels": ["L12"]}          # L12 = 해당 없음
      ]
-  2) 평가:        python eval_harness.py golden_set.json
-  3) 기준 저장:   python eval_harness.py golden_set.json --save-baseline
-  4) 비회귀 게이트(머지 전 CI):  python eval_harness.py golden_set.json --gate
+  2) 평가:        python tools/eval_harness.py data/golden_set.json
+  3) 기준 저장:   python tools/eval_harness.py data/golden_set.json --save-baseline
+  4) 비회귀 게이트(머지 전 CI):  python tools/eval_harness.py data/golden_set.json --gate
 
 게이트는 고심각도 카테고리 재현율이 baseline 대비 떨어지면 exit code 1 → trend 머지 차단.
 """
@@ -26,8 +26,10 @@ import json
 from pathlib import Path
 from collections import defaultdict
 
-BASE_DIR      = Path(__file__).parent
-BASELINE_PATH = BASE_DIR / "eval_baseline.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+import paths
+
+BASELINE_PATH = paths.EVAL_BASELINE
 
 # mvp 엔진과 동일 기준의 고심각도 라벨 (mvp_ver_1_9_2.HIGH_SEVERITY_LABELS 와 일치시킬 것)
 HIGH_SEVERITY_LABELS = {"L03", "L06", "L09", "L11"}
@@ -43,7 +45,7 @@ def _load_predict_fn():
     import numpy as np
     from classifier_model import normalize_text   # 동일 전처리 재사용
 
-    bundle = joblib.load(BASE_DIR / "controversy_model.joblib")
+    bundle = joblib.load(paths.CONTROVERSY_MODEL)
     model, mlb = bundle["model"], bundle["mlb"]
     classes = list(mlb.classes_)
 
@@ -162,7 +164,7 @@ def gate(scores: dict) -> bool:
 
 def main():
     if len(sys.argv) < 2:
-        print("사용법: python eval_harness.py golden_set.json [--save-baseline|--gate]")
+        print("사용법: python tools/eval_harness.py data/golden_set.json [--save-baseline|--gate]")
         sys.exit(2)
 
     golden_path = sys.argv[1]

@@ -7,16 +7,13 @@
 *                                   @yangzari
 
 # 업무 규칙·정책 YAML, 리포트 템플릿 (검토된 정책/출력 계약)
-/mvp\ 1_9_3/rules.yaml               @yangzari
-/mvp\ 1_9_3/controversy_labels.yaml  @yangzari
-/mvp\ 1_9_3/worst_actions_map.yaml   @yangzari
-/mvp\ 1_9_3/report_template_v1_9_3.md @yangzari
+/mvp\ 1_9_3/config/                 @yangzari
 
 # 모델·학습 데이터·평가 기준 (골든셋 게이트 대상)
-/mvp\ 1_9_3/controversy_model.joblib   @yangzari
-/mvp\ 1_9_3/controversy_samples.json   @yangzari
-/mvp\ 1_9_3/golden_set.json            @yangzari
-/mvp\ 1_9_3/eval_baseline.json         @yangzari
+/mvp\ 1_9_3/models/                 @yangzari
+/mvp\ 1_9_3/data/controversy_samples.json   @yangzari
+/mvp\ 1_9_3/data/golden_set.json            @yangzari
+/mvp\ 1_9_3/data/eval_baseline.json         @yangzari
 
 # 저작권 감지기 (서브프로세스 계약)
 /mvp\ 1_9_3/copyright_detector/      @yangzari

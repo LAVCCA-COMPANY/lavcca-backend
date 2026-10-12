@@ -11,13 +11,14 @@ trend_updater.py  —  캔슬컬처/유튜버 논란 트렌드 자동 수집기
 수동 실행:
     set NAVER_CLIENT_ID=...
     set NAVER_CLIENT_SECRET=...
-    python trend_updater.py
+    python tools/trend_updater.py
 
-이후 review_updates.py 로 사람이 승인한 것만 실제 데이터에 반영한다.
+이후 tools/review_updates.py 로 사람이 승인한 것만 실제 데이터에 반영한다.
 """
 
 import os
 import re
+import sys
 import json
 import time
 import html
@@ -29,20 +30,21 @@ import yaml
 from google import genai
 
 # 기존 시스템과 동일한 키/모델 재사용
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+import paths
 from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _install_gemini_defaults, _thinking_config
 
 # ────────────────────────────────────────────────
 # 설정
 # ────────────────────────────────────────────────
-BASE_DIR        = Path(__file__).parent
-RULES_PATH      = BASE_DIR / "rules.yaml"
-CASE_DB_PATH    = BASE_DIR / "case_db.json"
+RULES_PATH      = paths.RULES_YAML
+CASE_DB_PATH    = paths.CASE_DB_JSON
 # case_db.json 은 1_9_3 에서 폐기됨(_deprecated/) — 유사 사례는 similar_case_engine + casedb/ 가 담당.
 # 사례(cases)는 더 이상 pending 에 적재하지 않는다. 키워드·학습문장만 갱신.
 CASES_ENABLED   = False
-SAMPLES_PATH    = BASE_DIR / "controversy_samples.json"   # ML 분류 학습 문장
-PENDING_PATH    = BASE_DIR / "pending_updates.json"
-SEEN_PATH       = BASE_DIR / ".trend_seen.json"   # 이미 본 기사 링크 기록(중복 호출 방지)
+SAMPLES_PATH    = paths.SAMPLES_JSON      # ML 분류 학습 문장
+PENDING_PATH    = paths.PENDING_UPDATES
+SEEN_PATH       = paths.TREND_SEEN        # 이미 본 기사 링크 기록(중복 호출 방지)
 
 # 분류 라벨 (controversy_samples.json 학습 문장용)
 #   L05(기만)·L10(저작권)은 별도 Copyright Detector 담당 → 문장 분류 제외
@@ -400,7 +402,7 @@ def append_to_pending(deduped: dict):
     print(f"📥 검토 대기 적재 → {PENDING_PATH.name}")
     print(f"   신규 키워드 {len(deduped['keywords'])}개 / 신규 사례 {len(deduped['cases'])}개"
           f" / 신규 학습문장 {len(deduped['samples'])}개")
-    print("   다음 단계:  python review_updates.py")
+    print("   다음 단계:  python tools/review_updates.py")
 
 
 # ────────────────────────────────────────────────

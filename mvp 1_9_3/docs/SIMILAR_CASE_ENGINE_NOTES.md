@@ -34,7 +34,7 @@ python similar_case_engine.py finalize   # embed_state의 done 만큼으로 매�
 
 | 파일 | 역할 |
 |------|------|
-| `casedb_sync.py` | NocoDB 공개 뷰 → 로컬 스냅샷 `casedb/casedb_news.jsonl` 동기화(재개 가능) |
+| `tools/casedb_sync.py` | NocoDB 공개 뷰 → 로컬 스냅샷 `casedb/casedb_news.jsonl` 동기화(재개 가능) |
 | `similar_case_engine.py` | 임베딩 빌드 + 하이브리드 검색 엔진. 임베딩 백엔드 **교체 가능**(gemini/local) |
 | `risk_trigger.py` | 위험 신호(NATAM A/B축 + 위험 문장) → 검색 트리거. 축↔코퍼스 리스크 매핑 |
 | `mvp_ver_1_9_2.py` | `CrisisConsultantSystem` — 엔진이 여기에 연결됨(`self.sim_engine`) |
@@ -61,9 +61,9 @@ python similar_case_engine.py finalize   # embed_state의 done 만큼으로 매�
 
 ```bash
 # 1) 데이터 동기화 (있으면 이어받기)  →  casedb/casedb_news.jsonl
-python casedb_sync.py
-python casedb_sync.py --fresh        # 처음부터
-python casedb_sync.py --profile      # 품질 프로파일만
+python tools/casedb_sync.py
+python tools/casedb_sync.py --fresh        # 처음부터
+python tools/casedb_sync.py --profile      # 품질 프로파일만
 
 # 2) 인덱스 빌드 (현재 기본: Gemini 임베딩, 768차원, 8워커 병렬)
 python similar_case_engine.py build            # 전체
@@ -104,7 +104,7 @@ python -c "import torch; print('cuda', torch.cuda.is_available())"
 pip install sentence-transformers
 
 # (2) 데이터가 없으면 먼저 동기화
-python casedb_sync.py
+python tools/casedb_sync.py
 
 # (3) 로컬 백엔드로 재임베딩 (인덱스 자동 재구성, 옛 npy 덮어씀)
 #     한국어 강함 + 긴 문맥이면 BAAI/bge-m3(1024차원) 권장
@@ -143,8 +143,8 @@ EMBED_BACKEND=local python similar_case_engine.py search "뒷광고 논란" --k 
    - `.env`에 `GEMINI_API_KEY` 존재 확인(Gemini 백엔드 쓸 경우)
 
 2. **데이터 준비**
-   - `casedb/casedb_news.jsonl` 있는지 확인. 없거나 오래됐으면 `python casedb_sync.py`
-   - `python casedb_sync.py --profile`로 건수·리스크 카테고리 확인(현재 10종, A축과 1:1)
+   - `casedb/casedb_news.jsonl` 있는지 확인. 없거나 오래됐으면 `python tools/casedb_sync.py`
+   - `python tools/casedb_sync.py --profile`로 건수·리스크 카테고리 확인(현재 10종, A축과 1:1)
 
 3. **인덱스 빌드**
    - GPU 있음 → **로컬 백엔드 전환**(3장 절차). 모델은 `BAAI/bge-m3` 권장(한국어·롱컨텍스트)
@@ -156,8 +156,8 @@ EMBED_BACKEND=local python similar_case_engine.py search "뒷광고 논란" --k 
    - 엔진↔본체 연결 검증: 아래 스니펫으로 `find_similar_cases` 왕복 확인
      ```python
      import mvp_ver_1_9_2 as mvp
-     s = mvp.CrisisConsultantSystem('case_db.json','rules.yaml','controversy_labels.yaml',
-                                    'worst_actions_map.yaml','report_template_v1_9_3.md','reports')
+     s = mvp.CrisisConsultantSystem('case_db.json','config/rules.yaml','config/controversy_labels.yaml',
+                                    'config/worst_actions_map.yaml','config/report_template_v1_9_3.md','reports')
      natam = {'A':{'A-02':{'level':'DANGER','reason':'성별 비하'}},'B':{}}
      print(s.find_similar_cases(base_text='성별 비하 논란', natam_result=natam, make_summary=False)[0])
      ```
@@ -189,7 +189,7 @@ EMBED_BACKEND=local python similar_case_engine.py search "뒷광고 논란" --k 
 ## 6. 데이터 갱신(사례집이 늘어났을 때)
 
 ```bash
-python casedb_sync.py            # 새 행 이어받기(또는 --fresh 로 전량 재동기화)
+python tools/casedb_sync.py            # 새 행 이어받기(또는 --fresh 로 전량 재동기화)
 python similar_case_engine.py build   # 재임베딩(재개 가능)
 ```
 매니페스트의 `source_hash`로 스냅샷 변경을 대략 감지할 수 있다. 대량 갱신 시 `--fresh`

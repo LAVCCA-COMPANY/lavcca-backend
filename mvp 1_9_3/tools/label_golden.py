@@ -7,8 +7,8 @@ golden_set.json 에 바로 저장한다 (라벨을 채운 항목만 저장 → e
 다시 실행하면 golden_set.json 의 라벨을 불러와 이어서 한다.
 
 사용:
-  python label_golden.py            # http://127.0.0.1:8765 이 열린다
-  (라벨링 후) python eval_harness.py golden_set.json --save-baseline
+  python tools/label_golden.py      # http://127.0.0.1:8765 이 열린다
+  (라벨링 후) python tools/eval_harness.py data/golden_set.json --save-baseline
 
 키:
   1~9, 0   라벨 토글 (화면 버튼 순서)     Enter  저장 후 다음
@@ -19,15 +19,18 @@ golden_set.json 에 바로 저장한다 (라벨을 채운 항목만 저장 → e
 import glob
 import json
 import re
+import sys
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-BASE_DIR        = Path(__file__).parent
-CANDIDATES_PATH = BASE_DIR / "golden_set_candidates.json"
-GOLDEN_PATH     = BASE_DIR / "golden_set.json"
-LABELS_PATH     = BASE_DIR / "controversy_labels.yaml"
-REPORT_GLOB     = str(BASE_DIR / "reports" / "report_*.json")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+import paths
+
+CANDIDATES_PATH = paths.GOLDEN_CANDIDATES
+GOLDEN_PATH     = paths.GOLDEN_SET
+LABELS_PATH     = paths.LABELS_YAML
+REPORT_GLOB     = str(paths.REPORTS_DIR / "report_*.json")
 HOST, PORT      = "127.0.0.1", 8765
 HIGH_SEVERITY   = {"L03", "L06", "L09", "L11"}
 CONTEXT_N       = 2   # 앞뒤로 보여 줄 자막 줄 수

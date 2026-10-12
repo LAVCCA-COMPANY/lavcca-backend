@@ -11,19 +11,22 @@ trend_updater.py 가 쌓아둔 '검토 대기' 항목을 사람이 하나씩 확
 """
 
 import json
+import sys
 from pathlib import Path
 from datetime import datetime
 
 import yaml
 
-BASE_DIR     = Path(__file__).parent
-RULES_PATH   = BASE_DIR / "rules.yaml"
-CASE_DB_PATH = BASE_DIR / "case_db.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+import paths
+
+RULES_PATH   = paths.RULES_YAML
+CASE_DB_PATH = paths.CASE_DB_JSON
 # case_db.json 은 1_9_3 에서 폐기됨(_deprecated/) — 유사 사례는 similar_case_engine + casedb/ 가 담당.
 # 예전 pending 에 남아 있는 사례는 건드리지 않고 건너뛴다(검토 완료 판정에서도 제외).
 CASES_ENABLED = False
-SAMPLES_PATH = BASE_DIR / "controversy_samples.json"   # ML 학습 문장
-PENDING_PATH = BASE_DIR / "pending_updates.json"
+SAMPLES_PATH = paths.SAMPLES_JSON      # ML 학습 문장
+PENDING_PATH = paths.PENDING_UPDATES
 
 SEVERITY_ACTION = {   # 키워드 반영 시 카테고리 기본 액션 매핑(신규 카테고리 대비)
     "CRITICAL": "BAN_USER",
@@ -107,7 +110,7 @@ def apply_sample(item: dict):
 # ────────── 메인 루프 ──────────
 def main():
     if not PENDING_PATH.exists():
-        print("📭 pending_updates.json 이 없습니다. 먼저 trend_updater.py 를 실행하세요.")
+        print("📭 pending_updates.json 이 없습니다. 먼저 tools/trend_updater.py 를 실행하세요.")
         return
 
     pending = json.loads(PENDING_PATH.read_text(encoding="utf-8"))

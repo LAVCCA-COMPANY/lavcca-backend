@@ -26,6 +26,7 @@ import re
 import cv2
 import PIL.Image
 import joblib
+import paths
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -60,7 +61,7 @@ GEN_MODEL                = os.getenv("GEN_MODEL",   "models/gemini-3.8-flash")  
 WHISPER_MODEL            = "turbo"
 GEMINI_REFINE_MODEL      = os.getenv("GEMINI_REFINE_MODEL", "models/gemini-3.8-flash")
 TRANSCRIBE_ENGINE        = os.getenv("TRANSCRIBE_ENGINE", "gemini")  # "whisper" | "gemini" | "clova"
-CONTROVERSY_MODEL_PATH   = "controversy_model.joblib"  # ML 분류 모델
+CONTROVERSY_MODEL_PATH   = str(paths.CONTROVERSY_MODEL)  # ML 분류 모델
 _REFINE_CONCURRENCY      = 4                           # Gemini 교정 배치 동시 실행 수
 
 # ── [1순위] Clova NEST(Speech Recognition) ASR — 한국어 CER 우위 가설 검증용 ──
@@ -1908,9 +1909,9 @@ class CrisisConsultantSystem:
     def __init__(
         self,
         db_path                = 'case_db.json',
-        rules_yaml             = 'rules.yaml',
-        labels_yaml            = 'controversy_labels.yaml',
-        worst_actions_yaml     = 'worst_actions_map.yaml',
+        rules_yaml             = str(paths.RULES_YAML),
+        labels_yaml            = str(paths.LABELS_YAML),
+        worst_actions_yaml     = str(paths.WORST_ACTIONS_YAML),
         template_path          = 'report template.md',
         report_dir             = 'reports',
         controversy_model_path = CONTROVERSY_MODEL_PATH,
@@ -3672,9 +3673,9 @@ def main():
 
     system = CrisisConsultantSystem(
         db_path            = 'case_db.json',
-        rules_yaml         = 'rules.yaml',
-        labels_yaml        = 'controversy_labels.yaml',
-        worst_actions_yaml = 'worst_actions_map.yaml',
+        rules_yaml         = str(paths.RULES_YAML),
+        labels_yaml        = str(paths.LABELS_YAML),
+        worst_actions_yaml = str(paths.WORST_ACTIONS_YAML),
         template_path      = 'report template.md',
         report_dir         = 'reports',
     )

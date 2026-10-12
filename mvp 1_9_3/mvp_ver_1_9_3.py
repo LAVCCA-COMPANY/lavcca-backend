@@ -14,7 +14,7 @@ v1.9.2(크리에이터 위기/논란 분석)와 copyright_detector(저작권 침
   · 저작권 쪽(copyright_detector)은 자체 .env / sqlite / 상대경로 가정이 있어
     '독립 서브프로세스'로 실행한다(cwd = copyright_detector).
   · 리포트는 NATAM 분석 직후 곧바로 만들지 않는다. 저작권 분석까지 끝난 뒤
-    두 결과를 병합해 '통합 템플릿(report_template_v1_9_3.md)' 기반으로
+    두 결과를 병합해 '통합 템플릿(config/report_template_v1_9_3.md)' 기반으로
     MD·PDF·JSON 3종을 한 번에 생성한다.
       - analyze_video_full(make_reports=False) 로 분석 결과(report)만 받아온 뒤,
         저작권을 합쳐 최종 리포트를 만든다.
@@ -40,6 +40,7 @@ os.chdir(SCRIPT_DIR)
 
 # ── v1.9.2 를 모듈로 가져와 전부 재사용 ───────────────────────────────
 import mvp_ver_1_9_2 as mvp
+import paths
 
 # ── 외부 확산 신호 수집기(2층: 크리에이터 전반 / 이번 사안) ─────────────
 try:
@@ -67,7 +68,7 @@ COPYRIGHT_DIR     = SCRIPT_DIR / "copyright_detector"
 COPYRIGHT_MAIN    = COPYRIGHT_DIR / "main.py"
 
 # ── 통합 리포트 템플릿 (NATAM 섹션 + 저작권 섹션8) ───────────────────
-V193_TEMPLATE = "report_template_v1_9_3.md"
+V193_TEMPLATE = str(paths.REPORT_TEMPLATE_V193)
 
 # 표시용 라벨/이모지
 _CR_EMOJI = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🔵", "SAFE": "✅"}
@@ -558,9 +559,9 @@ def main():
 
     system = mvp.CrisisConsultantSystem(
         db_path            = 'case_db.json',
-        rules_yaml         = 'rules.yaml',
-        labels_yaml        = 'controversy_labels.yaml',
-        worst_actions_yaml = 'worst_actions_map.yaml',
+        rules_yaml         = str(paths.RULES_YAML),
+        labels_yaml        = str(paths.LABELS_YAML),
+        worst_actions_yaml = str(paths.WORST_ACTIONS_YAML),
         template_path      = 'report template.md',
         report_dir         = 'reports',
     )

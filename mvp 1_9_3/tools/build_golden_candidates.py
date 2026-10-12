@@ -13,11 +13,11 @@ reports/report_*.json 의 transcript_analysis(교정 자막)에서 문장을 모
 검수 방법:
   1) golden_set_candidates.json 을 열어 각 항목의 "labels" 를 채운다 (예: ["L03"], 해당 없음은 ["L12"])
      특히 고심각도 L03/L06/L09/L11 은 꼼꼼히. 애매하면 labels 를 비워 두면 평가에서 제외된다.
-  2) golden_set.json 으로 저장(이름 변경) → python eval_harness.py golden_set.json --save-baseline
+  2) data/golden_set.json 으로 저장(이름 변경) → python tools/eval_harness.py data/golden_set.json --save-baseline
 
 사용:
-  python build_golden_candidates.py            # 기본 출력 golden_set_candidates.json
-  python build_golden_candidates.py --max 300  # 후보 상한
+  python tools/build_golden_candidates.py            # 기본 출력 data/golden_set_candidates.json
+  python tools/build_golden_candidates.py --max 300  # 후보 상한
 """
 
 import argparse
@@ -25,11 +25,14 @@ import glob
 import json
 import random
 import re
+import sys
 from pathlib import Path
 
-BASE_DIR     = Path(__file__).parent
-SAMPLES_PATH = BASE_DIR / "controversy_samples.json"
-OUT_PATH     = BASE_DIR / "golden_set_candidates.json"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+import paths
+
+SAMPLES_PATH = paths.SAMPLES_JSON
+OUT_PATH     = paths.GOLDEN_CANDIDATES
 
 SUSPECT_PROB = 0.15   # Tier1 트리거 임계값과 동일
 MIN_CHARS    = 6      # 너무 짧은 감탄사·추임새 제외
@@ -89,7 +92,7 @@ def _is_suspect(r) -> bool:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--reports", default=str(BASE_DIR / "reports" / "report_*.json"))
+    ap.add_argument("--reports", default=str(paths.REPORTS_DIR / "report_*.json"))
     ap.add_argument("--max", type=int, default=250)
     ap.add_argument("--out", default=str(OUT_PATH))
     args = ap.parse_args()
@@ -116,7 +119,7 @@ def main():
     print(f"📄 전체 후보 문장 {len(rows)}개 (학습 데이터 중복·짧은 문장 제외)")
     print(f"   의심 {len(suspect)}개 중 {n_sus}개 + 정상 {len(normal)}개 중 {n_nor}개 → {len(picked)}개")
     print(f"   모델 의심 라벨 분포: {dict(sorted(by_label.items()))}")
-    print(f"💾 저장 → {args.out}  (labels 를 채운 뒤 golden_set.json 으로 저장)")
+    print(f"💾 저장 → {args.out}  (labels 를 채운 뒤 data/golden_set.json 으로 저장)")
 
 
 if __name__ == "__main__":

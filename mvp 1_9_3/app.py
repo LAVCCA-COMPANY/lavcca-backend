@@ -8,6 +8,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 os.chdir(SCRIPT_DIR)
 
 import mvp_ver_1_9_3 as v193
+import paths
 
 mvp = v193.mvp  # v1.9.2 엔진 (v193 내부에서 재사용 중인 모듈)
 
@@ -96,9 +97,9 @@ app = Flask(__name__, template_folder=str(SCRIPT_DIR.parent / "templates"))
 # 시스템 초기화 (서버 시작 시 한 번만)
 system = mvp.CrisisConsultantSystem(
     db_path            = 'case_db.json',
-    rules_yaml         = 'rules.yaml',
-    labels_yaml        = 'controversy_labels.yaml',
-    worst_actions_yaml = 'worst_actions_map.yaml',
+    rules_yaml         = str(paths.RULES_YAML),
+    labels_yaml        = str(paths.LABELS_YAML),
+    worst_actions_yaml = str(paths.WORST_ACTIONS_YAML),
     template_path      = 'report template.md',
     report_dir         = 'reports',
 )

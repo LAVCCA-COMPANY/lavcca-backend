@@ -66,8 +66,21 @@ Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
   - `python copyright_detector/tui.py` — terminal UI
   - See `mvp 1_9_3/copyright_detector/READ ME.md` for the fuller command list.
 - **Similar-case engine** (build/maintenance commands): see
-  `mvp 1_9_3/SIMILAR_CASE_ENGINE_NOTES.md` — do not guess at usage from code
+  `mvp 1_9_3/docs/SIMILAR_CASE_ENGINE_NOTES.md` — do not guess at usage from code
   alone, that file documents current index state and known limitations.
+
+## `mvp 1_9_3/` layout
+
+- Runtime modules stay at the folder root (`mvp_ver_1_9_3.py`, `mvp_ver_1_9_2.py`,
+  `classifier_model.py`, `risk_trigger.py`, `similar_case_engine.py`, ...).
+- `config/` business-rule YAML + report template, `models/` the trained
+  classifier, `data/` training/eval/review data, `tools/` offline scripts
+  (eval, golden-set labeling, trend update/review, casedb sync), `docs/`.
+- All of these paths are defined once in `paths.py`; import it instead of
+  hard-coding file names. Scripts in `tools/` add the parent folder to
+  `sys.path` and are run from `mvp 1_9_3/` as `python tools/<script>.py`.
+- `.dockerignore` excludes `tools/`, `data/`, `docs/`, `tests/` and local
+  outputs from a container image built with `mvp 1_9_3/` as the context.
 
 ## Two-process architecture
 
@@ -157,4 +170,4 @@ actually ran it in this session — describe what you ran and its output.
 ## Reference
 
 - Similar-case engine (architecture, index state, rebuild/resume commands,
-  known limitations): `mvp 1_9_3/SIMILAR_CASE_ENGINE_NOTES.md`.
+  known limitations): `mvp 1_9_3/docs/SIMILAR_CASE_ENGINE_NOTES.md`.

@@ -1,18 +1,18 @@
 # 골든셋 비회귀 게이트 (작업 5)
 # 분류 모델·학습 데이터·평가 스크립트가 바뀌는 PR 에서 고심각도(L03/L06/L09/L11) 재현율이
 # baseline 대비 떨어지면 실패한다.
-# golden_set.json 과 eval_baseline.json 이 커밋되기 전까지는 스킵된다.
+# data/golden_set.json 과 data/eval_baseline.json 이 커밋되기 전까지는 스킵된다.
 name: eval-gate
 
 on:
   pull_request:
     paths:
-      - "mvp 1_9_3/controversy_model.joblib"
-      - "mvp 1_9_3/controversy_samples.json"
+      - "mvp 1_9_3/models/controversy_model.joblib"
+      - "mvp 1_9_3/data/controversy_samples.json"
       - "mvp 1_9_3/classifier_model.py"
-      - "mvp 1_9_3/eval_harness.py"
-      - "mvp 1_9_3/golden_set.json"
-      - "mvp 1_9_3/eval_baseline.json"
+      - "mvp 1_9_3/tools/eval_harness.py"
+      - "mvp 1_9_3/data/golden_set.json"
+      - "mvp 1_9_3/data/eval_baseline.json"
 
 jobs:
   gate:
@@ -26,10 +26,10 @@ jobs:
       - name: Check golden set exists
         id: check
         run: |
-          if [ -f golden_set.json ] && [ -f eval_baseline.json ]; then
+          if [ -f data/golden_set.json ] && [ -f data/eval_baseline.json ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "golden_set.json / eval_baseline.json 없음 → 게이트 스킵"
+            echo "data/golden_set.json / data/eval_baseline.json 없음 → 게이트 스킵"
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -45,4 +45,4 @@ jobs:
 
       - name: Gate
         if: steps.check.outputs.ready == 'true'
-        run: python eval_harness.py golden_set.json --gate
+        run: python tools/eval_harness.py data/golden_set.json --gate

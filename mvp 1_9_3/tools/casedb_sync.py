@@ -11,9 +11,9 @@ casedb_sync.py — NocoDB 사례집(공개 공유 뷰) → 로컬 스냅샷 동�
   - stdlib(urllib)만 사용 → 추가 의존성 없음
 
 사용법
-  python casedb_sync.py            # 동기화(있으면 이어받기)
-  python casedb_sync.py --fresh    # 처음부터 새로
-  python casedb_sync.py --profile  # 내려받은 데이터 품질 프로파일만 출력
+  python tools/casedb_sync.py            # 동기화(있으면 이어받기)
+  python tools/casedb_sync.py --fresh    # 처음부터 새로
+  python tools/casedb_sync.py --profile  # 내려받은 데이터 품질 프로파일만 출력
 """
 from __future__ import annotations
 
@@ -40,9 +40,9 @@ BASE_URL = f"https://app.nocodb.com/api/v2/public/shared-view/{VIEW_ID}/rows"
 
 PAGE_SIZE = 1000
 
-# 파일 경로(스크립트 위치 기준 → 실행 CWD와 무관)
-HERE      = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR  = os.path.join(HERE, "casedb")
+# 파일 경로(mvp 1_9_3/casedb 고정 → 실행 CWD와 무관. similar_case_engine 과 같은 폴더)
+APP_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR  = os.path.join(APP_DIR, "casedb")
 JSONL     = os.path.join(DATA_DIR, "casedb_news.jsonl")
 STATE     = os.path.join(DATA_DIR, "sync_state.json")
 
@@ -156,7 +156,7 @@ def _iter_rows():
 
 def profile() -> None:
     if not os.path.exists(JSONL):
-        print("❌ 스냅샷이 없습니다. 먼저 `python casedb_sync.py` 를 실행하세요.")
+        print("❌ 스냅샷이 없습니다. 먼저 `python tools/casedb_sync.py` 를 실행하세요.")
         return
 
     total = 0

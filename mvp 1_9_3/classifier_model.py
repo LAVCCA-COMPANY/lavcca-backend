@@ -144,9 +144,9 @@ def predict(model, mlb, text, threshold=0.3):
 
 if __name__ == '__main__':
     # 파일 경로 설정
-    BASE_DIR = Path(__file__).parent
-    DATA_PATH = BASE_DIR / 'controversy_samples.json'
-    SAVE_PATH = BASE_DIR / 'controversy_model.joblib'
+    import paths
+    DATA_PATH = paths.SAMPLES_JSON
+    SAVE_PATH = paths.CONTROVERSY_MODEL
     
     # 1. 초기 학습
     model, mlb = train(DATA_PATH, SAVE_PATH)

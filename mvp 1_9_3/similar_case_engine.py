@@ -339,7 +339,7 @@ class LocalEmbedder(BaseEmbedder):
         except Exception as e:  # noqa: BLE001
             raise RuntimeError(
                 "local 백엔드는 sentence-transformers 설치가 필요합니다: "
-                "pip install sentence-transformers  (자세한 건 SIMILAR_CASE_ENGINE_NOTES.md)"
+                "pip install sentence-transformers  (자세한 건 docs/SIMILAR_CASE_ENGINE_NOTES.md)"
             ) from e
         try:
             import torch
@@ -426,7 +426,7 @@ def build(limit: Optional[int] = None, tag: str = "", backend: str = None, chunk
     os.makedirs(DATA_DIR, exist_ok=True)
     P = _paths(tag)
     if not os.path.exists(P["jsonl"]):
-        raise FileNotFoundError(f"스냅샷 없음: {P['jsonl']} — 먼저 casedb_sync.py 실행")
+        raise FileNotFoundError(f"스냅샷 없음: {P['jsonl']} — 먼저 tools/casedb_sync.py 실행")
 
     t0 = time.time()
     print(f"⏳ 유사사례 인덱스 빌드 시작 (backend={backend or EMBED_BACKEND}, limit={limit})")
