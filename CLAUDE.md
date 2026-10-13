@@ -58,6 +58,11 @@ Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
 - **CLI**: `python mvp_ver_1_9_3.py` — interactive loop; accepts a YouTube
   URL, Google Drive URL, local video/audio path, or raw text, and asks
   whether to run the copyright scan alongside the crisis analysis.
+- **Service worker**: `python worker.py --job-id J --input <file|s3://...>
+  --output-dir <dir> [--output-s3 s3://...] [--no-copyright]` — non-interactive,
+  one video per run, writes reports + `job_result.json`. Container image:
+  `mvp 1_9_3/Dockerfile`. The planned (not yet deployed) AWS/Supabase pieces
+  around it live in repo-root `infra/` — see `infra/README.md`.
 - **Copyright detector standalone**:
   - `python copyright_detector/main.py "video.mp4"` (add `--force` to
     re-analyze ignoring cache)
