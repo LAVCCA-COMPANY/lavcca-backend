@@ -43,7 +43,7 @@ structlog>=23.1.0
 # ML / Vision models
 torch>=2.0.0
 torchvision>=0.15.0
-transformers>=4.30.0
+transformers==4.57.6   # 5.x 는 GPU 없는 torch 2.6 에서 CLIPModel import 실패(torch.accelerator). 2026-10-13 확인
 
 # CLI output / Search
 rich>=13.0.0
