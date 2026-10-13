@@ -56,11 +56,16 @@ def save_to_json(file_path, new_text, labels):
 # 2. 학습 함수
 # ─────────────────────────────────────────────
 
-def train(data_path, save_path):
-    print(f"📦 데이터 로딩: {data_path}")
-    with open(data_path, 'r', encoding='utf-8-sig') as f:
-        raw_data = json.load(f)
+LABEL_NAMES = {
+    'L01': '직접적 욕설', 'L02': '인신공격/비하', 'L03': '혐오 표현',
+    'L04': '허위 정보', 'L06': '위험/자해 행동',
+    'L07': '정치적 편향', 'L08': '사생활 침해', 'L09': '성적 불쾌감',
+    'L11': '피해자 조롱', 'L12': '해당 없음'
+    # L05(기만)·L10(저작권)은 별도 Copyright Detector 담당 → 제외
+}
 
+def prepare_training_data(raw_data):
+    """원본 샘플 → (정규화 문장, 학습 라벨, cv_folds). tools/sagemaker/train.py 도 이걸 쓴다."""
     # 안전장치: 제외 라벨(L05/L10) 제거 후, 라벨이 비게 된 샘플은 학습에서 드롭
     cleaned = []
     for item in raw_data:
@@ -92,18 +97,29 @@ def train(data_path, save_path):
         # 만약 필터링 후 라벨이 하나도 없다면 'L12'(해당없음) 처리
         filtered_labels.append(filtered if filtered else ["L12"])
 
-    mlb = MultiLabelBinarizer()
-    y = mlb.fit_transform(filtered_labels)
-
     # 4. 모델 설정 (데이터가 적을 때는 cv 숫자를 줄여야 함)
     # 데이터가 아주 적을 때는 cv='prefit'을 쓰거나 숫자를 2~3으로 낮춤
     cv_folds = 2 if min(label_counts.values()) < 5 else 5
+    return texts, filtered_labels, cv_folds
 
-    pipeline = Pipeline([
+def build_pipeline(cv_folds, ngram_range=(2, 4), C=1.0):
+    return Pipeline([
         # 공백 어절 TF-IDF는 한국어 활용형을 못 읽는다. 글자 n-gram이 어간을 겹친다.
-        ('tfidf', TfidfVectorizer(analyzer='char_wb', ngram_range=(2, 4), min_df=1)),
-        ('clf', OneVsRestClassifier(CalibratedClassifierCV(LinearSVC(dual=False, C=1.0), cv=cv_folds)))
+        ('tfidf', TfidfVectorizer(analyzer='char_wb', ngram_range=ngram_range, min_df=1)),
+        ('clf', OneVsRestClassifier(CalibratedClassifierCV(LinearSVC(dual=False, C=C), cv=cv_folds)))
     ])
+
+def train(data_path, save_path):
+    print(f"📦 데이터 로딩: {data_path}")
+    with open(data_path, 'r', encoding='utf-8-sig') as f:
+        raw_data = json.load(f)
+
+    texts, filtered_labels, cv_folds = prepare_training_data(raw_data)
+
+    mlb = MultiLabelBinarizer()
+    y = mlb.fit_transform(filtered_labels)
+
+    pipeline = build_pipeline(cv_folds)
 
     print(f"🚀 모델 학습 시작 (CV Folds: {cv_folds})...")
     pipeline.fit(texts, y)
@@ -111,13 +127,7 @@ def train(data_path, save_path):
     model_data = {
         'model': pipeline,
         'mlb': mlb,
-        'label_names': {
-            'L01': '직접적 욕설', 'L02': '인신공격/비하', 'L03': '혐오 표현',
-            'L04': '허위 정보', 'L06': '위험/자해 행동',
-            'L07': '정치적 편향', 'L08': '사생활 침해', 'L09': '성적 불쾌감',
-            'L11': '피해자 조롱', 'L12': '해당 없음'
-            # L05(기만)·L10(저작권)은 별도 Copyright Detector 담당 → 제외
-        }
+        'label_names': dict(LABEL_NAMES),
     }
     joblib.dump(model_data, save_path)
     print(f"✅ 모델 저장 완료: {save_path}")

@@ -40,3 +40,6 @@ docs/
 tests/
 _deprecated/
 copyright_detector/fonts_train/
+
+# 학습 연습 산출물 (tools/sagemaker/train.py)
+out/

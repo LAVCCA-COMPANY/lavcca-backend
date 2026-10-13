@@ -37,3 +37,6 @@ graphify-out/
 # 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
 mvp 1_9_3/reports/
 mvp 1_9_3/logs/
+
+# SageMaker 연습 학습 산출물 (tools/sagemaker/train.py 기본 출력)
+mvp 1_9_3/out/

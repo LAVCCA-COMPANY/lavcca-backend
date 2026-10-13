@@ -1,0 +1,7 @@
+# tools/sagemaker/train.py 전용 (서비스용 mvp 1_9_3/requirements.txt 와 분리).
+# 2026-10-13 이 PC(Python 3.11.2)에서 확인한 버전. joblib 모델은 학습·추론 쪽 scikit-learn 버전이
+# 같아야 안전하므로 서비스 requirements.txt 의 scikit-learn==1.8.0 과 맞춰 둔다.
+scikit-learn==1.8.0
+numpy==2.4.3
+scipy==1.17.1
+joblib==1.5.3
