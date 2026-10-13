@@ -150,8 +150,10 @@ class RekognitionClient:
                 self._client = boto3.client(
                     "rekognition",
                     region_name=config.aws.region,
-                    aws_access_key_id=config.api.aws_access_key_id,
-                    aws_secret_access_key=config.api.aws_secret_access_key,
+                    # 키가 비어 있으면 None → 기본 자격 증명 체인(ECS 태스크 역할 등)을 쓴다.
+                    #   빈 문자열을 넘기면 boto3 가 빈 키로 서명해 인증이 실패한다.
+                    aws_access_key_id=config.api.aws_access_key_id or None,
+                    aws_secret_access_key=config.api.aws_secret_access_key or None,
                 )
             except Exception as e:
                 logger.warning("rekognition_unavailable", error=str(e))

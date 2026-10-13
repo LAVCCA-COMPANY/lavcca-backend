@@ -1,7 +1,9 @@
 # 위기 엔진(mvp 1_9_3) 의존성. 2026-10-12 이 PC에서 확인한 버전.
 # 저작권 감지기는 copyright_detector/requirements.txt 를 따로 쓴다.
-# torch 휠은 이 PC에서 2.6.0+cu124 (CUDA 12.4). PyPI의 torch==2.6.0 과 빌드는 다를 수 있다.
-# PDF(pdf_from_md)용 pymupdf, markdown 은 이 PC에 없어 고정하지 않았다.
+# torch 휠은 이 PC에서 2.6.0+cu124 (CUDA 12.4). 컨테이너(Dockerfile)는 CPU 휠
+#   torch 2.6.0+cpu / torchvision 0.21.0+cpu 를 먼저 깔아 이 고정을 만족시킨다.
+# opencv 는 GUI 없는 headless (컨테이너에 libGL 불필요). imshow 는 쓰지 않는다.
+# pymupdf, markdown(PDF 렌더, pdf_from_md)은 이 PC에 없던 것 — 2026-10-13 PyPI 최신으로 고정, 실행 미확인.
 
 python-dotenv==1.2.2
 openai-whisper==20250625
@@ -10,7 +12,7 @@ torch==2.6.0
 PyYAML==6.0.3
 numpy==2.4.3
 faiss-cpu==1.13.2
-opencv-python==4.13.0.92
+opencv-python-headless==4.13.0.92
 pillow==12.1.1
 joblib==1.5.3
 scikit-learn==1.8.0
@@ -19,4 +21,6 @@ gdown==6.0.0
 yt-dlp==2026.7.4
 flask==3.1.3
 reportlab==4.5.1
+pymupdf==1.28.2
+markdown==3.11
 requests==2.32.5

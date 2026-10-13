@@ -34,9 +34,9 @@ import subprocess
 import threading
 from pathlib import Path
 
-# ── 항상 이 스크립트(=NATAM) 폴더를 작업 디렉터리로 고정 ──────────────
+# 이 스크립트(=NATAM) 폴더. 상대경로(reports/, downloads/ 등)를 쓰는 CLI 는 main()에서
+#   여기로 chdir 한다. import 시점에는 바꾸지 않는다(worker.py 는 절대경로만 쓴다).
 SCRIPT_DIR = Path(__file__).resolve().parent
-os.chdir(SCRIPT_DIR)
 
 # ── v1.9.2 를 모듈로 가져와 전부 재사용 ───────────────────────────────
 import mvp_ver_1_9_2 as mvp
@@ -82,7 +82,7 @@ _CR_TYPE_LABEL = {
 # 저작권 분석 (copyright_detector 를 독립 프로세스로 실행)
 # ════════════════════════════════════════════════════════════════════
 def run_copyright_detection(video_path: str, force: bool = False,
-                            log_prefix: str = "") -> dict | None:
+                            log_prefix: str = "", job_id: str | None = None) -> dict | None:
     """
     로컬 영상 파일에 대해 copyright_detector/main.py 를 서브프로세스로 실행한다.
 
@@ -104,7 +104,7 @@ def run_copyright_detection(video_path: str, force: bool = False,
         return None
 
     # 결과는 임시 폴더로 격리하고, job_id 는 저작권 DB·로그에서 이번 실행을 추적하는 용도로 붙인다.
-    job_id = "NATAM_" + uuid.uuid4().hex[:12].upper()
+    job_id = job_id or "NATAM_" + uuid.uuid4().hex[:12].upper()
 
     print("\n" + "=" * 63)
     print("©️   저작권 침해 분석 시작  (copyright_detector)")
@@ -156,8 +156,9 @@ class CopyrightRunner:
     start() 는 한 번만 동작하고, result() 는 시작되지 않았으면 None.
     """
 
-    def __init__(self, force: bool = False):
+    def __init__(self, force: bool = False, job_id: str | None = None):
         self.force   = force
+        self.job_id  = job_id
         self.started = False
         self._thread = None
         self._result = None
@@ -170,7 +171,7 @@ class CopyrightRunner:
         def _run():
             try:
                 self._result = run_copyright_detection(video_path, force=self.force,
-                                                       log_prefix="[©] ")
+                                                       log_prefix="[©] ", job_id=self.job_id)
             except Exception as e:   # 스레드 예외가 조용히 사라지지 않도록
                 print(f"⚠️  저작권 분석 스레드 오류: {e}")
 
@@ -384,7 +385,8 @@ class CrisisReportEngineV193(mvp.CrisisReportEngine):
 # NATAM 분석 실행 (내부 조기 리포트 생성은 억제) + 통합 리포트 생성
 # ════════════════════════════════════════════════════════════════════
 def analyze_only(system, video_input: str, download_dir: str | None = None,
-                 fresh: bool = False, on_video_ready=None):
+                 fresh: bool = False, on_video_ready=None,
+                 transcript_dir: str = "samples/transcripts"):
     """
     analyze_video_full 을 실행하되 '내부 MD/PDF 생성'은 하지 않는다(make_reports=False).
     저작권 결과를 합쳐 최종 리포트를 만들어야 하므로, 여기서는 분석 결과(report)만 받는다.
@@ -394,7 +396,7 @@ def analyze_only(system, video_input: str, download_dir: str | None = None,
     fresh=True 면 이 영상의 이전 전사/교정 캐시를 지우고 처음부터 다시 분석한다.
     on_video_ready(video_path) 는 영상 파일이 준비되는 즉시 호출된다(저작권 병렬 시작용).
     """
-    kwargs = dict(video_input=video_input, output_dir="samples/transcripts",
+    kwargs = dict(video_input=video_input, output_dir=transcript_dir,
                   use_cache=True, fresh=fresh, make_reports=False,
                   on_video_ready=on_video_ready)
     if download_dir:
@@ -404,7 +406,7 @@ def analyze_only(system, video_input: str, download_dir: str | None = None,
 
 
 def finalize_reports(report: dict, json_path: str, copyright_results: dict | None,
-                     include_copyright: bool = True):
+                     include_copyright: bool = True, report_dir: str = "reports"):
     """
     NATAM report 에 저작권 결과를 병합하고 JSON·MD·PDF 3종을 모두 생성한다.
       · include_copyright=True  → copyright 키를 넣어 저작권 섹션을 렌더
@@ -438,13 +440,14 @@ def finalize_reports(report: dict, json_path: str, copyright_results: dict | Non
     mvp._save_json(report, json_path)
 
     # ── MD (통합 템플릿; 저작권 미수행 시 8장 섹션 제거) ──
-    md_path = CrisisReportEngineV193(include_copyright=include_copyright).create_report(report)
+    md_path = CrisisReportEngineV193(output_dir=report_dir,
+                                     include_copyright=include_copyright).create_report(report)
 
-    # ── PDF (최종 MD 리포트를 '참고 스타일'로 렌더 — 내용은 MD와 100% 동일) ──
+    # ── PDF (최종 MD 리포트를 '참고 스타일'로 렌더 — 내용은 MD와 100% 동일, MD 옆에 저장) ──
     pdf_path = None
     if md_path and pdf_from_md is not None:
         try:
-            pdf_path = pdf_from_md.render(md_path)
+            pdf_path = pdf_from_md.render(md_path, os.path.splitext(md_path)[0] + ".pdf")
             if pdf_path:
                 print(f"✅ PDF 리포트 생성 완료: {pdf_path}")
         except Exception as e:
@@ -543,6 +546,8 @@ def ask_copyright_choice() -> bool:
 # 메인 루프
 # ════════════════════════════════════════════════════════════════════
 def main():
+    os.chdir(SCRIPT_DIR)   # CLI 는 reports/, downloads/, samples/ 등 상대경로를 쓴다
+
     # ── 통합 로깅 시작(콘솔 출력 전체를 logs/mvp193_*.log 로 기록) ──
     #   MVP_LOGGING=0 이면 비활성. 배너보다 먼저 켜서 배너부터 로그에 남긴다.
     log_path = None

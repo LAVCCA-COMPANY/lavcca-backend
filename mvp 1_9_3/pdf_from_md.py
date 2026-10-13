@@ -38,11 +38,8 @@ _DOTS = {
     "⚪": '<span class="d0">●</span>',
 }
 
+# @font-face 는 _font_css() 가 찾은 폰트로 앞에 붙인다.
 _CSS = """
-@font-face { font-family: kor;  src: url("malgun.ttf"); }
-@font-face { font-family: kor;  font-weight: bold; src: url("malgunbd.ttf"); }
-@font-face { font-family: mono; src: url("consola.ttf"); }
-
 * { font-family: kor; }
 body { font-size: 9.5px; color: #2b2b2b; line-height: 1.5; }
 
@@ -80,12 +77,29 @@ li { margin: 2px 0; }
 """
 
 
-def _font_dir() -> str:
-    """한글 폰트(malgun)를 찾을 디렉터리. Windows 우선, 없으면 스크립트 폴더(번들 폰트)."""
-    win = r"C:\Windows\Fonts"
-    if os.path.exists(os.path.join(win, "malgun.ttf")):
-        return win
-    return str(SCRIPT_DIR)
+# (폴더, 본문, 굵게, 코드용). 코드용 폰트가 없으면 본문 폰트를 쓴다.
+_FONT_CANDIDATES = [
+    (r"C:\Windows\Fonts", "malgun.ttf", "malgunbd.ttf", "consola.ttf"),
+    ("/usr/share/fonts/truetype/nanum",                      # Debian fonts-nanum
+     "NanumBarunGothic.ttf", "NanumBarunGothicBold.ttf", "NanumGothicCoding.ttf"),
+    (str(SCRIPT_DIR), "malgun.ttf", "malgunbd.ttf", "consola.ttf"),   # 번들 폰트
+]
+
+
+def _find_fonts():
+    """한글 폰트가 있는 (폴더, 본문, 굵게, 코드용). 없으면 None — 한글 없는 폰트로 대체하지 않는다."""
+    for d, reg, bold, mono in _FONT_CANDIDATES:
+        if os.path.exists(os.path.join(d, reg)) and os.path.exists(os.path.join(d, bold)):
+            if not os.path.exists(os.path.join(d, mono)):
+                mono = reg
+            return d, reg, bold, mono
+    return None
+
+
+def _font_css(reg: str, bold: str, mono: str) -> str:
+    return (f'@font-face {{ font-family: kor;  src: url("{reg}"); }}\n'
+            f'@font-face {{ font-family: kor;  font-weight: bold; src: url("{bold}"); }}\n'
+            f'@font-face {{ font-family: mono; src: url("{mono}"); }}\n')
 
 
 def _postprocess(html: str) -> str:
@@ -103,6 +117,12 @@ def render(md_path: str, pdf_path: str | None = None) -> str | None:
         print("⚠️ PDF 생성 건너뜀 — pymupdf/markdown 미설치 "
               f"(pymupdf={fitz is not None}, markdown={_markdown is not None})")
         return None
+    fonts = _find_fonts()
+    if fonts is None:
+        print("⚠️ PDF 생성 실패 — 한글 폰트 없음(맑은 고딕 또는 fonts-nanum 필요). "
+              "한글이 깨진 PDF 를 만들지 않습니다.")
+        return None
+    font_dir, *font_files = fonts
     try:
         md_text = Path(md_path).read_text(encoding="utf-8")
     except Exception as e:
@@ -135,14 +155,15 @@ def render(md_path: str, pdf_path: str | None = None) -> str | None:
             chunks = [preamble]
         chunks = [c for c in chunks if c.strip()]
 
-        arch   = fitz.Archive(_font_dir())
+        css    = _font_css(*font_files) + _CSS
+        arch   = fitz.Archive(font_dir)
         buf    = io.BytesIO()                 # 메모리에 먼저 렌더(임시파일 회피)
         writer = fitz.DocumentWriter(buf)
         MED    = fitz.paper_rect("a4")
         WHERE  = MED + (42, 46, -42, -50)     # 좌·상·우·하 여백
         for chunk in chunks:
             story = fitz.Story(html=f"<html><body>{chunk}</body></html>",
-                               user_css=_CSS, archive=arch)
+                               user_css=css, archive=arch)
             more, guard = 1, 0
             while more and guard < 40:        # guard: 조판 이상 시 무한 페이지 방지
                 dev = writer.begin_page(MED)

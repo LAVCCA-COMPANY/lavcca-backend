@@ -3,7 +3,7 @@ python-dotenv>=1.0.0
 pydantic>=2.0.0
 
 # Video Processing
-opencv-python>=4.8.0
+opencv-python-headless>=4.8.0   # GUI 미사용. 위기 엔진 requirements 와 같은 패키지(둘 다 깔면 cv2 충돌)
 ffmpeg-python>=0.2.0
 
 # Audio Analysis

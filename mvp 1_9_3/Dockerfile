@@ -1,0 +1,50 @@
+# NATAM 분석 워커 이미지 (위기 분석 + 저작권 감지기, 큰 이미지 1개). 빌드 컨텍스트 = mvp 1_9_3/
+#
+#   docker build -t natam-worker .
+#   docker run --rm \
+#     --env-file .env --env-file copyright_detector/.env \
+#     -v "<영상 폴더>:/data/in:ro" -v "<결과 폴더>:/data/out" \
+#     natam-worker --job-id test1 --input /data/in/video.mp4 --output-dir /data/out/test1
+#
+# 비밀값은 이미지에 넣지 않는다(.dockerignore). 실행 시 환경변수로 주입한다.
+#   · docker --env-file 은 값의 따옴표를 벗기지 않는다. .env 값이 "..." 로 감싸져 있으면 따옴표를 빼고 쓸 것.
+#   · Google Vision 키 파일은 따로 마운트: -v "<키 파일>:/secrets/gcp.json:ro" -e GOOGLE_APPLICATION_CREDENTIALS=/secrets/gcp.json
+# 사례 인덱스(casedb/)는 이미지에 없다 → 유사 사례 검색은 꺼진 채로 돈다(인덱스 배포는 T3 이후).
+# Whisper 모델은 넣지 않았다. Gemini 전사 실패 시 Whisper 폴백이 돌면 실행 중 내려받는다.
+
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# ffmpeg: 오디오·프레임 추출 / tesseract: 저작권 OCR / fonts-nanum: PDF 한글(없으면 PDF 생성 실패)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg \
+        tesseract-ocr tesseract-ocr-kor tesseract-ocr-eng \
+        fonts-nanum fonts-nanum-coding \
+        libglib2.0-0 libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -f /usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf \
+    && test -f /usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf
+
+WORKDIR /app
+
+# CPU 전용 torch 를 먼저 깐다 → requirements 의 torch==2.6.0 이 이미 만족돼 CUDA 휠(수 GB)을 받지 않는다
+RUN pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
+
+COPY requirements.txt ./requirements.txt
+COPY copyright_detector/requirements.txt ./copyright_detector/requirements.txt
+RUN pip install -r requirements.txt -r copyright_detector/requirements.txt
+
+RUN useradd --create-home app && chown app /app
+USER app
+
+# 실행 중 내려받던 모델을 빌드 때 받아 둔다(EasyOCR 한/영, 저작권 CLIP)
+RUN python -c "import easyocr; easyocr.Reader(['ko', 'en'], gpu=False, verbose=False)" \
+ && python -c "from transformers import CLIPModel, CLIPProcessor; m = 'openai/clip-vit-base-patch32'; CLIPModel.from_pretrained(m); CLIPProcessor.from_pretrained(m)"
+
+COPY --chown=app:app . .
+
+ENTRYPOINT ["python", "worker.py"]
