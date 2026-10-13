@@ -12,7 +12,7 @@
 # 사례 인덱스(casedb/)는 이미지에 없다 → 유사 사례 검색은 꺼진 채로 돈다(인덱스 배포는 T3 이후).
 # Whisper 모델은 넣지 않았다. Gemini 전사 실패 시 Whisper 폴백이 돌면 실행 중 내려받는다.
 
-FROM python:3.11-slim
+FROM python:3.11-slim-trixie
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -20,12 +20,15 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # ffmpeg: 오디오·프레임 추출 / tesseract: 저작권 OCR / fonts-nanum: PDF 한글(없으면 PDF 생성 실패)
+#   trixie 에는 fonts-nanum-coding 이 따로 없다(fonts-nanum 에 합쳐짐). 코드용 폰트가 없으면
+#   pdf_from_md 가 본문 폰트로 대체한다.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         tesseract-ocr tesseract-ocr-kor tesseract-ocr-eng \
-        fonts-nanum fonts-nanum-coding \
+        fonts-nanum \
         libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
+    && ls /usr/share/fonts/truetype/nanum \
     && test -f /usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf \
     && test -f /usr/share/fonts/truetype/nanum/NanumBarunGothicBold.ttf
 
