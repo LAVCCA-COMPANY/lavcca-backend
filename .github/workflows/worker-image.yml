@@ -50,7 +50,7 @@ jobs:
       - name: Copyright detector CLI
         run: docker run --rm -w /app/copyright_detector --entrypoint python natam-worker main.py --help
 
-      - name: Imports, model, PDF fonts, OCR, ffmpeg
+      - name: Imports, model, PDF fonts, ffmpeg
         run: |
           docker run --rm -i --entrypoint python natam-worker - <<'EOF'
           import os, subprocess, tempfile, warnings
@@ -75,10 +75,7 @@ jobs:
           assert any("Nanum" in f for f in fonts), fonts
           assert "한글" in doc[0].get_text()
 
-          import pytesseract
-          langs = set(pytesseract.get_languages())
-          print("tesseract", pytesseract.get_tesseract_version(), sorted(langs))
-          assert {"kor", "eng"} <= langs
+          subprocess.run(["python", "-c", "import pipeline"], cwd="copyright_detector", check=True)  # 저작권 분석기 import
           subprocess.run(["ffmpeg", "-version"], check=True, capture_output=True)
           print("smoke ok")
           EOF

@@ -23,7 +23,6 @@ from utils.ocr_engine import clear_ocr_cache
 from utils.clip_engine import clear_clip_cache
 from analyzers.music_analyzer import MusicAnalyzer
 from analyzers.image_analyzer import ImageAnalyzer
-from analyzers.font_analyzer import FontAnalyzer
 from analyzers.video_clip_analyzer import VideoClipAnalyzer
 
 logger = structlog.get_logger()
@@ -326,7 +325,6 @@ class CopyrightAnalysisPipeline:
         self.db = get_db_manager()
         self.music_analyzer = MusicAnalyzer()
         self.image_analyzer = ImageAnalyzer()
-        self.font_analyzer = FontAnalyzer()
         self.video_clip_analyzer = VideoClipAnalyzer()
 
     async def run(self, video_path: str,
@@ -446,16 +444,14 @@ class CopyrightAnalysisPipeline:
                                                           progress=progress)
             image_task      = self.image_analyzer.analyze(frames, job_id,
                                                           progress=progress)
-            font_task       = self.font_analyzer.analyze(frames, job_id)
             video_clip_task = self.video_clip_analyzer.analyze(frames, job_id,
                                                                progress=progress)
 
             # 모든 분석 동시 실행
-            music_findings, image_findings, font_findings, video_findings = \
+            music_findings, image_findings, video_findings = \
                 await asyncio.gather(
                     music_task,
                     image_task,
-                    font_task,
                     video_clip_task,
                     return_exceptions=True
                 )
@@ -465,7 +461,6 @@ class CopyrightAnalysisPipeline:
             for name, result in [
                 ("music", music_findings),
                 ("image", image_findings),
-                ("font", font_findings),
                 ("video_clip", video_findings),
             ]:
                 if isinstance(result, Exception):

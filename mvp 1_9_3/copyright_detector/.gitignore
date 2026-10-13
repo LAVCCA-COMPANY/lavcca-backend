@@ -1,8 +1,8 @@
 # ── 폰트 파일 (저작권·용량 문제로 커밋 제외, 로컬에만 보관) ──
 # fonts_train 안의 모든 폰트 파일 제외, 단 구조/사용법 파일은 유지
-fonts_train/*
-!fonts_train/README.md
-!fonts_train/manifest.json
+font_legacy/fonts_train/*
+!font_legacy/fonts_train/README.md
+!font_legacy/fonts_train/manifest.json
 
 # 기타 위치의 폰트 파일도 혹시 모르니 제외
 *.ttf

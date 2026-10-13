@@ -140,11 +140,7 @@ class PipelineConfig:
     # 대신 시각 분석이 느려짐. 너무 느리면 .env 에서 FRAME_MAX_COUNT 를 낮춘다(예: 160).
     frame_max_count: int = int(os.getenv("FRAME_MAX_COUNT", "320"))
 
-    # 폰트 분석 보류 (2026-07)
-    # 시각 기반 폰트 분류가 신뢰 불가로 판명(평범한 산세리프 구분 불가, 오탐 다수)
-    # → 폰트 분석 전체 비활성. 재개하려면 True로 변경 + 검증된 모델 필요.
-    enable_font_analysis: bool = False
-
+    # 폰트 감지는 파이프라인에서 제외됨(2026-10-14) → font_legacy/README.md
     # 자체 학습 DB — 읽기(탐지 반영)와 쓰기(학습 저장)를 독립적으로 제어 (2026-07)
     #
     # ① use_learned_db (읽기/반영): 자체 학습된 임베딩·로고 등을 탐지 결과에 반영할지.

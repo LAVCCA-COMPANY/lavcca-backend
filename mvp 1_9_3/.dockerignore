@@ -39,7 +39,8 @@ data/
 docs/
 tests/
 _deprecated/
-copyright_detector/fonts_train/
+copyright_detector/font_legacy/      # 폰트 감지(비활성, 재개발 예정)
+copyright_detector/models/font_classifier*
 
 # 학습 연습 산출물 (tools/sagemaker/train.py)
 out/

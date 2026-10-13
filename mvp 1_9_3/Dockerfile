@@ -19,12 +19,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# ffmpeg: 오디오·프레임 추출 / tesseract: 저작권 OCR / fonts-nanum: PDF 한글(없으면 PDF 생성 실패)
+# ffmpeg: 오디오·프레임 추출 / fonts-nanum: 보고서 PDF 한글(없으면 PDF 생성 실패). OCR 은 EasyOCR(pip)
 #   trixie 에는 fonts-nanum-coding 이 따로 없다(fonts-nanum 에 합쳐짐). 코드용 폰트가 없으면
 #   pdf_from_md 가 본문 폰트로 대체한다.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
-        tesseract-ocr tesseract-ocr-kor tesseract-ocr-eng \
         fonts-nanum \
         libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
