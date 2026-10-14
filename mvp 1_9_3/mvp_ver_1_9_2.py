@@ -61,6 +61,8 @@ GEN_MODEL                = os.getenv("GEN_MODEL",   "models/gemini-3.8-flash")  
 WHISPER_MODEL            = "turbo"
 GEMINI_REFINE_MODEL      = os.getenv("GEMINI_REFINE_MODEL", "models/gemini-3.8-flash")
 TRANSCRIBE_ENGINE        = os.getenv("TRANSCRIBE_ENGINE", "gemini")  # "whisper" | "gemini" | "clova"
+# Gemini 전사 최종 실패 시 로컬 Whisper 폴백. 서비스 워커(컨테이너)는 0 → TransientAPIError 로 retry_later
+WHISPER_FALLBACK         = os.getenv("WHISPER_FALLBACK", "1") != "0"
 CONTROVERSY_MODEL_PATH   = str(paths.CONTROVERSY_MODEL)  # ML 분류 모델
 _REFINE_CONCURRENCY      = 4                           # Gemini 교정 배치 동시 실행 수
 
@@ -1530,6 +1532,15 @@ def _classify_429_kind(metric: str) -> str:
     return "미상"
 
 
+class TransientAPIError(RuntimeError):
+    """Gemini 429·5xx 등 일시 장애로 작업을 끝내지 못함 → 서비스 워커가 retry_later 로 표시한다.
+    retry_after: 429 응답의 retryDelay(초), 없으면 None."""
+
+    def __init__(self, msg: str, retry_after: float | None = None):
+        super().__init__(msg)
+        self.retry_after = retry_after
+
+
 def _salvage_segments(text: str) -> list:
     """
     전사 응답({"segments":[...]})이 출력 토큰 한도로 잘렸을 때,
@@ -2055,6 +2066,7 @@ class CrisisConsultantSystem:
         # 503(과부하)/429 등 일시적 서버 오류 대비 자동 재시도(지수 백오프)
         resp = None
         last_err = None
+        transient = False
         max_retries = 5
         for attempt in range(max_retries):
             try:
@@ -2087,6 +2099,13 @@ class CrisisConsultantSystem:
             self.client.files.delete(name=file_ref.name)
         except Exception:
             pass
+
+        if resp is None and not WHISPER_FALLBACK:
+            # 서비스 워커: CPU 컨테이너에서 Whisper 는 느리고 품질도 달라 폴백하지 않는다
+            if transient:
+                raise TransientAPIError(f"Gemini 전사 일시 장애: {last_err}",
+                                        _parse_429_error(last_err)["retry_delay"])
+            raise RuntimeError(f"Gemini 전사 실패: {last_err}")
 
         if resp is None:
             # Gemini 전사 최종 실패 → 로컬 Whisper로 폴백하여 분석이 중단되지 않게 함

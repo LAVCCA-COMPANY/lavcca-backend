@@ -89,7 +89,9 @@
 
 ## 아직 안 한 것 (코드)
 
-- Gemini 429·일시 장애를 `retry_later` 로 되돌리기(지금은 failed) — 계획 4절.
+- `retry_later` 재투입: 워커는 Gemini 429·5xx 일시 장애(전사 실패, NATAM 평가 실패, Tier2 판정 보류)면
+  `jobs.status=retry_later`·종료 코드 75 로 끝낸다(`job_result.json` 에 `retry_after_sec`·`quality`).
+  그 작업을 언제·몇 번까지 큐에 다시 넣을지는 아직 없다(T5).
 - W0 영상 해시 캐시(`video_sha256` 컬럼만 준비).
 - 리포트 JSON → `copyright_matches` 적재, 피드백 야간 export(T7).
 - 사례 인덱스(`casedb/`)를 S3 에서 받아오기 — 인덱스 자체가 아직 없다(빌드는 유료 임베딩 ~10만 건, JH 승인 대기).
