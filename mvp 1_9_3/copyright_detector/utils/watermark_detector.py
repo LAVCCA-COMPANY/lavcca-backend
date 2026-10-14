@@ -27,6 +27,10 @@ def detect_tiled_watermark_fft(frame: np.ndarray) -> Tuple[bool, float]:
 
     Returns:
         (detected: bool, confidence: float 0.0~1.0)
+
+    알려진 한계: 상위 0.5% 피크는 512×512 에서 늘 ~1300개이고 실수 이미지의 스펙트럼은 원래
+    중심 대칭이라, 워터마크가 없는 일반 프레임도 거의 항상 (True, 1.0)이 나온다.
+    강화 전처리 여부 정도로만 쓰고, 비싼 작업(OCR 예산 우회 등)의 근거로 쓰지 말 것.
     """
     if frame is None or frame.size == 0:
         return False, 0.0

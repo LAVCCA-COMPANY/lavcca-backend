@@ -209,7 +209,7 @@ class ImageAnalyzer:
             progress.set_total("image", len(selected) + 1, note="CLIP 분류")
 
         # OCR 예산: 20초 간격 프레임만 허용 (video_clip_analyzer의 OCR 주기와 정렬
-        # → 동일 프레임은 OCR 캐시를 공유). FFT 감지 프레임은 예산과 무관하게 OCR.
+        # → 동일 프레임은 OCR 캐시를 공유). FFT 감지는 예산을 우회하지 않는다(_analyze_single_frame).
         ocr_ts: set = set()
         _last_ocr = -20.0
         for ts, _ in selected:
@@ -325,9 +325,11 @@ class ImageAnalyzer:
         # 2. 워터마크 감지 (FFT 반복 패턴 + 강화 전처리 OCR 병합)
         fft_hit, fft_conf = detect_tiled_watermark_fft(frame)
 
-        # OCR 예산 게이트: 20초 간격 허용 프레임 또는 FFT 의심 프레임만 OCR
+        # OCR 예산 게이트: 20초 간격 허용 프레임만 OCR
         # (EasyOCR은 전역 직렬 자원 — 모든 프레임을 OCR하면 긴 영상에서 수 분 소요)
-        _ocr_ok = fft_hit or (timestamp in self._ocr_ts)
+        # FFT 는 예산을 우회하지 않는다: detect_tiled_watermark_fft 가 일반 프레임에서도 거의 항상
+        # True(conf 1.0)라 우회를 허용하면 전 프레임 OCR 이 된다(ZZZ 4분 영상 275/275, 저작권 17분).
+        _ocr_ok = timestamp in self._ocr_ts
 
         # FFT 감지 시 향상된 전처리 프레임으로 OCR 수행 (반투명 텍스트 강조)
         ocr_frame = enhance_frame_for_ocr(frame) if fft_hit else frame
@@ -378,15 +380,16 @@ class ImageAnalyzer:
 
         # 2-b. Google Vision 역이미지 검색
         #  트리거 조건 (구조 신호는 트리거로만 사용, 직접 finding 생성 안 함):
-        #    - FFT 반복 패턴 감지 (스톡 워터마크 의심)
         #    - CLIP이 의심 카테고리로 분류한 프레임
         #    - 시네마 화면비 감지 (영화 클립 삽입 의심)
         #  → 역검색으로 실제 출처가 확인될 때만 finding 생성
+        #  FFT 는 트리거에서 뺐다: 거의 모든 프레임이 True 라 Vision 작업당 한도(40)를 앞 프레임부터
+        #  소진해 video_clip_analyzer 의 CLIP 선별 역검색이 한 번도 못 돌았다(ZZZ: 7건 → 2건).
         ca = detect_cinematic_aspect(frame)
         _cinematic = bool(ca.get("is_cinematic")) and ca.get("confidence", 0.0) > 0.55
         _vr = None  # Google Vision 결과 (Yandex 교차 검증에서 참조)
         _emb = None  # CLIP 임베딩 (자체 DB 조회·학습용)
-        _use_vision = fft_hit or _cinematic or (timestamp in self._vision_search_ts)
+        _use_vision = _cinematic or (timestamp in self._vision_search_ts)
         if _use_vision:
             # ── 0. 자체 임베딩 DB 조회: 과거 확인된 콘텐츠면 API 호출 없이 즉시 감지 ──
             _emb = embed_frame(frame)
