@@ -12,6 +12,8 @@ import hashlib
 import structlog
 import numpy as np
 
+from utils.model_load import MODEL_LOAD_LOCK
+
 logger = structlog.get_logger()
 
 # ─── OCR 싱글톤 ───
@@ -62,7 +64,8 @@ def get_shared_ocr():
                     _gpu = bool(torch.cuda.is_available())
                 except Exception:
                     _gpu = False
-                _engine = easyocr.Reader(["ko", "en"], gpu=_gpu, verbose=False)
+                with MODEL_LOAD_LOCK:   # CLIP 로드와 겹치면 모델이 meta 장치에 생긴다
+                    _engine = easyocr.Reader(["ko", "en"], gpu=_gpu, verbose=False)
                 logger.info("shared_ocr_loaded", gpu=_gpu)
             except ImportError:
                 logger.warning("easyocr_not_installed")

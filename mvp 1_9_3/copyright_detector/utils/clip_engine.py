@@ -20,6 +20,8 @@ import cv2
 import structlog
 from typing import Dict, List, Optional
 
+from utils.model_load import MODEL_LOAD_LOCK
+
 logger = structlog.get_logger()
 
 
@@ -162,7 +164,7 @@ class _ClipClassifier:
     def _init(self):
         if self._initialized:
             return
-        with self._lock:
+        with self._lock, MODEL_LOAD_LOCK:   # EasyOCR 로드와 겹치지 않게(utils/model_load.py)
             if self._initialized:
                 return
             if not self._try_clip():
