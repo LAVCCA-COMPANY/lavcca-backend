@@ -196,6 +196,13 @@ ABBREVIATION_MAP = {
     "거에요":"것이에요","됌":"됨","안됌":"안 됨",
     "안됨":"안 됨","아뇨":"아니요","알랴줌":"알려줌","됐음":"되었습니다",
 }
+# 줄임말은 '어절 전체'일 때만 바꾼다. 부분 문자열로 바꾸면 넘어져→너무어져,
+# 움직이게→움직이것이, 엔젤→엔가장 처럼 멀쩡한 단어가 망가진다. 긴 키 우선(안됌 > 됌).
+_ABBR_RE = re.compile(
+    r"(?<!\w)("
+    + "|".join(map(re.escape, sorted(ABBREVIATION_MAP, key=len, reverse=True)))
+    + r")(?!\w)"
+)
 
 YOUTUBE_URL_PATTERNS = re.compile(
     r'(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)[\w\-]+'
@@ -1816,9 +1823,8 @@ class CrisisReportEngine:
 def normalize_text(text: str) -> str:
     if not text: return ""
     text = re.sub(r'(ㅋ|ㅎ|ㅠ|ㅜ|!|\?|\.){3,}', r'\1\1', text)
-    text = re.sub(r'[^\w\sㄱ-ㅎㅏ-ㅣ가-힣!?.,]', '', text)
-    for short, full in ABBREVIATION_MAP.items():
-        text = text.replace(short, full)
+    text = re.sub(r'[^\w\sㄱ-ㅎㅏ-ㅣ가-힣!?.,%]', '', text)   # % 는 남긴다(30% → 30 방지)
+    text = _ABBR_RE.sub(lambda m: ABBREVIATION_MAP[m.group(1)], text)
     return re.sub(r'\s+', ' ', text).strip()
 
 def load_rules(yaml_path):
@@ -1845,7 +1851,8 @@ def rule_engine(text, rules):
     for pname, detail in rules.items():
         if not isinstance(detail, dict): continue
         for word in detail.get('keywords', []):
-            if word in text:
+            # 본문과 같은 정규화를 거쳐야 줄임말 키워드(…아님)도 매칭된다
+            if normalize_text(word) in text:
                 return {"hit":True,"policy":pname,"action":detail.get('action','REVIEW'),
                         "severity":detail.get('severity','UNKNOWN'),"matched_word":word}
     return {"hit": False}
@@ -3206,7 +3213,8 @@ class CrisisConsultantSystem:
             if not isinstance(detail, dict):
                 continue
             for word in detail.get("keywords", []):
-                if any(word in nt for nt in norm_texts):
+                nw = normalize_text(word)
+                if any(nw in nt for nt in norm_texts):
                     key = (pname, word)
                     if key in seen:
                         continue
