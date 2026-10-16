@@ -72,6 +72,10 @@ _REFINE_CONCURRENCY      = 4                           # Gemini 교정 배치 �
 CLOVA_INVOKE_URL  = os.getenv("CLOVA_INVOKE_URL", "")     # 예: https://clovaspeech-gw.../recognizer/upload
 CLOVA_SECRET_KEY  = os.getenv("CLOVA_SECRET_KEY", "")
 FFMPEG_BIN        = os.getenv("FFMPEG_BIN", "ffmpeg")     # 영상→오디오 추출용
+# Gemini 전사: 오디오를 조각내 MM:SS 로 받는다(10/15 실험 D — 시각 오차 중앙값 1초 미만, 영상 업로드 대비 비용 약 절반)
+TRANSCRIBE_CHUNK_SEC   = 120   # 조각 길이
+TRANSCRIBE_OVERLAP_SEC = 5     # 경계에서 말이 잘리지 않게 앞뒤로 겹치는 길이
+TRANSCRIBE_WORKERS     = 4     # 동시 요청 수
 
 # ── [2순위] 2-Tier 분류 파라미터 ──
 #   Tier1(SVM): 재현율 우선 → 의심 구간을 '넓게' 트리거 (낮은 임계값)
@@ -1548,13 +1552,16 @@ class TransientAPIError(RuntimeError):
         self.retry_after = retry_after
 
 
+_TRANSIENT_HTTP = {429, 500, 502, 503, 504}
+
+
 def _salvage_segments(text: str) -> list:
     """
     전사 응답({"segments":[...]})이 출력 토큰 한도로 잘렸을 때,
     완성된 세그먼트 객체만 정규식으로 추출해 복구한다(마지막 미완성 객체는 버림).
     """
     seg_re = re.compile(
-        r'\{\s*"start"\s*:\s*([0-9.]+)\s*,\s*"end"\s*:\s*([0-9.]+)\s*,'
+        r'\{\s*"start"\s*:\s*"?([0-9:.]+)"?\s*,\s*"end"\s*:\s*"?([0-9:.]+)"?\s*,'
         r'\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*\}'
     )
     out = []
@@ -1563,8 +1570,35 @@ def _salvage_segments(text: str) -> list:
             txt = json.loads('"' + m.group(3) + '"')   # 이스케이프 해제
         except Exception:
             txt = m.group(3)
-        out.append({"start": float(m.group(1)), "end": float(m.group(2)), "text": txt})
+        try:
+            out.append({"start": _parse_ts(m.group(1)), "end": _parse_ts(m.group(2)), "text": txt})
+        except ValueError:
+            continue
     return out
+
+
+def _parse_ts(v) -> float:
+    """'MM:SS'·'H:MM:SS'·숫자 → 초. 형식이 틀리면 ValueError."""
+    if isinstance(v, (int, float)):
+        return float(v)
+    sec = 0.0
+    for part in str(v).strip().split(":"):
+        sec = sec * 60 + float(part)
+    return sec
+
+
+def _extract_audio(src: str, start: float = 0.0, length: float | None = None) -> bytes:
+    """ffmpeg 로 [start, start+length) 구간을 16kHz 모노 mp3 로 잘라 바이트로 반환(length=None 이면 끝까지)."""
+    import subprocess, tempfile
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "a.mp3")
+        cmd = [FFMPEG_BIN, "-v", "error", "-y", "-ss", f"{start:.2f}"]
+        if length is not None:
+            cmd += ["-t", f"{length:.2f}"]
+        cmd += ["-i", src, "-vn", "-ac", "1", "-ar", "16000", "-b:a", "48k", out]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+        with open(out, "rb") as f:
+            return f.read()
 
 
 def _rp_eval(value, threshold, over, under):
@@ -1949,7 +1983,7 @@ class CrisisConsultantSystem:
                 print("⚠️  TRANSCRIBE_ENGINE=clova 이지만 CLOVA_INVOKE_URL/SECRET_KEY 미설정 → Gemini 폴백")
         else:
             self.whisper_model = None
-            print("🤖 전사 엔진: Gemini Files API (Whisper 모델 로드 생략)")
+            print("🤖 전사 엔진: Gemini 오디오 조각 전사 (Whisper 모델 로드 생략)")
 
         # (v2) case_db.json 로드 제거 — 유사 사례는 similar_case_engine 이 담당한다.
         #      db_path 인자는 하위 호환을 위해 남겨두지만 더 이상 사용하지 않는다.
@@ -2031,156 +2065,155 @@ class CrisisConsultantSystem:
         return self.transcribe(video_path)
 
     # ────────────────────────────────────────────────────
-    # 🤖 Gemini Files API 전사
+    # 🤖 Gemini 전사 (오디오 조각 · MM:SS)
     # ────────────────────────────────────────────────────
-    def transcribe_with_gemini(self, video_path: str) -> dict:
-        """Gemini Files API로 영상을 업로드하고 전사 결과를 Whisper 동일 형식으로 반환"""
-        print(f"🤖 Gemini 전사 시작: {video_path}")
+    _TRANSCRIBE_PROMPT = (
+        "이 오디오를 전사해줘. 아래 JSON 형식으로만 반환해줘 (설명 없이).\n\n"
+        '{"segments":[{"start":"00:00","end":"00:05","text":"전사 텍스트"},...]}\n\n'
+        "[규칙]\n"
+        "- start/end는 이 파일 시작 기준 MM:SS\n"
+        "- 발화 단위(문장·호흡)로 세그먼트 분리\n"
+        "- 묵음 구간 제외\n"
+        "- 한국어·영어 혼용 그대로 전사"
+    )
 
-        print("   📤 파일 업로드 중...")
-        # 파일명에 한글이 있으면 HTTP 헤더 ASCII 인코딩 오류 발생 →
-        # 파일을 바이너리 스트림으로 열고 ASCII 안전 display_name 지정
-        import mimetypes as _mt
-        _mime  = _mt.guess_type(video_path)[0] or "video/mp4"
-        _ext   = os.path.splitext(video_path)[1].lower() or ".mp4"
-        with open(video_path, "rb") as _fh:
-            file_ref = self.client.files.upload(
-                file=_fh,
-                config={"display_name": f"upload{_ext}", "mime_type": _mime},
-            )
-
-        # ACTIVE 상태까지 대기
-        while file_ref.state.name == "PROCESSING":
-            print("   ⏳ 파일 처리 중...")
-            time.sleep(5)
-            file_ref = self.client.files.get(name=file_ref.name)
-
-        if file_ref.state.name != "ACTIVE":
-            raise RuntimeError(f"Gemini 파일 처리 실패 (state={file_ref.state.name})")
-
-        print("   ✅ 업로드 완료, 전사 요청 중...")
-
-        prompt = (
-            "이 영상/오디오를 전사해줘. 아래 JSON 형식으로만 반환해줘 (설명 없이).\n\n"
-            '{"segments":[{"start":0.0,"end":5.2,"text":"전사 텍스트"},...], "duration":전체길이초}\n\n'
-            "[규칙]\n"
-            "- start/end는 초 단위 실수\n"
-            "- 발화 단위(문장·호흡)로 세그먼트 분리\n"
-            "- 묵음 구간 제외\n"
-            "- 한국어·영어 혼용 그대로 전사"
-        )
-
-        # 503(과부하)/429 등 일시적 서버 오류 대비 자동 재시도(지수 백오프)
-        resp = None
+    def _gemini_generate_retry(self, contents, seed: int | None = None):
+        """503(과부하)/429 등 일시 오류는 지수 백오프로 재시도. 소진 시 TransientAPIError, 그 외 RuntimeError."""
+        config = {
+            "response_mime_type": "application/json",
+            "temperature": 0.0,
+            "max_output_tokens": 65536,            # 긴 전사 잘림 방지
+            "thinking_config": _thinking_config(False),
+        }
+        if seed is not None:
+            config["seed"] = seed
+        import httpx
+        # 네트워크 타임아웃·연결 끊김은 다시 보내면 되는 일시 장애
+        net_errors = (TimeoutError, ConnectionError,
+                      httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
         last_err = None
-        transient = False
         max_retries = 5
         for attempt in range(max_retries):
             try:
-                resp = self.client.models.generate_content(
-                    model=GEN_MODEL,
-                    contents=[file_ref, prompt],
-                    config={
-                        "response_mime_type": "application/json",
-                        "temperature": 0.0,
-                        "max_output_tokens": 65536,            # 긴 전사 잘림 방지
-                        "thinking_config": _thinking_config(False),
-                    },
-                )
-                break
+                return self.client.models.generate_content(
+                    model=GEN_MODEL, contents=contents, config=config)
             except Exception as e:
                 last_err = e
                 msg = str(e)
-                transient = ("503" in msg or "UNAVAILABLE" in msg
-                             or "overloaded" in msg.lower() or "high demand" in msg.lower()
-                             or "429" in msg or "500" in msg or "deadline" in msg.lower())
-                if transient and attempt < max_retries - 1:
-                    wait = min(5 * (2 ** attempt), 40)   # 5,10,20,40,40 백오프
+                code = getattr(e, "code", None)
+                if isinstance(e, net_errors):
+                    transient = True
+                elif isinstance(code, int):
+                    transient = code in _TRANSIENT_HTTP
+                else:
+                    # 코드가 없는 예외는 메시지에서만 판정. 1500 같은 숫자 안의 500은 제외.
+                    low = msg.lower()
+                    codes = "|".join(str(c) for c in _TRANSIENT_HTTP)
+                    transient = re.search(rf"\b(?:{codes})\b", msg) is not None or (
+                        "unavailable" in low or "overloaded" in low
+                        or "high demand" in low or "deadline" in low)
+                if not transient:
+                    raise RuntimeError(f"Gemini 전사 실패: {e}") from e
+                if attempt < max_retries - 1:
+                    wait = min(5 * (2 ** attempt), 40)   # 5,10,20,40 백오프
                     print(f"   ⚠️ Gemini 일시 오류(과부하/혼잡) — {wait}초 후 재시도 ({attempt+1}/{max_retries-1})")
                     time.sleep(wait)
-                    continue
-                break   # 비일시 오류이거나 재시도 소진 → 루프 종료 후 폴백 처리
+        raise TransientAPIError(f"Gemini 전사 일시 장애: {last_err}",
+                                _parse_429_error(last_err)["retry_delay"])
 
-        # 업로드 파일 정리(성공/실패 공통)
-        try:
-            self.client.files.delete(name=file_ref.name)
-        except Exception:
-            pass
-
-        if resp is None and not WHISPER_FALLBACK:
-            # 서비스 워커: CPU 컨테이너에서 Whisper 는 느리고 품질도 달라 폴백하지 않는다
-            if transient:
-                raise TransientAPIError(f"Gemini 전사 일시 장애: {last_err}",
-                                        _parse_429_error(last_err)["retry_delay"])
-            raise RuntimeError(f"Gemini 전사 실패: {last_err}")
-
-        if resp is None:
-            # Gemini 전사 최종 실패 → 로컬 Whisper로 폴백하여 분석이 중단되지 않게 함
-            print(f"   ⚠️ Gemini 전사 실패({last_err}) → 로컬 Whisper 전사로 폴백합니다")
-            try:
-                return self._transcribe_with_whisper(video_path)
-            except Exception as we:
-                raise RuntimeError(
-                    f"Gemini 전사 실패 후 Whisper 폴백도 실패: {we} (원인: {last_err})"
-                ) from we
-
+    def _transcribe_audio_chunk(self, video_path: str, start: float, length: float | None) -> list:
+        """오디오 한 조각을 전사해 세그먼트(조각 시작 기준 초)를 반환."""
+        from google.genai import types
+        audio    = _extract_audio(video_path, start, length)
+        contents = [types.Part.from_bytes(data=audio, mime_type="audio/mp3"), self._TRANSCRIBE_PROMPT]
+        resp     = self._gemini_generate_retry(contents)
         self.cost.add(resp, "transcribe")
-
         result   = _safe_json_parse(resp.text, "Gemini 전사")
-        duration = None
-
+        if not isinstance(result, (dict, list)):
+            # 깨진 JSON(따옴표 누락 등)은 복구해도 조각 대부분을 잃는다 → 기본 seed 를 피해 한 번 다시 요청
+            print(f"   ⚠️ 전사 JSON 깨짐({int(start)}s 조각) → 다시 요청")
+            resp   = self._gemini_generate_retry(contents, seed=_GEMINI_SEED + 1)
+            self.cost.add(resp, "transcribe")
+            result = _safe_json_parse(resp.text, "Gemini 전사")
         # Gemini가 형식을 흔든다: ① {"segments":[...]} ② [ {..},{..} ] (최상위 배열)
         #                        ③ [ {"segments":[...]} ] (객체를 배열로 한 겹 감쌈)
         if isinstance(result, dict):
             segments = result.get("segments", [])
-            if "duration" in result:
-                try:    duration = float(result["duration"])
-                except (TypeError, ValueError): duration = None
         elif isinstance(result, list):
-            segments = result            # 최상위가 세그먼트 배열인 경우
+            segments = result
+            if (len(segments) == 1 and isinstance(segments[0], dict)
+                    and isinstance(segments[0].get("segments"), list)):
+                segments = segments[0]["segments"]
         else:
             # 출력 토큰 한도로 JSON이 잘린 경우 → 완성된 세그먼트만 정규식으로 복구
             segments = _salvage_segments(resp.text or "")
-            if segments:
-                print(f"   ⚠️ 전사 응답이 잘렸지만 {len(segments)}개 세그먼트 복구 성공 (뒷부분 일부 누락 가능)")
-            else:
+            if not segments:
                 raise ValueError("Gemini 전사 JSON 파싱 실패 — 응답: " + (resp.text[:200] if resp.text else "빈 응답"))
+            print(f"   ⚠️ 전사 응답이 잘렸지만 {len(segments)}개 세그먼트 복구 성공 (뒷부분 일부 누락 가능)")
 
-        # ③ 배열 안에 {"segments":[...]} 가 한 겹 더 들어온 경우 풀어줌
-        if (len(segments) == 1 and isinstance(segments[0], dict)
-                and isinstance(segments[0].get("segments"), list)):
-            inner    = segments[0]
-            segments = inner["segments"]
-            if duration is None and "duration" in inner:
-                try:    duration = float(inner["duration"])
-                except (TypeError, ValueError): duration = None
+        out = []
+        for seg in segments:
+            if not isinstance(seg, dict):
+                continue
+            try:
+                out.append({"start": _parse_ts(seg.get("start", 0)), "end": _parse_ts(seg.get("end", 0)),
+                            "text": seg.get("text", "")})
+            except ValueError:
+                continue
+        return out
 
-        # 세그먼트가 아닌 항목(문자열 등) 방어 필터
-        segments = [s for s in segments if isinstance(s, dict)]
-        if duration is None:
-            duration = float(segments[-1].get("end", 0)) if segments else 0.0
+    def transcribe_with_gemini(self, video_path: str) -> dict:
+        """
+        오디오를 TRANSCRIBE_CHUNK_SEC 조각(앞뒤 TRANSCRIBE_OVERLAP_SEC 겹침)으로 잘라 병렬 전사.
+        조각마다 MM:SS 로 받아 조각 시작 시각을 더한다. 겹친 구간 세그먼트는 중간 시각이 속한 조각 것만 남긴다.
+        반환은 Whisper 동일 형식(video_info + segments).
+        """
+        print(f"🤖 Gemini 전사 시작: {video_path}")
+        real_dur = _probe_duration(video_path)
+        if real_dur:
+            starts = list(range(0, int(real_dur), TRANSCRIBE_CHUNK_SEC)) or [0]
+        else:
+            starts = [0]   # 길이를 모르면 통째로 한 조각
+            print("   ⚠️ ffprobe 로 길이를 못 읽음 → 조각 없이 통째로 전사")
+
+        def one(i):
+            lo  = starts[i]
+            hi  = starts[i + 1] if i + 1 < len(starts) else float("inf")
+            st  = max(0, lo - TRANSCRIBE_OVERLAP_SEC) if i else 0
+            length = (min(real_dur, lo + TRANSCRIBE_CHUNK_SEC + TRANSCRIBE_OVERLAP_SEC) - st) if real_dur else None
+            keep = []
+            for s in self._transcribe_audio_chunk(video_path, st, length):
+                a, b = s["start"] + st, s["end"] + st
+                if lo <= (a + b) / 2 < hi:
+                    keep.append({"start": a, "end": b, "text": s["text"]})
+            return keep
+
+        print(f"   🔊 오디오 {len(starts)}개 조각 전사 중... (동시 {TRANSCRIBE_WORKERS}개)")
+        ex  = ThreadPoolExecutor(max_workers=TRANSCRIBE_WORKERS)
+        err = None
+        try:
+            parts = list(ex.map(one, range(len(starts))))
+        except Exception as e:
+            err = e
+        finally:
+            ex.shutdown(wait=True, cancel_futures=True)   # 한 조각이 실패하면 남은 조각은 요청하지 않음
+
+        if err is not None:
+            if not WHISPER_FALLBACK:
+                # 서비스 워커: CPU 컨테이너에서 Whisper 는 느리고 품질도 달라 폴백하지 않는다
+                raise err
+            # 한 조각이라도 실패하면 구멍 난 전사가 되므로 전체를 로컬 Whisper 로 폴백
+            print(f"   ⚠️ Gemini 전사 실패({err}) → 로컬 Whisper 전사로 폴백합니다")
+            try:
+                return self._transcribe_with_whisper(video_path)
+            except Exception as we:
+                raise RuntimeError(f"Gemini 전사 실패 후 Whisper 폴백도 실패: {we} (원인: {err})") from we
 
         # Whisper 형식으로 변환 (avg_logprob=0.0 으로 교정 플래그 비활성)
-        formatted = []
-        for i, seg in enumerate(segments):
-            formatted.append({
-                "id":          i,
-                "start":       float(seg.get("start", 0)),
-                "end":         float(seg.get("end", 0)),
-                "text":        seg.get("text", ""),
-                "avg_logprob": 0.0,
-            })
-
-        # Gemini 타임스탬프는 오디오 강제정렬이 아니라 '추정'이라 실제 길이와 어긋난다
-        # (후반부 누적 드리프트). 실제 미디어 길이로 선형 보정해 드리프트를 줄인다.
-        real_dur = _probe_duration(video_path)
-        if real_dur and duration and abs(real_dur - duration) / duration > 0.02:
-            factor = real_dur / duration
-            for seg in formatted:
-                seg["start"] = round(seg["start"] * factor, 2)
-                seg["end"]   = round(seg["end"] * factor, 2)
-            print(f"   🕒 Gemini 타임스탬프 선형 보정: {round(duration,1)}s → 실제 {round(real_dur,1)}s (×{factor:.3f})")
-            duration = real_dur
+        segments  = sorted((s for p in parts for s in p), key=lambda s: s["start"])
+        formatted = [{"id": i, "start": round(s["start"], 2), "end": round(s["end"], 2),
+                      "text": s["text"], "avg_logprob": 0.0} for i, s in enumerate(segments)]
+        duration  = real_dur or (formatted[-1]["end"] if formatted else 0.0)
 
         print(f"     ✅ Gemini 전사 완료 ({len(formatted)}개 세그먼트 / {round(duration, 2)}초)")
         return {
