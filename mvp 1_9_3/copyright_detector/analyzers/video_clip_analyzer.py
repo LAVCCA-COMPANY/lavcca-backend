@@ -22,12 +22,8 @@ import cv2
 from config import config
 from database.db_manager import get_db_manager
 from utils.video_utils import compute_phash
-from utils.ocr_engine import safe_ocr, extract_text_only
+from utils.ocr_engine import safe_ocr
 from utils.clip_engine import classify_frames_batch, VISION_TRIGGER_THRESHOLDS, embed_frame
-from utils.watermark_detector import (
-    enhance_frame_for_ocr,        # 중앙 영역 강화 OCR 전처리에 사용
-    detect_tiled_watermark_fft,   # 강화 OCR 실행 여부 게이트 (저렴한 사전 필터)
-)
 from utils.google_vision_searcher import search_image_for_copyright, clear_vision_cache
 from analyzers.yandex_searcher import yandex_reverse_search, clear_yandex_cache
 
@@ -353,11 +349,9 @@ class VideoClipAnalyzer:
         """
         단일 프레임 OCR 분석 — 스톡 워터마크 텍스트 / 방송 채널명 감지
 
-        [변경] FFT 반복 패턴 감지 제거 (오탐률 높음)
-        대신 명확한 텍스트 기반 감지만 사용:
-          1. 중앙 영역 강화 OCR (CLAHE 전처리) → 반투명 워터마크 텍스트 강조
-          2. 전체 프레임 일반 OCR
-          3. 키워드 매칭 → 스톡 서비스 / 방송사 특정
+        텍스트가 읽힌 뒤에만 스톡·방송 키워드를 맞춘다.
+        FFT 로 중앙 강화 OCR 을 고르던 분기는 뺐다. 그 함수가 일반 프레임에서도
+        거의 항상 참이라, 20초마다 EasyOCR 이 한 번 더 돌았다.
         """
         h, w = frame.shape[:2]
 
@@ -371,40 +365,7 @@ class VideoClipAnalyzer:
 
         findings = []
 
-        # ── 1차: 중앙 영역 강화 OCR (스톡 워터마크는 주로 중앙 대각선 위치) ──
-        # CLAHE 전처리로 반투명/흐린 텍스트 강조 → 일반 OCR이 놓치는 워터마크 포착
-        # FFT 반복 패턴이 있을 때만 실행: 강화 OCR이 노리는 대상(반투명 타일 워터마크)을
-        # FFT가 ~10ms에 선별 → OCR(전역 직렬 자원) 호출량 절반 절감
-        _fft_hit, _ = detect_tiled_watermark_fft(frame)
-        try:
-            cy0, cy1 = int(h * 0.25), int(h * 0.75)
-            cx0, cx1 = int(w * 0.15), int(w * 0.85)
-            center_crop = frame[cy0:cy1, cx0:cx1]
-            if _fft_hit and center_crop.size > 0:
-                enhanced_center = enhance_frame_for_ocr(center_crop)
-                center_ocr = safe_ocr(enhanced_center, detail=1, min_confidence=0.30)
-                center_text = " ".join(t for _, t, _ in center_ocr).lower() if center_ocr else ""
-                stock_hit_center = self._check_stock_keywords(center_text)
-                if stock_hit_center:
-                    findings.append({
-                        "job_id": job_id,
-                        "finding_type": "video_clip",
-                        "timestamp_start": timestamp,
-                        "timestamp_end": timestamp,
-                        "timestamp_display": self._format_time(timestamp),
-                        "title": f"스톡 영상: {stock_hit_center}",
-                        "rights_holder": stock_hit_center,
-                        "source": "stock_watermark_ocr_enhanced",
-                        "confidence_score": 0.88,
-                        "risk_score": 0.86,
-                        "risk_level": "HIGH",
-                        "description": f"중앙 강화 OCR: 스톡 워터마크 감지 '{stock_hit_center}'",
-                    })
-                    return findings
-        except Exception:
-            pass
-
-        # ── 2차: 전체 프레임 일반 OCR ──
+        # 전체 프레임 OCR. 스톡 키워드는 이 결과에서 찾는다.
         ocr_results = safe_ocr(frame, detail=1, min_confidence=0.35)
         if not ocr_results:
             return findings

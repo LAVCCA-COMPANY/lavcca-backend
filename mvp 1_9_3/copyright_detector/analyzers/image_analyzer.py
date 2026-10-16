@@ -2,7 +2,8 @@
 analyzers/image_analyzer.py - 이미지/사진/로고 저작권 분석
 우선순위: 자체 DB → 스톡 워터마크(OCR) → Google Vision/Yandex 역검색 → OCR 브랜드 → Rekognition
 
-설계 원칙: 구조 신호(FFT 패턴·시네마 화면비·CLIP 분류)는 역검색 트리거로만 사용.
+설계 원칙: 구조 신호(시네마 화면비·CLIP 분류)는 역검색 트리거로만 사용.
+FFT 반복 패턴은 일반 프레임에서도 거의 항상 참이라 트리거·발견에 쓰지 않는다.
 finding은 OCR 텍스트(직접 증거) 또는 역검색 결과(인덱싱 증거)가 있을 때만 생성.
 """
 import asyncio
@@ -17,11 +18,7 @@ from database.db_manager import get_db_manager
 from utils.video_utils import compute_phash, frame_to_bytes
 from utils.ocr_engine import safe_ocr, extract_text_only
 from utils.clip_engine import classify_frames_batch, VISION_TRIGGER_THRESHOLDS, embed_frame
-from utils.watermark_detector import (
-    detect_tiled_watermark_fft,
-    enhance_frame_for_ocr,
-    detect_cinematic_aspect,
-)
+from utils.watermark_detector import detect_cinematic_aspect
 from utils.google_vision_searcher import (
     search_image_for_copyright, clear_vision_cache, get_searcher,
 )
@@ -322,26 +319,12 @@ class ImageAnalyzer:
             })
             return results
 
-        # 2. 워터마크 감지 (FFT 반복 패턴 + 강화 전처리 OCR 병합)
-        fft_hit, fft_conf = detect_tiled_watermark_fft(frame)
-
-        # OCR 예산 게이트: 20초 간격 허용 프레임만 OCR
-        # (EasyOCR은 전역 직렬 자원 — 모든 프레임을 OCR하면 긴 영상에서 수 분 소요)
-        # FFT 는 예산을 우회하지 않는다: detect_tiled_watermark_fft 가 일반 프레임에서도 거의 항상
-        # True(conf 1.0)라 우회를 허용하면 전 프레임 OCR 이 된다(ZZZ 4분 영상 275/275, 저작권 17분).
+        # OCR 예산: 20초 간격이고 글자 영역이 있을 때만. FFT 는 일반 프레임에서도 거의 항상
+        # 참이라, 그 값으로 OCR 을 열거나 신뢰도를 올리면 프레임마다 비용·오탐이 난다.
         _ocr_ok = timestamp in self._ocr_ts
-
-        # FFT 감지 시 향상된 전처리 프레임으로 OCR 수행 (반투명 텍스트 강조)
-        ocr_frame = enhance_frame_for_ocr(frame) if fft_hit else frame
-
-        if _ocr_ok and (self._has_text_region(ocr_frame) or fft_hit):
-            stock_hit = self._detect_stock_watermark(ocr_frame)
-            # enhanced 프레임에서 못 찾으면 원본도 시도
-            if not stock_hit and fft_hit:
-                stock_hit = self._detect_stock_watermark(frame)
-
+        if _ocr_ok and self._has_text_region(frame):
+            stock_hit = self._detect_stock_watermark(frame)
             if stock_hit:
-                conf = 0.95 if fft_hit else 0.92  # FFT도 잡힌 경우 신뢰도 상승
                 results.append({
                     "job_id": job_id,
                     "finding_type": "image",
@@ -350,33 +333,13 @@ class ImageAnalyzer:
                     "timestamp_display": self._format_time(timestamp),
                     "title": f"스톡 이미지: {stock_hit}",
                     "rights_holder": stock_hit,
-                    "source": "stock_watermark_ocr" + ("+fft" if fft_hit else ""),
-                    "confidence_score": conf,
+                    "source": "stock_watermark_ocr",
+                    "confidence_score": 0.92,
                     "risk_score": 0.90,
                     "risk_level": "HIGH",
-                    "description": f"스톡 이미지 워터마크 감지: '{stock_hit}'"
-                                   + (" (FFT 반복 패턴 확인)" if fft_hit else ""),
+                    "description": f"스톡 이미지 워터마크 감지: '{stock_hit}'",
                 })
                 return results  # 스톡 워터마크 확인 → 추가 분석 불필요
-
-        # 2-a. FFT만 감지 — Vision 역검색이 불가능한 환경에서만 단독 경고 생성
-        #  FFT는 직물/격자무늬 등 일반 텍스처에도 반응하는 추정 신호이므로,
-        #  Vision API가 켜져 있으면 역검색 결과(2-b)로 확정하고 단독 finding은 만들지 않음
-        if fft_hit and fft_conf > 0.42 and not results and not get_searcher().enabled:
-            results.append({
-                "job_id": job_id,
-                "finding_type": "image",
-                "timestamp_start": timestamp,
-                "timestamp_end": timestamp,
-                "timestamp_display": self._format_time(timestamp),
-                "title": "반복 패턴 워터마크 의심",
-                "rights_holder": "",
-                "source": "fft_watermark_detection",
-                "confidence_score": round(fft_conf, 3),
-                "risk_score": round(min(fft_conf * 0.80, 0.78), 3),
-                "risk_level": "MEDIUM",
-                "description": f"FFT 분석: 반복 패턴 워터마크 감지 (신뢰도 {fft_conf:.0%})",
-            })
 
         # 2-b. Google Vision 역이미지 검색
         #  트리거 조건 (구조 신호는 트리거로만 사용, 직접 finding 생성 안 함):
