@@ -612,9 +612,14 @@ def assess_natam_risk(
 }}"""
 
     # ── NATAM은 리포트에 '항상' 나와야 하므로 평가 실패를 만들지 않는다 ──
-    #    ① 정밀 평가(재시도) → ② 간이 종합 평가 폴백 → ③ 보수적 CARE 최후 폴백
+    #    ① 정밀 평가(재시도) → ② 간이 종합 평가 폴백 → ③ UNKNOWN (SAFE 로 채우지 않음)
+    call_transient = False
+
     def _call(p: str, max_tokens: int):
-        """503/429 일시오류·JSON 파싱 실패 시 재시도. 성공 dict / 실패 None."""
+        """503/429 일시오류·JSON 파싱 실패 시 재시도. 성공 dict / 실패 None.
+        마지막 실패가 429·5xx 이면 call_transient 를 켠다."""
+        nonlocal call_transient
+        last = None
         for attempt in range(3):
             try:
                 resp = client.models.generate_content(
@@ -632,15 +637,17 @@ def assess_natam_risk(
                 parsed = _safe_json_parse(resp.text, "NATAM 리스크 평가")
                 if parsed is not None:
                     return parsed
-                raise ValueError("JSON 파싱 실패")
+                last = ValueError("JSON 파싱 실패")
             except Exception as e:
-                if attempt < 2:
-                    wait = 3 * (attempt + 1)   # 3s, 6s (배경 수집 타임아웃 내)
-                    print(f"   ⚠️ NATAM 재시도 ({attempt+1}/2): {e} — {wait}초 후")
-                    time.sleep(wait)
-                    continue
-                print(f"   ⚠️ NATAM 호출 실패: {e}")
-                return None
+                last = e
+            if attempt < 2:
+                wait = 3 * (attempt + 1)   # 3s, 6s (배경 수집 타임아웃 내)
+                print(f"   ⚠️ NATAM 재시도 ({attempt+1}/2): {last} — {wait}초 후")
+                time.sleep(wait)
+                continue
+            call_transient = _api_is_transient(last)
+            print(f"   ⚠️ NATAM 호출 실패: {last}")
+            return None
         return None
 
     # ① 정밀 평가 (항목별). 빠진 축은 SAFE로 메우지 않는다.
@@ -684,10 +691,12 @@ def assess_natam_risk(
 
     # ③ 최후 폴백 — CARE/SAFE로 채우지 않고 미판정으로 남긴다.
     print("   ⚠️ NATAM 간이 평가도 실패 → UNKNOWN (평가 실패)")
-    return _natam_unknown_sheet(
+    sheet = _natam_unknown_sheet(
         "failed",
         "자동 평가 실패 — 미판정. SAFE로 읽지 말 것(수동 확인 필요)",
     )
+    sheet["transient"] = call_transient   # 마지막 호출이 429·5xx 일 때만 워커가 재시도
+    return sheet
 
 
 def _build_natam_placeholders(natam: dict) -> dict:
@@ -1553,6 +1562,16 @@ class TransientAPIError(RuntimeError):
 
 
 _TRANSIENT_HTTP = {429, 500, 502, 503, 504}
+
+
+def _api_is_transient(err: BaseException) -> bool:
+    """429·5xx 만 일시 장애. 400·JSON 파싱 실패는 다시 돌려도 같으므로 제외한다."""
+    if isinstance(err, TransientAPIError):
+        return True
+    return (
+        type(err).__module__.startswith("google.genai")
+        and getattr(err, "code", None) in _TRANSIENT_HTTP
+    )
 
 
 def _salvage_segments(text: str) -> list:
@@ -2636,6 +2655,25 @@ class CrisisConsultantSystem:
             triggered.append({"idx": i, "hits": hits, "high_severity": high_sev})
         return triggered
 
+    def _tier2_hold(self, segments, trig, err, transient: bool) -> dict:
+        """판정하지 못한 한 문장. transient 일 때만 워커가 작업 전체를 다시 돌린다."""
+        i = trig["idx"]
+        hits = trig.get("hits") or []
+        return {
+            "is_controversy": None,
+            "adjudication": "unverified",
+            "transient": bool(transient),
+            "category": hits[0]["label"] if hits else "L12",
+            "severity": "UNVERIFIED",
+            "rationale": f"Tier2 호출 실패, 판정 보류: {err}",
+            "quote": "",
+            "segment_idx": i,
+            "tier1_labels": [h["label"] for h in hits],
+            "start": segments[i].get("start") if 0 <= i < len(segments) else None,
+            "end": segments[i].get("end") if 0 <= i < len(segments) else None,
+            "timestamp": _seg_timestamp(segments[i]) if 0 <= i < len(segments) else "",
+        }
+
     def _tier2_adjudicate(self, segments, trig, rule_hits, similar_titles) -> dict:
         """
         트리거된 한 구간을 맥락과 함께 LLM에 보내 최종 판정(JSON).
@@ -2676,16 +2714,11 @@ class CrisisConsultantSystem:
             )
             self.cost.add(resp, "tier2")
             res = _safe_json_parse(resp.text, f"Tier2 seg {i}") or {}
+            if not res:
+                return self._tier2_hold(segments, trig, "JSON 파싱 실패", False)
         except Exception as e:
-            # 실패를 논란 확정으로 올리지 않는다. SVM 라벨은 표에 남고 상태는 보류.
-            res = {
-                "is_controversy": None,
-                "adjudication": "unverified",
-                "category": trig["hits"][0]["label"],
-                "severity": "UNVERIFIED",
-                "rationale": f"Tier2 호출 실패, 판정 보류: {e}",
-                "quote": "",
-            }
+            # 실패를 논란 확정으로 올리지 않는다. 429·5xx 만 워커가 작업 전체를 재시도한다.
+            return self._tier2_hold(segments, trig, e, _api_is_transient(e))
         res["is_controversy"] = _coerce_flag(res.get("is_controversy"))
         res["segment_idx"]  = i
         res["tier1_labels"] = [h["label"] for h in trig["hits"]]
@@ -2822,13 +2855,18 @@ class CrisisConsultantSystem:
 
         adjudicated = []
         with ThreadPoolExecutor(max_workers=_REFINE_CONCURRENCY) as ex:
-            futs = [ex.submit(self._tier2_adjudicate_batch, segments, b,
-                              rule_hits, similar_titles) for b in batches]
-            for fut in as_completed(futs):
+            pending = {
+                ex.submit(self._tier2_adjudicate_batch, segments, b,
+                          rule_hits, similar_titles): b
+                for b in batches
+            }
+            for fut in as_completed(pending):
                 try:
                     adjudicated.extend(fut.result())
                 except Exception as e:
                     print(f"   ⚠️ Tier2 배치 판정 실패: {e}")
+                    for t in pending[fut]:
+                        adjudicated.append(self._tier2_hold(segments, t, e, False))
 
         confirmed = [a for a in adjudicated if a.get("is_controversy") is True]
         adjudicated.sort(key=lambda a: a.get("segment_idx", 0))
@@ -3551,6 +3589,7 @@ class CrisisConsultantSystem:
                     "partial": bool(sim_manifest.get("partial")),
                 },
                 "natam_evaluation_status": natam_result.get("evaluation_status"),
+                "natam_transient": bool(natam_result.get("transient")),
             },
             "rule_scan":      rule_result,
             "two_tier":       two_tier_result,

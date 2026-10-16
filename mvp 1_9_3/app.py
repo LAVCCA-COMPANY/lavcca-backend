@@ -212,6 +212,7 @@ def run_analysis(job_id, user_input, fresh=False, do_copyright=True):
                 'meta': {
                     'input_query': user_input,
                     'natam_evaluation_status': natam_result.get('evaluation_status'),
+                    'natam_transient': bool(natam_result.get('transient')),
                     'similar_index': {
                         'count': sim_manifest.get('count'),
                         'full_n': sim_manifest.get('full_n'),

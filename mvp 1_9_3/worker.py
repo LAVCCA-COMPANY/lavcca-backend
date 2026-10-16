@@ -13,8 +13,9 @@ worker.py — 영상 1개 = 작업 1개를 비대화식으로 처리하는 서�
   logs/worker_*.log                       콘솔 전체 로그
   job_result.json                         상태·산출물·단계별 소요/메모리·LLM 비용
 
-상태: ok(리포트 3종 + 저작권 결과) / partial(리포트 3종, 저작권 실패) / failed(리포트 누락·예외·업로드 실패)
-      / retry_later(Gemini 429·5xx 일시 장애 — 전사 실패, NATAM 평가 실패, Tier2 판정 보류가 있으면).
+상태: ok(리포트 3종 + 저작권 결과) / partial(리포트 3종, 저작권 실패) / failed(리포트 누락·예외·업로드 실패·영구 판정 누락)
+      / retry_later(Gemini 429·5xx 만 — 전사 예외, 또는 판정 누락이 전부 일시 장애로 표시된 경우).
+      400·JSON 파싱 실패로 비어 있는 판정은 failed. 영구 실패가 하나라도 있으면 재시도하지 않는다.
       retry_later 는 나중에 같은 작업을 다시 돌리라는 뜻(재투입은 T5 큐 쪽 몫). 컨테이너는 WHISPER_FALLBACK=0.
 종료 코드: ok·partial → 0, retry_later → 75(EX_TEMPFAIL), failed → 1.
 SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 가 있으면 jobs/job_steps 에 상태를 기록한다
@@ -188,17 +189,34 @@ def transient_error(e: BaseException) -> tuple[bool, float | None]:
     return False, None
 
 
-def quality_issues(report: dict) -> tuple[dict, list]:
-    """리포트에서 API 장애로 비어 버린 판정을 센다. (기록용 요약, retry_later 사유 목록)."""
-    natam = (report.get("meta") or {}).get("natam_evaluation_status")
+def quality_issues(report: dict) -> tuple[dict, list, list]:
+    """(기록용 요약, retry_later 사유, failed 사유).
+
+    unverified·NATAM failed 라도 transient 표시가 없으면 다시 돌리지 않는다.
+    영구 실패가 하나라도 있으면 일시 장애 건도 재시도 목록에서 뺀다.
+    """
+    meta = report.get("meta") or {}
+    natam = meta.get("natam_evaluation_status")
     adjudicated = (report.get("two_tier") or {}).get("adjudicated") or []
-    unverified = sum(1 for a in adjudicated if a.get("adjudication") == "unverified")
-    reasons = []
+    unverified = [a for a in adjudicated if a.get("adjudication") == "unverified"]
+    transient_n = sum(1 for a in unverified if a.get("transient"))
+    permanent_n = len(unverified) - transient_n
+    retry, fail = [], []
     if natam == "failed":
-        reasons.append("NATAM 평가 실패(전 항목 미판정)")
-    if unverified:
-        reasons.append(f"Tier2 판정 보류 {unverified}건")
-    return {"natam_evaluation_status": natam, "tier2_unverified": unverified}, reasons
+        (retry if meta.get("natam_transient") else fail).append(
+            "NATAM 평가 일시 장애" if meta.get("natam_transient") else "NATAM 평가 실패(전 항목 미판정)")
+    if transient_n:
+        retry.append(f"Tier2 일시 장애 {transient_n}건")
+    if permanent_n:
+        fail.append(f"Tier2 판정 보류 {permanent_n}건")
+    if fail:
+        fail = retry + fail   # 영구 실패가 있으면 일시 장애 사유만 남기고 재시도는 하지 않는다
+        retry = []
+    return {
+        "natam_evaluation_status": natam,
+        "tier2_unverified": len(unverified),
+        "tier2_transient": transient_n,
+    }, retry, fail
 
 
 # ── 실행 ────────────────────────────────────────────────────────────
@@ -277,12 +295,14 @@ def run_job(args) -> dict:
             include_copyright=do_copyright, report_dir=str(out))
 
         result["outputs"].update(json=json_path, md=md_path, pdf=pdf_path)
-        result["quality"], reasons = quality_issues(report or {})
+        result["quality"], retry_reasons, fail_reasons = quality_issues(report or {})
         if not all(p and os.path.isfile(p) for p in (json_path, md_path, pdf_path)):
             result["error"] = "리포트 3종 중 누락 있음(위 로그 참조)"
-        elif reasons:
+        elif fail_reasons:
+            result["error"] = "판정 누락: " + ", ".join(fail_reasons)
+        elif retry_reasons:
             result["status"] = "retry_later"
-            result["error"] = "Gemini 장애로 판정 누락: " + ", ".join(reasons)
+            result["error"] = "Gemini 일시 장애로 판정 누락: " + ", ".join(retry_reasons)
         else:
             result["status"] = "ok" if result["copyright_ok"] is not False else "partial"
     except Exception as e:

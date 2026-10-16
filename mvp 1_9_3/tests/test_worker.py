@@ -155,10 +155,25 @@ def test_transient_error():
 def test_quality_issues():
     report = {"meta": {"natam_evaluation_status": "ok"},
               "two_tier": {"adjudicated": [{"adjudication": "unverified"}, {"is_controversy": True}]}}
-    assert worker.quality_issues(report) == (
-        {"natam_evaluation_status": "ok", "tier2_unverified": 1}, ["Tier2 판정 보류 1건"])
+    summary, retry, fail = worker.quality_issues(report)
+    assert summary == {"natam_evaluation_status": "ok", "tier2_unverified": 1, "tier2_transient": 0}
+    assert retry == [] and fail == ["Tier2 판정 보류 1건"]
+
+    report = {"meta": {"natam_evaluation_status": "ok"},
+              "two_tier": {"adjudicated": [{"adjudication": "unverified", "transient": True}]}}
+    summary, retry, fail = worker.quality_issues(report)
+    assert summary["tier2_transient"] == 1 and retry == ["Tier2 일시 장애 1건"] and fail == []
+
+    # 영구 실패가 섞이면 일시 장애가 있어도 재시도하지 않는다
+    report = {"meta": {"natam_evaluation_status": "failed", "natam_transient": True},
+              "two_tier": {"adjudicated": [{"adjudication": "unverified"}]}}
+    _, retry, fail = worker.quality_issues(report)
+    assert retry == []
+    assert any("NATAM" in s for s in fail) and any("Tier2" in s for s in fail)
+
     report = {"meta": {"natam_evaluation_status": "failed"}, "two_tier": {"adjudicated": []}}
-    assert worker.quality_issues(report)[1] == ["NATAM 평가 실패(전 항목 미판정)"]
+    assert worker.quality_issues(report)[1] == []
+    assert worker.quality_issues(report)[2] == ["NATAM 평가 실패(전 항목 미판정)"]
     assert worker.quality_issues({"meta": {"natam_evaluation_status": "coarse"}})[1] == []
 
 
@@ -186,10 +201,10 @@ def _fake_engine(monkeypatch, analyze):
     monkeypatch.setitem(sys.modules, "mvp_ver_1_9_3", fake)
 
 
-def _report(out, natam="ok", adjudicated=()):
+def _report(out, natam="ok", adjudicated=(), natam_transient=False):
     p = out / "report_x.json"
     p.write_text("{}")
-    return {"meta": {"natam_evaluation_status": natam},
+    return {"meta": {"natam_evaluation_status": natam, "natam_transient": natam_transient},
             "two_tier": {"adjudicated": list(adjudicated)}}, str(p)
 
 
@@ -208,7 +223,7 @@ def test_run_ok(tmp_path, monkeypatch):
     _fake_engine(monkeypatch, lambda out: _report(out, adjudicated=[{"is_controversy": False}]))
     code, res = _run(tmp_path, monkeypatch)
     assert (code, res["status"]) == (0, "ok")
-    assert res["quality"] == {"natam_evaluation_status": "ok", "tier2_unverified": 0}
+    assert res["quality"] == {"natam_evaluation_status": "ok", "tier2_unverified": 0, "tier2_transient": 0}
 
 
 def test_run_retry_later_on_transient_error(tmp_path, monkeypatch):
@@ -220,13 +235,22 @@ def test_run_retry_later_on_transient_error(tmp_path, monkeypatch):
     assert "429" in res["error"]
 
 
-def test_run_retry_later_on_missing_verdicts(tmp_path, monkeypatch):
+def test_run_failed_on_permanent_gap(tmp_path, monkeypatch):
     _fake_engine(monkeypatch, lambda out: _report(out, natam="failed",
                                                   adjudicated=[{"adjudication": "unverified"}]))
     code, res = _run(tmp_path, monkeypatch)
+    assert (code, res["status"]) == (1, "failed")
+    assert "판정 누락" in res["error"] and "retry_after_sec" not in res
+    assert res["outputs"]["pdf"]                 # 리포트는 남긴다(로그·디버깅용)
+
+
+def test_run_retry_later_on_transient_gap(tmp_path, monkeypatch):
+    _fake_engine(monkeypatch, lambda out: _report(
+        out, natam="failed", natam_transient=True,
+        adjudicated=[{"adjudication": "unverified", "transient": True}]))
+    code, res = _run(tmp_path, monkeypatch)
     assert (code, res["status"]) == (75, "retry_later")
-    assert res["error"] == "Gemini 장애로 판정 누락: NATAM 평가 실패(전 항목 미판정), Tier2 판정 보류 1건"
-    assert res["outputs"]["pdf"]                 # 리포트는 남긴다(로그·디버깅용), 웹 다운로드는 ok/partial 만
+    assert "일시 장애" in res["error"]
 
 
 def test_run_failed_on_other_error(tmp_path, monkeypatch):
