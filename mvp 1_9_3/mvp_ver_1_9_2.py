@@ -16,6 +16,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 import whisper
 from google import genai
 import time
+import random
 import threading
 import torch
 import json
@@ -63,6 +64,17 @@ GEMINI_REFINE_MODEL      = os.getenv("GEMINI_REFINE_MODEL", "models/gemini-3.8-f
 TRANSCRIBE_ENGINE        = os.getenv("TRANSCRIBE_ENGINE", "gemini")  # "whisper" | "gemini" | "clova"
 # Gemini 전사 최종 실패 시 로컬 Whisper 폴백. 서비스 워커(컨테이너)는 0 → TransientAPIError 로 retry_later
 WHISPER_FALLBACK         = os.getenv("WHISPER_FALLBACK", "1") != "0"
+# Gemini 일시 장애(429·5xx·네트워크) 대응 순서 — 모든 생성 호출 공통(_install_gemini_defaults):
+#   ① 같은 모델로 GEMINI_RETRIES 번(지수 백오프 + 지터) → ② GEN_MODEL_FALLBACK 으로 같은 횟수
+#   전사만 그다음 ③ AWS Transcribe(TRANSCRIBE_FALLBACK=aws) → ④ 로컬 Whisper(WHISPER_FALLBACK)
+GEN_MODEL_FALLBACK       = os.getenv("GEN_MODEL_FALLBACK", "models/gemini-3.6-flash")   # 빈 값이면 대체 모델 안 씀
+GEMINI_RETRIES           = max(1, int(os.getenv("GEMINI_RETRIES", "4")))         # 모델당 시도 횟수
+GEMINI_RETRY_BASE_SEC    = float(os.getenv("GEMINI_RETRY_BASE_SEC", "3"))        # 3·6·12초 × 지터(0.5~1)
+GEMINI_RETRY_MAX_SEC     = float(os.getenv("GEMINI_RETRY_MAX_SEC", "30"))
+# AWS Transcribe 전사 폴백: 오디오를 AWS_TRANSCRIBE_S3(s3://버킷/접두사/) 에 잠깐 올려 ko-KR 로 받아쓴 뒤 지운다
+TRANSCRIBE_FALLBACK      = os.getenv("TRANSCRIBE_FALLBACK", "").strip().lower()  # "aws" 일 때만
+AWS_TRANSCRIBE_S3        = os.getenv("AWS_TRANSCRIBE_S3", "")
+AWS_TRANSCRIBE_TIMEOUT_SEC = int(os.getenv("AWS_TRANSCRIBE_TIMEOUT_SEC", "1200"))
 CONTROVERSY_MODEL_PATH   = str(paths.CONTROVERSY_MODEL)  # ML 분류 모델
 _REFINE_CONCURRENCY      = 4                           # Gemini 교정 배치 동시 실행 수
 
@@ -164,6 +176,11 @@ def _install_gemini_defaults(client):
     - max_output_tokens: 미지정 호출의 토큰-한도 잘림 방지 안전망
     - thinking_level=low: 3.8 Flash 기본(medium)보다 짧게 생각해 JSON 잘림을 줄인다
     setdefault 이므로 개별 호출이 명시한 값은 그대로 유지된다.
+
+    일시 장애(429·5xx·네트워크)는 여기서 한 번에 처리한다: 같은 모델로 GEMINI_RETRIES 번,
+    그래도 안 되면 GEN_MODEL_FALLBACK 으로 같은 횟수. 그 뒤에도 실패하면 마지막 예외를 그대로 올린다
+    (호출부는 _api_is_transient 로 일시 장애인지 보고, 같은 오류를 다시 재시도하지 않는다).
+    400 등 영구 오류는 재시도·대체 없이 바로 올린다.
     """
     _orig = client.models.generate_content
 
@@ -177,10 +194,48 @@ def _install_gemini_defaults(client):
         if _GEMINI_SEED > 0:
             cfg.setdefault("seed", _GEMINI_SEED)   # 재현성: 동일 입력 → 동일 출력
         kwargs["config"] = cfg
-        return _orig(*args, **kwargs)
+
+        models = [kwargs.get("model")]
+        if GEN_MODEL_FALLBACK and models[0] and GEN_MODEL_FALLBACK != models[0]:
+            models.append(GEN_MODEL_FALLBACK)
+        last = None
+        for n, model in enumerate(models):
+            if n:
+                kwargs["model"] = model
+                print(f"   ↪️ Gemini 대체 모델로 전환: {model} (원인: {str(last)[:120]})")
+            for attempt in range(GEMINI_RETRIES):
+                try:
+                    return _orig(*args, **kwargs)
+                except Exception as e:
+                    if not _api_is_transient(e):
+                        raise
+                    last = e
+                    if attempt < GEMINI_RETRIES - 1:
+                        wait = _gemini_retry_wait(attempt, e)
+                        print(f"   ⚠️ Gemini 일시 오류({_err_label(e)}) — {wait:.0f}초 후 재시도 "
+                              f"({attempt + 1}/{GEMINI_RETRIES - 1}, {model})")
+                        time.sleep(wait)
+        raise last
 
     client.models.generate_content = _patched
     return client
+
+
+def _gemini_retry_wait(attempt: int, err: BaseException) -> float:
+    """다음 재시도까지 기다릴 초. 429 가 retryDelay 를 주면 그만큼(최대 60초), 아니면 지수 백오프.
+    지터를 섞어 동시에 실패한 조각·배치가 같은 순간에 다시 몰리지 않게 한다."""
+    hint = _parse_429_error(err)["retry_delay"]
+    if hint is not None:
+        return min(hint, 60.0) + random.uniform(0, 2)
+    return min(GEMINI_RETRY_BASE_SEC * (2 ** attempt), GEMINI_RETRY_MAX_SEC) * random.uniform(0.5, 1.0)
+
+
+def _err_label(err: BaseException) -> str:
+    """로그용 짧은 원인: 429 면 어떤 한도인지, 아니면 상태 코드나 예외 이름."""
+    code = getattr(err, "code", None)
+    if code == 429:
+        return "429 " + _classify_429_kind(_parse_429_error(err)["metric"])
+    return str(code) if isinstance(code, int) else type(err).__name__
 
 LABEL_INFO = (
     "L01 직접적 욕설, L02 인신공격/비하, L03 혐오 표현, L04 허위 정보, "
@@ -272,6 +327,7 @@ class CostTracker:
             self.out_tokens = 0
             self.thinking_tokens = 0
             self.by_label = {}
+            self.by_model = {}   # 응답한 모델별 호출 수 — 대체 모델(GEN_MODEL_FALLBACK)이 쓰였는지 보인다
 
     def add(self, resp, label: str = ""):
         if not ENABLE_COST_METERING:
@@ -282,6 +338,7 @@ class CostTracker:
         pin   = getattr(um, "prompt_token_count", 0) or 0
         pout  = getattr(um, "candidates_token_count", 0) or 0
         think = getattr(um, "thoughts_token_count", 0) or 0
+        model = getattr(resp, "model_version", None) or "unknown"
         with self._lock:
             self.calls += 1
             self.in_tokens += pin
@@ -291,6 +348,7 @@ class CostTracker:
             b["calls"] += 1
             b["in"]    += pin
             b["out"]   += pout + think
+            self.by_model[model] = self.by_model.get(model, 0) + 1
 
     def summary(self) -> dict:
         with self._lock:
@@ -302,6 +360,7 @@ class CostTracker:
                 "out_tokens":      self.out_tokens,       # thinking 포함
                 "thinking_tokens": self.thinking_tokens,
                 "by_label":        {k: dict(v) for k, v in self.by_label.items()},
+                "by_model":        dict(self.by_model),   # est_usd 는 주 모델 단가로만 계산한다
                 "price_per_1k":    {"in": _PRICE_PER_1K_IN, "out": _PRICE_PER_1K_OUT},
                 "est_usd":         round(usd, 6),
             }
@@ -616,8 +675,8 @@ def assess_natam_risk(
     call_transient = False
 
     def _call(p: str, max_tokens: int):
-        """503/429 일시오류·JSON 파싱 실패 시 재시도. 성공 dict / 실패 None.
-        마지막 실패가 429·5xx 이면 call_transient 를 켠다."""
+        """JSON 파싱 실패 시 재시도. 성공 dict / 실패 None.
+        429·5xx 는 클라이언트 래퍼가 이미 재시도·대체 모델까지 했으므로 바로 멈추고 call_transient 를 켠다."""
         nonlocal call_transient
         last = None
         for attempt in range(3):
@@ -640,14 +699,14 @@ def assess_natam_risk(
                 last = ValueError("JSON 파싱 실패")
             except Exception as e:
                 last = e
+                if _api_is_transient(e):
+                    break
             if attempt < 2:
                 wait = 3 * (attempt + 1)   # 3s, 6s (배경 수집 타임아웃 내)
                 print(f"   ⚠️ NATAM 재시도 ({attempt+1}/2): {last} — {wait}초 후")
                 time.sleep(wait)
-                continue
-            call_transient = _api_is_transient(last)
-            print(f"   ⚠️ NATAM 호출 실패: {last}")
-            return None
+        call_transient = _api_is_transient(last)
+        print(f"   ⚠️ NATAM 호출 실패: {last}")
         return None
 
     # ① 정밀 평가 (항목별). 빠진 축은 SAFE로 메우지 않는다.
@@ -1562,16 +1621,25 @@ class TransientAPIError(RuntimeError):
 
 
 _TRANSIENT_HTTP = {429, 500, 502, 503, 504}
+_TRANSIENT_WORDS = ("unavailable", "overloaded", "high demand", "deadline")
 
 
 def _api_is_transient(err: BaseException) -> bool:
-    """429·5xx 만 일시 장애. 400·JSON 파싱 실패는 다시 돌려도 같으므로 제외한다."""
+    """429·5xx·네트워크 끊김만 일시 장애. 400·JSON 파싱 실패는 다시 돌려도 같으므로 제외한다."""
     if isinstance(err, TransientAPIError):
         return True
-    return (
-        type(err).__module__.startswith("google.genai")
-        and getattr(err, "code", None) in _TRANSIENT_HTTP
-    )
+    import httpx
+    if isinstance(err, (TimeoutError, ConnectionError, httpx.TimeoutException,
+                        httpx.NetworkError, httpx.RemoteProtocolError)):
+        return True
+    code = getattr(err, "code", None)
+    if isinstance(code, int):
+        return code in _TRANSIENT_HTTP
+    # 코드가 없는 예외는 메시지에서만 판정. 1500 같은 숫자 안의 500은 제외.
+    msg = str(err)
+    codes = "|".join(str(c) for c in _TRANSIENT_HTTP)
+    return (re.search(rf"\b(?:{codes})\b", msg) is not None
+            or any(w in msg.lower() for w in _TRANSIENT_WORDS))
 
 
 def _salvage_segments(text: str) -> list:
@@ -1594,6 +1662,43 @@ def _salvage_segments(text: str) -> list:
         except ValueError:
             continue
     return out
+
+
+def _transcribe_items_to_segments(items: list) -> list:
+    """AWS Transcribe 결과의 단어(items)를 문장부호·1초 넘는 쉼·8초 초과에서 끊어 세그먼트로 묶는다.
+    (audio_segments 는 수십 초짜리라 문장 판정·타임스탬프에 쓰기엔 너무 길다)
+    반환: [{"start", "end", "text", "confidence"(단어 신뢰도 평균)}]"""
+    segs, cur, confs = [], None, []
+
+    def close():
+        cur["confidence"] = sum(confs) / len(confs) if confs else 1.0
+        segs.append(cur)
+
+    for it in items:
+        alt = (it.get("alternatives") or [{}])[0]
+        w = alt.get("content", "")
+        if it.get("type") == "pronunciation":
+            st, en = float(it["start_time"]), float(it["end_time"])
+            if cur and (st - cur["end"] > 1.0 or en - cur["start"] > 8.0):
+                close()
+                cur = None
+            if cur is None:
+                cur, confs = {"start": st, "end": en, "text": w}, []
+            else:
+                cur["text"] += " " + w
+                cur["end"] = en
+            try:
+                confs.append(float(alt.get("confidence", 1.0)))
+            except (TypeError, ValueError):
+                pass
+        elif cur is not None:      # 문장부호는 앞 단어에 붙인다
+            cur["text"] += w
+            if w in ".?!":
+                close()
+                cur = None
+    if cur:
+        close()
+    return segs
 
 
 def _parse_ts(v) -> float:
@@ -2097,7 +2202,8 @@ class CrisisConsultantSystem:
     )
 
     def _gemini_generate_retry(self, contents, seed: int | None = None):
-        """503(과부하)/429 등 일시 오류는 지수 백오프로 재시도. 소진 시 TransientAPIError, 그 외 RuntimeError."""
+        """전사 호출. 일시 오류 재시도와 대체 모델은 클라이언트 래퍼(_install_gemini_defaults)가 한다.
+        그래도 일시 오류면 TransientAPIError, 그 외 RuntimeError."""
         config = {
             "response_mime_type": "application/json",
             "temperature": 0.0,
@@ -2106,39 +2212,14 @@ class CrisisConsultantSystem:
         }
         if seed is not None:
             config["seed"] = seed
-        import httpx
-        # 네트워크 타임아웃·연결 끊김은 다시 보내면 되는 일시 장애
-        net_errors = (TimeoutError, ConnectionError,
-                      httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
-        last_err = None
-        max_retries = 5
-        for attempt in range(max_retries):
-            try:
-                return self.client.models.generate_content(
-                    model=GEN_MODEL, contents=contents, config=config)
-            except Exception as e:
-                last_err = e
-                msg = str(e)
-                code = getattr(e, "code", None)
-                if isinstance(e, net_errors):
-                    transient = True
-                elif isinstance(code, int):
-                    transient = code in _TRANSIENT_HTTP
-                else:
-                    # 코드가 없는 예외는 메시지에서만 판정. 1500 같은 숫자 안의 500은 제외.
-                    low = msg.lower()
-                    codes = "|".join(str(c) for c in _TRANSIENT_HTTP)
-                    transient = re.search(rf"\b(?:{codes})\b", msg) is not None or (
-                        "unavailable" in low or "overloaded" in low
-                        or "high demand" in low or "deadline" in low)
-                if not transient:
-                    raise RuntimeError(f"Gemini 전사 실패: {e}") from e
-                if attempt < max_retries - 1:
-                    wait = min(5 * (2 ** attempt), 40)   # 5,10,20,40 백오프
-                    print(f"   ⚠️ Gemini 일시 오류(과부하/혼잡) — {wait}초 후 재시도 ({attempt+1}/{max_retries-1})")
-                    time.sleep(wait)
-        raise TransientAPIError(f"Gemini 전사 일시 장애: {last_err}",
-                                _parse_429_error(last_err)["retry_delay"])
+        try:
+            return self.client.models.generate_content(
+                model=GEN_MODEL, contents=contents, config=config)
+        except Exception as e:
+            if _api_is_transient(e):
+                raise TransientAPIError(f"Gemini 전사 일시 장애: {e}",
+                                        _parse_429_error(e)["retry_delay"]) from e
+            raise RuntimeError(f"Gemini 전사 실패: {e}") from e
 
     def _transcribe_audio_chunk(self, video_path: str, start: float, length: float | None) -> list:
         """오디오 한 조각을 전사해 세그먼트(조각 시작 기준 초)를 반환."""
@@ -2218,15 +2299,25 @@ class CrisisConsultantSystem:
             ex.shutdown(wait=True, cancel_futures=True)   # 한 조각이 실패하면 남은 조각은 요청하지 않음
 
         if err is not None:
+            # 한 조각이라도 실패하면 구멍 난 전사가 되므로 전체를 다른 엔진으로 다시 받는다.
+            # (Gemini 같은 모델 재시도 → 대체 모델은 이미 클라이언트 래퍼가 했다)
+            if TRANSCRIBE_FALLBACK == "aws" and AWS_TRANSCRIBE_S3:
+                print(f"   ⚠️ Gemini 전사 실패({err}) → AWS Transcribe 로 폴백합니다")
+                try:
+                    return self._transcribe_with_aws(video_path)
+                except Exception as ae:
+                    print(f"   ⚠️ AWS Transcribe 폴백도 실패: {ae}")
             if not WHISPER_FALLBACK:
-                # 서비스 워커: CPU 컨테이너에서 Whisper 는 느리고 품질도 달라 폴백하지 않는다
+                # 서비스 워커: CPU 컨테이너에서 Whisper 는 느리고 품질도 달라 폴백하지 않는다.
+                # 원래 Gemini 오류를 올려야 일시 장애일 때 retry_later 가 된다.
                 raise err
-            # 한 조각이라도 실패하면 구멍 난 전사가 되므로 전체를 로컬 Whisper 로 폴백
             print(f"   ⚠️ Gemini 전사 실패({err}) → 로컬 Whisper 전사로 폴백합니다")
             try:
-                return self._transcribe_with_whisper(video_path)
+                out = self._transcribe_with_whisper(video_path)
             except Exception as we:
                 raise RuntimeError(f"Gemini 전사 실패 후 Whisper 폴백도 실패: {we} (원인: {err})") from we
+            out["video_info"]["asr_engine"] = "whisper"
+            return out
 
         # Whisper 형식으로 변환 (avg_logprob=0.0 으로 교정 플래그 비활성)
         segments  = sorted((s for p in parts for s in p), key=lambda s: s["start"])
@@ -2236,7 +2327,71 @@ class CrisisConsultantSystem:
 
         print(f"     ✅ Gemini 전사 완료 ({len(formatted)}개 세그먼트 / {round(duration, 2)}초)")
         return {
-            "video_info": {"path": video_path, "duration": round(duration, 2)},
+            "video_info": {"path": video_path, "duration": round(duration, 2), "asr_engine": "gemini"},
+            "segments":   formatted,
+        }
+
+    # ────────────────────────────────────────────────────
+    # ☁️ AWS Transcribe 전사 (Gemini 전사 폴백)
+    # ────────────────────────────────────────────────────
+    def _transcribe_with_aws(self, video_path: str) -> dict:
+        """
+        AWS Transcribe(ko-KR) 배치 전사. 16kHz 모노 mp3 를 AWS_TRANSCRIBE_S3 아래에 올리고,
+        결과는 Transcribe 가 관리하는 임시 URL 에서 받는다(출력 버킷 불필요). 끝나면 오디오·작업을 지운다.
+        반환은 Whisper 동일 형식. 단어 신뢰도 평균의 log 를 avg_logprob 로 넣어 교정이 낮은 신뢰 구간을 본다.
+        """
+        import math
+        import uuid
+        import urllib.request
+        import boto3
+
+        bucket, _, prefix = AWS_TRANSCRIBE_S3.removeprefix("s3://").partition("/")
+        if not bucket:
+            raise RuntimeError(f"AWS_TRANSCRIBE_S3 형식 오류: {AWS_TRANSCRIBE_S3!r} (s3://버킷/접두사/)")
+        job = f"lavcca-asr-{uuid.uuid4().hex[:16]}"
+        key = (prefix.rstrip("/") + "/" if prefix.strip("/") else "") + f"{job}.mp3"
+        audio = _extract_audio(video_path)
+        s3, tr = boto3.client("s3"), boto3.client("transcribe")
+        t0 = time.time()
+        s3.put_object(Bucket=bucket, Key=key, Body=audio)
+        started = False
+        try:
+            tr.start_transcription_job(
+                TranscriptionJobName=job, LanguageCode="ko-KR", MediaFormat="mp3",
+                Media={"MediaFileUri": f"s3://{bucket}/{key}"})
+            started = True
+            while True:
+                st = tr.get_transcription_job(TranscriptionJobName=job)["TranscriptionJob"]
+                status = st["TranscriptionJobStatus"]
+                if status in ("COMPLETED", "FAILED"):
+                    break
+                if time.time() - t0 > AWS_TRANSCRIBE_TIMEOUT_SEC:
+                    raise RuntimeError(f"AWS Transcribe 시간 초과({AWS_TRANSCRIBE_TIMEOUT_SEC}초)")
+                time.sleep(5)
+            if status == "FAILED":
+                raise RuntimeError(f"AWS Transcribe 실패: {st.get('FailureReason')}")
+            with urllib.request.urlopen(st["Transcript"]["TranscriptFileUri"], timeout=60) as r:
+                items = json.loads(r.read().decode("utf-8"))["results"].get("items", [])
+        finally:
+            try:
+                s3.delete_object(Bucket=bucket, Key=key)
+            except Exception as e:
+                print(f"   ⚠️ Transcribe 임시 오디오 삭제 실패(s3://{bucket}/{key}): {e}")
+            if started:
+                try:
+                    tr.delete_transcription_job(TranscriptionJobName=job)
+                except Exception as e:
+                    print(f"   ⚠️ Transcribe 작업 삭제 실패({job}): {e}")
+
+        segments  = _transcribe_items_to_segments(items)
+        formatted = [{"id": i, "start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"],
+                      "avg_logprob": round(math.log(max(s["confidence"], 1e-3)), 3)}
+                     for i, s in enumerate(segments)]
+        duration  = _probe_duration(video_path) or (formatted[-1]["end"] if formatted else 0.0)
+        print(f"     ✅ AWS Transcribe 전사 완료 ({len(formatted)}개 세그먼트 / {round(duration, 2)}초, "
+              f"{time.time() - t0:.0f}초 걸림)")
+        return {
+            "video_info": {"path": video_path, "duration": round(duration, 2), "asr_engine": "aws_transcribe"},
             "segments":   formatted,
         }
 
@@ -2437,24 +2592,12 @@ class CrisisConsultantSystem:
                         print(f"       ✅ 배치 {idx+1}/{total_batches} 완료 ({len(merged)}개)")
                         return idx, merged
                     except Exception as e:
-                        if "429" in str(e):
-                            info   = _parse_429_error(e)
-                            metric = info["metric"] or "(quotaMetric 미표기)"
-                            kind   = _classify_429_kind(info["metric"])
-                            # retryDelay가 있으면 그만큼(+지터), 없으면 기존 방식으로 폴백
-                            if info["retry_delay"] is not None:
-                                wait = info["retry_delay"] + idx * 2 + 1
-                            else:
-                                wait = (attempt + 1) * 15 + idx * 2
-                            print(f"  ⚠️  배치 {idx+1} 429 할당량 초과 [한도:{kind}] "
-                                  f"→ {wait:.0f}초 대기 ({attempt+1}/3)")
-                            print(f"       ↳ quotaMetric: {metric}")
-                            if attempt == 0:  # 첫 실패 때만 전문 출력(로그 폭주 방지)
-                                print(f"       ↳ 에러 전문: {info['raw'][:500]}")
-                            time.sleep(wait)
-                        else:
-                            print(f"  ⚠️  배치 {idx+1} 오류 ({attempt+1}/3): {e}")
-                            time.sleep(2)
+                        if _api_is_transient(e):
+                            # 429·5xx 재시도·대체 모델은 클라이언트 래퍼가 이미 했다
+                            print(f"  ⚠️  배치 {idx+1} 일시 장애 지속({_err_label(e)})")
+                            break
+                        print(f"  ⚠️  배치 {idx+1} 오류 ({attempt+1}/3): {e}")
+                        time.sleep(2)
             print(f"  ⛔ 배치 {idx+1} 최종 실패 — 원본 유지")
             return idx, [
                 {
@@ -2796,6 +2939,10 @@ class CrisisConsultantSystem:
             elif isinstance(data, dict):
                 arr = data.get("results") or data.get("verdicts") or data.get("items") or []
         except Exception as e:
+            if _api_is_transient(e):
+                # 재시도·대체 모델까지 실패한 장애 중에 단건 요청을 수십 개 더 보내지 않는다
+                print(f"   ⚠️ Tier2 배치 일시 장애 지속({_err_label(e)}) → {len(trigs)}건 판정 보류")
+                return [self._tier2_hold(segments, t, e, True) for t in trigs]
             print(f"   ⚠️ Tier2 배치 실패({e}) → 단건 폴백")
 
         by_idx = {}

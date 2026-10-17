@@ -42,7 +42,8 @@
    `aws ecr create-repository --repository-name natam-worker --image-scanning-configuration scanOnPush=true`
    이미지가 수 GB 라 보관비가 붙는다(GB·월 $0.10 수준) → 최근 3~5개만 남기는 수명 주기 정책 권장.
 2. **서비스 버킷** (SageMaker 연습 버킷과 분리): 예 `natam-dev-<계정ID>-apne2`
-   퍼블릭 차단 + SSE-S3 (연습 버킷과 같은 방식). 수명 주기: `uploads/` N일 후 삭제, `reports/` M일 후 삭제(**보관 기간은 JH 결정**).
+   퍼블릭 차단 + SSE-S3 (연습 버킷과 같은 방식). 수명 주기: `uploads/` N일 후 삭제, `reports/` M일 후 삭제(**보관 기간은 JH 결정**),
+   `transcribe-tmp/` 1일 후 삭제(Transcribe 폴백 임시 오디오 — 워커가 끝나면 지우지만 실패 대비).
    웹이 브라우저에서 직접 올리므로 버킷 CORS 에 웹 도메인의 `POST` 허용 필요.
 3. **시크릿**: Secrets Manager `natam/dev/worker` (JSON 1개, 월 $0.40). 키 이름은
    `worker-task-definition.json` 의 `secrets` 와 정확히 같아야 한다(없는 키가 하나라도 있으면 태스크가 시작 실패).
@@ -86,6 +87,19 @@
 - 고정: Secrets Manager $0.40/월, ECR 보관 수 GB, 로그·S3 소량. NAT 없음. Fargate·Lambda·SQS 는 쓸 때만.
 - 영상 1개: Gemini 약 $0.11(4분 35초, 2026-10-13 로컬 실측, 저작권 API 별도) + Fargate 4 vCPU/16 GB 약 3분(US-East 단가로 1센트대).
 - 무료 플랜 계정이라 크레딧($140)에서 차감된다. 무료 플랜에서 막힌 서비스가 있는지는 생성 시 확인.
+
+## Gemini 장애 대응 순서 (워커)
+
+Gemini 가 429·5xx·네트워크 오류를 내면 아래 순서로 넘어간다. 설정은 태스크 정의 `environment`.
+
+1. 같은 모델로 최대 `GEMINI_RETRIES`(기본 4)번, 3·6·12초 × 지터. 429 가 대기 시간을 주면 그만큼.
+2. `GEN_MODEL_FALLBACK`(기본 `models/gemini-3.6-flash`)으로 같은 횟수. 쓰였는지는 `job_result.json` 의 `llm_cost.by_model`.
+3. 전사만: `TRANSCRIBE_FALLBACK=aws` 이면 오디오를 `AWS_TRANSCRIBE_S3` 에 올려 AWS Transcribe(ko-KR)로 받아쓰고 지운다.
+   어떤 엔진이 받아썼는지는 전사 결과 `video_info.asr_engine`(gemini | aws_transcribe | whisper).
+4. 그래도 실패하면 `retry_later`(종료 코드 75). 컨테이너는 로컬 Whisper 를 쓰지 않는다(`WHISPER_FALLBACK=0`).
+
+Transcribe 는 쓸 때만 과금(분 단위, 서울 단가 미확인). 워커 태스크 역할에 `transcribe-tmp/*` S3 권한과
+`lavcca-asr-*` Transcribe 작업 권한이 들어 있다(`worker-task-role-policy.json`).
 
 ## 아직 안 한 것 (코드)
 

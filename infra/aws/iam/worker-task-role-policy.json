@@ -14,6 +14,22 @@
       "Resource": "arn:aws:s3:::__BUCKET__/reports/*"
     },
     {
+      "Sid": "TranscribeFallbackAudio",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::__BUCKET__/transcribe-tmp/*"
+    },
+    {
+      "Sid": "TranscribeFallbackJobs",
+      "Effect": "Allow",
+      "Action": [
+        "transcribe:StartTranscriptionJob",
+        "transcribe:GetTranscriptionJob",
+        "transcribe:DeleteTranscriptionJob"
+      ],
+      "Resource": "arn:aws:transcribe:ap-northeast-2:__ACCOUNT_ID__:transcription-job/lavcca-asr-*"
+    },
+    {
       "Sid": "CopyrightRekognition",
       "Effect": "Allow",
       "Action": "rekognition:DetectLabels",

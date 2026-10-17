@@ -15,11 +15,12 @@ import httpx
 import pytest
 
 ENGINE = Path(__file__).resolve().parents[1] / "mvp_ver_1_9_2.py"
-_FUNCS = {"_parse_ts", "_salvage_segments", "_safe_json_parse", "_parse_429_error"}
+_FUNCS = {"_parse_ts", "_salvage_segments", "_safe_json_parse", "_parse_429_error",
+          "_api_is_transient", "_transcribe_items_to_segments"}
 _CLASSES = {"TransientAPIError"}
-_ASSIGNS = {"_TRANSIENT_HTTP"}
+_ASSIGNS = {"_TRANSIENT_HTTP", "_TRANSIENT_WORDS"}
 _METHODS = {"_TRANSCRIBE_PROMPT", "_gemini_generate_retry", "_transcribe_audio_chunk",
-            "transcribe_with_gemini"}
+            "transcribe_with_gemini", "_transcribe_with_aws"}
 
 
 def _load(**overrides):
@@ -36,9 +37,10 @@ def _load(**overrides):
     keep.append(ast.ClassDef(name="Engine", bases=[], keywords=[], body=body, decorator_list=[]))
     ns = {
         "re": re, "json": json, "ThreadPoolExecutor": ThreadPoolExecutor,
-        "time": types.SimpleNamespace(sleep=lambda s: None),
+        "time": types.SimpleNamespace(sleep=lambda s: None, time=__import__("time").time),
         "TRANSCRIBE_CHUNK_SEC": 120, "TRANSCRIBE_OVERLAP_SEC": 5, "TRANSCRIBE_WORKERS": 4,
         "WHISPER_FALLBACK": False, "GEN_MODEL": "fake-model", "_GEMINI_SEED": 42,
+        "TRANSCRIBE_FALLBACK": "", "AWS_TRANSCRIBE_S3": "", "AWS_TRANSCRIBE_TIMEOUT_SEC": 60,
         "_thinking_config": lambda j=False: {"thinking_level": "low"},
         "_repair_truncated_json": lambda s: None,
         # 오디오 대신 "시작:길이" 를 바이트로 넘겨 가짜 클라이언트가 어느 조각인지 알게 한다
@@ -127,17 +129,19 @@ def test_transient_error_raises_transient_api_error():
         _engine(ns, models).transcribe_with_gemini("v.mp4")
 
 
-def test_gateway_codes_are_retried():
+# 같은 모델 재시도·대체 모델은 클라이언트 래퍼 몫(test_gemini_resilience.py). 여기 가짜 클라이언트는
+# 래퍼가 없으므로 전사 쪽은 한 번만 부르고 일시/영구 판정만 한다.
+def test_gateway_codes_are_transient():
     ns = _load(_probe_duration=lambda p: 60.0)
     models = FakeModels(fail="502 BAD_GATEWAY", fail_code=502)
     with pytest.raises(ns["TransientAPIError"]):
         _engine(ns, models).transcribe_with_gemini("v.mp4")
-    assert models.calls == 5
+    assert models.calls == 1
 
     models = FakeModels(fail="504 Gateway Timeout")
     with pytest.raises(ns["TransientAPIError"]):
         _engine(ns, models).transcribe_with_gemini("v.mp4")
-    assert models.calls == 5
+    assert models.calls == 1
 
 
 @pytest.mark.parametrize("exc", [
@@ -147,12 +151,12 @@ def test_gateway_codes_are_retried():
     httpx.ConnectError("[Errno 11001] getaddrinfo failed"),
     httpx.RemoteProtocolError("Server disconnected without sending a response."),
 ])
-def test_network_errors_are_retried(exc):
+def test_network_errors_are_transient(exc):
     ns = _load(_probe_duration=lambda p: 60.0)
     models = FakeModels(fail=exc)
     with pytest.raises(ns["TransientAPIError"]):
         _engine(ns, models).transcribe_with_gemini("v.mp4")
-    assert models.calls == 5
+    assert models.calls == 1
 
 
 def test_embedded_500_is_not_a_transient_code():
@@ -182,7 +186,138 @@ def test_whisper_fallback_when_enabled():
     ns = _load(WHISPER_FALLBACK=True)
     eng = _engine(ns, FakeModels(fail="503 UNAVAILABLE"))
     eng._transcribe_with_whisper = lambda p: {"video_info": {"path": p}, "segments": [], "whisper": True}
-    assert eng.transcribe_with_gemini("v.mp4")["whisper"] is True
+    out = eng.transcribe_with_gemini("v.mp4")
+    assert out["whisper"] is True and out["video_info"]["asr_engine"] == "whisper"
+
+
+def _aws_on(**kw):
+    return _load(TRANSCRIBE_FALLBACK="aws", AWS_TRANSCRIBE_S3="s3://b/transcribe-tmp/", **kw)
+
+
+def test_gemini_failure_goes_to_aws_transcribe():
+    eng = _engine(_aws_on(), FakeModels(fail="503 UNAVAILABLE"))
+    eng._transcribe_with_aws = lambda p: {"video_info": {"asr_engine": "aws_transcribe"}, "segments": []}
+    assert eng.transcribe_with_gemini("v.mp4")["video_info"]["asr_engine"] == "aws_transcribe"
+
+
+def test_aws_failure_then_whisper_locally():
+    eng = _engine(_aws_on(WHISPER_FALLBACK=True), FakeModels(fail="503 UNAVAILABLE"))
+    order = []
+
+    def aws(p):
+        order.append("aws")
+        raise RuntimeError("AccessDenied")
+
+    def whisper(p):
+        order.append("whisper")
+        return {"video_info": {"path": p}, "segments": []}
+
+    eng._transcribe_with_aws, eng._transcribe_with_whisper = aws, whisper
+    assert eng.transcribe_with_gemini("v.mp4")["video_info"]["asr_engine"] == "whisper"
+    assert order == ["aws", "whisper"]
+
+
+def test_aws_failure_in_container_keeps_gemini_error_for_retry_later():
+    ns = _aws_on()
+    eng = _engine(ns, FakeModels(fail="503 UNAVAILABLE"))
+    eng._transcribe_with_aws = lambda p: (_ for _ in ()).throw(RuntimeError("AccessDenied"))
+    with pytest.raises(ns["TransientAPIError"]):   # AWS 오류가 아니라 원래 Gemini 일시 장애
+        eng.transcribe_with_gemini("v.mp4")
+
+
+def test_aws_skipped_without_bucket():
+    ns = _load(TRANSCRIBE_FALLBACK="aws", AWS_TRANSCRIBE_S3="")
+    eng = _engine(ns, FakeModels(fail="503 UNAVAILABLE"))
+    eng._transcribe_with_aws = lambda p: pytest.fail("버킷 없이 AWS 를 부르면 안 됨")
+    with pytest.raises(ns["TransientAPIError"]):
+        eng.transcribe_with_gemini("v.mp4")
+
+
+def _item(w, st, en, conf="0.9"):
+    return {"type": "pronunciation", "start_time": str(st), "end_time": str(en),
+            "alternatives": [{"content": w, "confidence": conf}]}
+
+
+def _punct(p):
+    return {"type": "punctuation", "alternatives": [{"content": p}]}
+
+
+def test_transcribe_items_split_on_punct_pause_and_length():
+    ns = _load()
+    items = [_item("안녕", 0.0, 0.5), _item("하세요", 0.6, 1.0, "0.5"), _punct("."),
+             _item("오늘은", 1.2, 1.6), _item("쉬고", 3.0, 3.4),            # 1초 넘는 쉼
+             *[_item("말", 4.0 + i, 4.5 + i) for i in range(10)]]          # 8초 넘으면 끊음
+    segs = ns["_transcribe_items_to_segments"](items)
+    assert segs[0]["text"] == "안녕 하세요." and segs[0]["confidence"] == pytest.approx(0.7)
+    assert segs[1]["text"] == "오늘은" and segs[2]["start"] == 3.0
+    assert all(s["end"] - s["start"] <= 8.0 for s in segs)
+    assert sum(s["text"].count("말") for s in segs) == 10
+
+
+class _FakeAWS:
+    def __init__(self, status="COMPLETED"):
+        self.status, self.calls = status, []
+
+    def client(self, name):
+        return self
+
+    def put_object(self, **kw):
+        self.calls.append(("put", kw["Bucket"], kw["Key"]))
+
+    def delete_object(self, **kw):
+        self.calls.append(("delete_object", kw["Key"]))
+
+    def start_transcription_job(self, **kw):
+        self.calls.append(("start", kw["LanguageCode"], kw["Media"]["MediaFileUri"]))
+
+    def get_transcription_job(self, **kw):
+        return {"TranscriptionJob": {"TranscriptionJobStatus": self.status, "FailureReason": "bad audio",
+                                     "Transcript": {"TranscriptFileUri": "https://example/t.json"}}}
+
+    def delete_transcription_job(self, **kw):
+        self.calls.append(("delete_job",))
+
+
+def _urlopen_ok(url, timeout=None):
+    body = json.dumps({"results": {"items": [_item("가", 0.0, 0.4), _punct("?")]}}).encode()
+
+    class R:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return body
+    return R()
+
+
+def test_aws_transcribe_uploads_transcribes_and_cleans_up(monkeypatch):
+    import sys
+    import urllib.request
+    fake = _FakeAWS()
+    monkeypatch.setitem(sys.modules, "boto3", fake)
+    monkeypatch.setattr(urllib.request, "urlopen", _urlopen_ok)
+    eng = _engine(_aws_on(_probe_duration=lambda p: 12.0), FakeModels())
+    out = eng._transcribe_with_aws("v.mp4")
+
+    put, start = fake.calls[0], fake.calls[1]
+    assert put[1] == "b" and put[2].startswith("transcribe-tmp/lavcca-asr-") and put[2].endswith(".mp3")
+    assert start == ("start", "ko-KR", f"s3://b/{put[2]}")
+    assert ("delete_object", put[2]) in fake.calls and ("delete_job",) in fake.calls
+    assert out["video_info"] == {"path": "v.mp4", "duration": 12.0, "asr_engine": "aws_transcribe"}
+    assert out["segments"][0]["text"] == "가?" and out["segments"][0]["avg_logprob"] < 0
+
+
+def test_aws_transcribe_failure_still_cleans_up(monkeypatch):
+    import sys
+    fake = _FakeAWS(status="FAILED")
+    monkeypatch.setitem(sys.modules, "boto3", fake)
+    eng = _engine(_aws_on(), FakeModels())
+    with pytest.raises(RuntimeError, match="bad audio"):
+        eng._transcribe_with_aws("v.mp4")
+    assert [c[0] for c in fake.calls] == ["put", "start", "delete_object", "delete_job"]
 
 
 def test_broken_json_chunk_is_requested_again_with_other_seed():

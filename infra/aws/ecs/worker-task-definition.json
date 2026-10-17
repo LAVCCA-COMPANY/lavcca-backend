@@ -17,7 +17,10 @@
       "environment": [
         { "name": "MVP_LOGGING", "value": "1" },
         { "name": "USE_LEARNED_DB", "value": "false" },
-        { "name": "LEARN_TO_DB", "value": "false" }
+        { "name": "LEARN_TO_DB", "value": "false" },
+        { "name": "GEN_MODEL_FALLBACK", "value": "models/gemini-3.6-flash" },
+        { "name": "TRANSCRIBE_FALLBACK", "value": "aws" },
+        { "name": "AWS_TRANSCRIBE_S3", "value": "s3://__BUCKET__/transcribe-tmp/" }
       ],
       "secrets": [
         { "name": "GEMINI_API_KEY",            "valueFrom": "__SECRET_ARN__:GEMINI_API_KEY::" },

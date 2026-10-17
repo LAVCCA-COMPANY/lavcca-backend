@@ -32,7 +32,7 @@ from google import genai
 # 기존 시스템과 동일한 키/모델 재사용
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
 import paths
-from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _install_gemini_defaults, _thinking_config
+from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _api_is_transient, _install_gemini_defaults, _thinking_config
 
 # ────────────────────────────────────────────────
 # 설정
@@ -249,7 +249,7 @@ def structure_with_gemini(articles: list) -> dict:
         f"[뉴스]\n{digest}"
     )
 
-    # 503(과부하)/429 일시 오류 자동 재시도 + 마크다운 펜스 제거
+    # JSON 깨짐 재시도 + 마크다운 펜스 제거. 503/429 재시도·대체 모델은 클라이언트 래퍼가 한다.
     data = None
     for attempt in range(4):
         try:
@@ -268,14 +268,9 @@ def structure_with_gemini(articles: list) -> dict:
             data = json.loads(txt)
             break
         except Exception as e:
-            msg = str(e)
-            transient = ("503" in msg or "UNAVAILABLE" in msg
-                         or "overloaded" in msg.lower() or "high demand" in msg.lower()
-                         or "429" in msg)
-            if attempt < 3:
-                wait = 5 * (attempt + 1) if transient else 2   # 5/10/15초 백오프
-                print(f"   ⚠️ Gemini 구조화 재시도 ({attempt+1}/3): {e} — {wait}초 후")
-                time.sleep(wait)
+            if attempt < 3 and not _api_is_transient(e):
+                print(f"   ⚠️ Gemini 구조화 재시도 ({attempt+1}/3): {e} — 2초 후")
+                time.sleep(2)
                 continue
             print(f"   ⚠️ Gemini 구조화 최종 실패: {e}")
             return {"keywords": [], "cases": [], "samples": []}
