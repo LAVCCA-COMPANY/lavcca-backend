@@ -86,6 +86,11 @@ Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
   `sys.path` and are run from `mvp 1_9_3/` as `python tools/<script>.py`.
 - `.dockerignore` excludes `tools/`, `data/`, `docs/`, `tests/` and local
   outputs from a container image built with `mvp 1_9_3/` as the context.
+- `trend_signals.py` is a **scaffold only** (news-trend weighting, planned):
+  `TREND_MODE=off` (default) is a no-op, `shadow` just writes
+  `report["trend_shadow"]` with status `not_ready`. It also holds the raw news
+  data contract checker (`python trend_signals.py --check [files]`). The
+  trend table, matching and weighting are not implemented yet.
 
 ## Two-process architecture
 

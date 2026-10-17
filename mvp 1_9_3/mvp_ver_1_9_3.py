@@ -49,6 +49,13 @@ except Exception as _e:          # 모듈 문제로 전체 실행이 막히지 �
     spread_signals = None
     print(f"⚠️  spread_signals 로드 실패 → 외부 확산 신호 건너뜀: {_e}")
 
+# ── 뉴스 트렌드 가중치(준비 단계, TREND_MODE=off 기본이면 아무것도 안 함) ──
+try:
+    import trend_signals
+except Exception as _e:
+    trend_signals = None
+    print(f"⚠️  trend_signals 로드 실패 → 트렌드 신호 건너뜀: {_e}")
+
 # ── PDF 리포트 생성기(참고 스타일: MD → HTML → PDF) ─────────────────────
 try:
     import pdf_from_md
@@ -428,6 +435,13 @@ def finalize_reports(report: dict, json_path: str, copyright_results: dict | Non
             spread_signals.enrich(report)
         except Exception as e:
             print(f"⚠️  외부 확산 신호 수집 건너뜀: {e}")
+
+    # 뉴스 트렌드 가중치 — shadow 여도 등급은 안 바꾸고 report["trend_shadow"] 에 기록만.
+    if trend_signals is not None:
+        try:
+            trend_signals.enrich(report)
+        except Exception as e:
+            print(f"⚠️  트렌드 신호 건너뜀: {e}")
 
     # B-03(저작권) NATAM 등급을 저작권 실측으로 확정(미실행이면 '판단 보류') —
     #   저장 전에 반영해야 JSON·MD·PDF 세 리포트가 일치한다.

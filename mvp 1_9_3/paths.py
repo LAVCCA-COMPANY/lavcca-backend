@@ -27,6 +27,11 @@ EVAL_BASELINE       = DATA_DIR / "eval_baseline.json"
 PENDING_UPDATES     = DATA_DIR / "pending_updates.json"
 TREND_SEEN          = DATA_DIR / ".trend_seen.json"
 
+# 뉴스 트렌드(준비 단계, trend_signals.py). raw 는 팀원 수집본, table 은 열기 표(P2) — 둘 다 커밋 안 함
+TRENDS_DIR          = DATA_DIR / "trends"
+TREND_RAW_DIR       = TRENDS_DIR / "raw"
+TREND_TABLE_DIR     = TRENDS_DIR / "table"
+
 # 실행 산출물·로컬 상태 (커밋 안 함)
 REPORTS_DIR = APP_DIR / "reports"
 CASEDB_DIR  = APP_DIR / "casedb"
