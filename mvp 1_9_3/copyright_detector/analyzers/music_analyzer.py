@@ -242,6 +242,12 @@ class MusicAnalyzer:
         audio_path: pipeline이 이미 추출한 mono 16k wav.
                     있으면 메모리 슬라이스로 청크 생성 (청크당 ffmpeg 제거).
         """
+        if not config.pipeline.music_enabled:
+            logger.info("music_analysis_disabled", job_id=job_id)
+            if progress:
+                progress.done("music", note="비활성 (MUSIC_ENABLED)")
+            return []
+
         logger.info("music_analysis_start", job_id=job_id)
 
         info = get_video_info(video_path)

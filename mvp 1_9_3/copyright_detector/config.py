@@ -106,6 +106,10 @@ class PipelineConfig:
     audio_chunk_overlap: int = 2          # overlap between chunks
     audio_fingerprint_duration: int = 12  # ACRCloud fingerprint length
 
+    # 음악 저작권 분석 on/off (10/17 JH: ACRCloud·AudD 비용 정리 전까지 기본 꺼둠)
+    #   "true"로 켜면 아래 2단계 프로브 설정 그대로 다시 동작한다.
+    music_enabled: bool = os.getenv("MUSIC_ENABLED", "false").lower() == "true"
+
     # 음악 인식 비용 절감 (2단계 프로브)
     #   stride=2: 1단계에서 청크 2개당 1개만 API 조회 → 히트 주변만 2단계 정밀 조회.
     #   미조회 구간의 미커버 오디오는 최대 ~8초 (fingerprint 12s가 양옆을 덮음)

@@ -246,6 +246,8 @@ def format_results(job_id: str, video_path: str, video_info: Dict,
         "video_info": video_info,
         "analysis_timestamp": datetime.utcnow().isoformat(),
         "processing_time_sec": processing_time,
+        # 음악 분석이 꺼진 채 만든 결과인지 (False면 music 0건은 "검사 안 함")
+        "music_enabled": config.pipeline.music_enabled,
 
         "summary": {
             "overall_risk_score": round(risk_score * 100, 1),   # % 형태
@@ -375,6 +377,12 @@ class CopyrightAnalysisPipeline:
         # ─── Step 2: 캐시 확인 ───
         if not force_reanalyze:
             cached = self.db.check_video_cached(video_hash)
+            # 음악이 꺼진 채 만든 캐시는 음악을 켠 뒤엔 재사용하지 않는다
+            # (키 없는 옛 캐시는 음악 분석을 한 결과로 본다)
+            if (cached and config.pipeline.music_enabled
+                    and not cached.get("music_enabled", True)):
+                logger.info("cache_skip_music_disabled", job_id=job_id)
+                cached = None
             if cached:
                 logger.info("cache_hit_returning", job_id=job_id)
                 # 호출자가 요청한 job_id 로 결과를 식별할 수 있도록 교체하고,
