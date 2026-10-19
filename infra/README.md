@@ -2,17 +2,18 @@
 
 > 계획 문서: `NATAM_AWS_PIPELINE_HANDOFF_2026-10-12.md` 4·7절. 여기 있는 것은 **아직 아무것도 만들거나 적용하지 않은** 코드·템플릿이다.
 > 리소스 생성, 시크릿 입력, DB 마이그레이션 실행은 JH 가 한다(또는 JH 승인 후 Claude Code).
-> 리전은 서울(`ap-northeast-2`), dev 만. 이름의 `__ACCOUNT_ID__`·`__BUCKET__`·`__SECRET_ARN__`·`__IMAGE_TAG__` 는 실제 값으로 바꿔 쓴다.
+> 리전은 서울(`ap-northeast-2`), dev 만. 이름의 `__ACCOUNT_ID__`·`__SECRET_ARN__`·`__IMAGE_TAG__` 는 실제 값으로 바꿔 쓴다.
+> 버킷은 PM 이 만든 두 개를 쓴다: 입력 `lavcca-dev-customer-uploads`, 결과 `lavcca-dev-datalake` 의 `ai-output/`.
 
 ## 흐름
 
 ```
 웹(Manus) ─ Supabase 로그인
   ① POST /jobs (api Lambda)            → jobs=uploading, S3 presigned POST(크기 제한) 발급
-  ② 브라우저가 S3 uploads/{id}/파일 로 직접 업로드
+  ② 브라우저가 s3://lavcca-dev-customer-uploads/uploads/{id}/파일 로 직접 업로드
   ③ POST /jobs/{id}/submit             → jobs=queued, SQS natam-dev-jobs
   ④ dispatcher Lambda                  → 워커 수 < MAX_RUNNING 이면 ECS RunTask, 아니면 지연 재전송
-  ⑤ ECS Fargate 워커(worker.py)       → jobs=running → 분석 → S3 reports/{id}/ → jobs=ok|partial|failed
+  ⑤ ECS Fargate 워커(worker.py)       → jobs=running → 분석 → s3://lavcca-dev-datalake/ai-output/{id}/ → jobs=ok|partial|failed
      (워커가 죽으면 task-stopped Lambda 가 jobs=failed)
   ⑥ 웹은 Supabase 에서 jobs 상태를 읽고(RLS), 끝나면 GET /jobs/{id}/files 로 다운로드 링크
 ```
@@ -41,10 +42,15 @@
 1. **이미지 저장소(ECR)**
    `aws ecr create-repository --repository-name natam-worker --image-scanning-configuration scanOnPush=true`
    이미지가 수 GB 라 보관비가 붙는다(GB·월 $0.10 수준) → 최근 3~5개만 남기는 수명 주기 정책 권장.
-2. **서비스 버킷** (SageMaker 연습 버킷과 분리): 예 `natam-dev-<계정ID>-apne2`
-   퍼블릭 차단 + SSE-S3 (연습 버킷과 같은 방식). 수명 주기: `uploads/` N일 후 삭제, `reports/` M일 후 삭제(**보관 기간은 JH 결정**),
-   `transcribe-tmp/` 1일 후 삭제(Transcribe 폴백 임시 오디오 — 워커가 끝나면 지우지만 실패 대비).
-   웹이 브라우저에서 직접 올리므로 버킷 CORS 에 웹 도메인의 `POST` 허용 필요.
+2. **버킷** (이미 있음, PM 관리 — 새로 만들지 않는다)
+   - `lavcca-dev-customer-uploads` — 고객 원본. `uploads/{id}/파일`, `transcribe-tmp/`(Transcribe 폴백 임시 오디오).
+     수명 주기: `transcribe-tmp/` 1일 후 삭제(워커가 끝나면 지우지만 실패 대비), `uploads/` 보관 기간은 PM·JH 결정.
+     웹이 브라우저에서 직접 올리므로 CORS 에 웹 도메인의 `POST` 허용 필요.
+   - `lavcca-dev-datalake` 의 `ai-output/{id}/` — 분석 결과. 워커는 여기에만 쓴다.
+     `report.pdf`·`report.md` 는 고객용(api 가 이 두 개만 링크로 줌), `_internal/` 은 분석 JSON·전사·`job_result.json`.
+     고객 결과를 `processed/`·`labeled/`·`datasets/` 로 옮기는 일은 동의·익명화가 정해진 뒤 별도 작업으로 한다.
+   - 접두사(`uploads/`, `ai-output/`)는 api·dispatcher 환경변수 `UPLOAD_PREFIX`·`OUTPUT_PREFIX` 로 바꿀 수 있다.
+     바꾸면 IAM 정책의 리소스 경로도 같이 바꾼다.
 3. **시크릿**: Secrets Manager `natam/dev/worker` (JSON 1개, 월 $0.40). 키 이름은
    `worker-task-definition.json` 의 `secrets` 와 정확히 같아야 한다(없는 키가 하나라도 있으면 태스크가 시작 실패).
    값이 없는 서비스는 빈 문자열로 넣는다. `GOOGLE_CREDENTIALS_JSON` 은 키 파일 **내용** 전체.
@@ -75,6 +81,8 @@
    - `natam-dev-task-stopped` 핸들러 `dispatcher.task_stopped` — EventBridge 규칙: source `aws.ecs`, detail-type `ECS Task State Change`, `lastStatus=STOPPED`, `clusterArn=natam-dev`
    - `natam-dev-api` 핸들러 `api.handler` — Function URL(인증 NONE, 인증은 Supabase 토큰으로 코드에서) + CORS(웹 도메인만)
    환경변수는 각 파일 맨 위 설명 참조. `MAX_RUNNING` 은 2 로 시작.
+   api·dispatcher 공통: `UPLOAD_BUCKET=lavcca-dev-customer-uploads`, `OUTPUT_BUCKET=lavcca-dev-datalake`
+   (`UPLOAD_PREFIX` 기본 `uploads/`, `OUTPUT_PREFIX` 기본 `ai-output/`).
 3. 완료 기준(계획 문서): 영상 10개 연속 처리, 일부러 실패시킨 작업이 DLQ·failed 로 가는지 확인.
 
 ### T6. 웹 연결 (Manus)
@@ -98,7 +106,8 @@ Gemini 가 429·5xx·네트워크 오류를 내면 아래 순서로 넘어간다
    어떤 엔진이 받아썼는지는 전사 결과 `video_info.asr_engine`(gemini | aws_transcribe | whisper).
 4. 그래도 실패하면 `retry_later`(종료 코드 75). 컨테이너는 로컬 Whisper 를 쓰지 않는다(`WHISPER_FALLBACK=0`).
 
-Transcribe 는 쓸 때만 과금(분 단위, 서울 단가 미확인). 워커 태스크 역할에 `transcribe-tmp/*` S3 권한과
+Transcribe 는 쓸 때만 과금(분 단위, 서울 단가 미확인). 고객 음성이라 임시 오디오는 고객 업로드 버킷에 둔다
+(`s3://lavcca-dev-customer-uploads/transcribe-tmp/`). 워커 태스크 역할에 그 경로의 S3 권한과
 `lavcca-asr-*` Transcribe 작업 권한이 들어 있다(`worker-task-role-policy.json`).
 
 ## 아직 안 한 것 (코드)

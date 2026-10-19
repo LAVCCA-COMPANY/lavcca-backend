@@ -23,6 +23,17 @@ python tools/sagemaker/train.py --final    # + 전체 데이터 최종 모델 �
 - `models/`(서비스 모델 폴더)를 저장 위치로 주면 바로 종료한다. 서비스 모델은 이 스크립트로 덮어쓰지 않는다.
 - `out/`은 `.gitignore`·`.dockerignore`에 들어 있다.
 
+### S3 데이터 위치 (데이터레이크, 제안 — PM 확인 전)
+
+| 무엇 | 위치 |
+|---|---|
+| 학습 데이터 | `s3://lavcca-dev-datalake/datasets/controversy/<버전>/controversy_samples.json` |
+| 평가 골든셋 | `s3://lavcca-dev-datalake/datasets/golden/<버전>/golden_set.json` |
+
+SageMaker 학습 작업의 `train` 채널에 `datasets/controversy/<버전>/` 폴더를 주면 `SM_CHANNEL_TRAIN` 에
+그대로 내려오므로 `train.py` 는 고칠 것이 없다. `<버전>` 은 날짜(`2026-10-19`) 같은 고정 이름으로 두고 덮어쓰지 않는다.
+고객 분석 결과(`ai-output/`)는 동의·익명화가 정해지기 전에는 학습 데이터로 옮기지 않는다.
+
 SageMaker 방식 흉내 (로컬, AWS 없음):
 
 ```bash

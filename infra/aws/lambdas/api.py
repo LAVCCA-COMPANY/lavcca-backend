@@ -5,11 +5,14 @@ api.py — 웹(Manus 프런트)이 부르는 작업 API. Lambda Function URL 또
   POST /jobs                {"file_name", "size_bytes", "include_copyright"?}
        → 일일 한도 확인, jobs 행(uploading) 생성, S3 presigned POST(크기 제한 포함) 발급
   POST /jobs/{id}/submit    업로드 끝난 뒤 호출 → 객체 확인, jobs=queued, SQS 에 넣음
-  GET  /jobs/{id}/files     ok/partial 작업의 리포트(JSON·MD·PDF) presigned GET 링크
+  GET  /jobs/{id}/files     ok/partial 작업의 고객용 리포트(report.pdf·report.md) presigned GET 링크
+                            (같은 폴더의 _internal/ 은 내부용이라 주지 않는다)
 
 상태 조회는 웹이 Supabase 에서 직접 jobs 를 읽는다(RLS: 자기 것만).
 
-환경변수: BUCKET, QUEUE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
+환경변수: UPLOAD_BUCKET(고객 업로드, 예 lavcca-dev-customer-uploads), UPLOAD_PREFIX(기본 uploads/),
+          OUTPUT_BUCKET(결과, 예 lavcca-dev-datalake), OUTPUT_PREFIX(기본 ai-output/),
+          QUEUE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY,
           DAILY_JOB_LIMIT(기본 5), MAX_UPLOAD_MB(기본 500)
 """
 import json
@@ -21,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from supa import Supabase
 
 VIDEO_EXTS = {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4a", ".mp3", ".wav"}   # mvp_ver_1_9_3 CLI 와 같음
-REPORT_RE = re.compile(r"^(report_.+\.json|FINAL_REPORT_.+\.(md|pdf))$")
+CUSTOMER_FILES = ("report.pdf", "report.md")   # worker.py 가 ai-output/{id}/ 바로 아래에 두는 고객용 파일
 JOB_PATH_RE = re.compile(r"^/jobs/([A-Za-z0-9_-]{1,64})/(submit|files)$")
 UPLOAD_TTL = 15 * 60
 DOWNLOAD_TTL = 10 * 60
@@ -100,12 +103,12 @@ def create_job(user, body):
         return _resp(429, {"error": f"오늘 분석 한도({limit}건)를 다 썼습니다."})
 
     job_id = uuid.uuid4().hex
-    key = f"uploads/{job_id}/{name}"
+    key = f"{_env('UPLOAD_PREFIX', 'uploads/')}{job_id}/{name}"
     supabase().insert("jobs", {"id": job_id, "user_id": user["id"], "status": "uploading",
                                "input_key": key, "input_name": name,
                                "include_copyright": bool(body.get("include_copyright", True))})
     post = s3().generate_presigned_post(
-        _env("BUCKET"), key, Conditions=[["content-length-range", 1, max_bytes]],
+        _env("UPLOAD_BUCKET"), key, Conditions=[["content-length-range", 1, max_bytes]],
         ExpiresIn=UPLOAD_TTL)
     return _resp(201, {"job_id": job_id, "upload": post, "expires_in": UPLOAD_TTL})
 
@@ -117,7 +120,7 @@ def submit_job(user, job_id):
     if job["status"] != "uploading":
         return _resp(409, {"error": f"이미 제출됨(status={job['status']})"})
     try:
-        head = s3().head_object(Bucket=_env("BUCKET"), Key=job["input_key"])
+        head = s3().head_object(Bucket=_env("UPLOAD_BUCKET"), Key=job["input_key"])
     except Exception:
         return _resp(400, {"error": "업로드된 파일이 없습니다."})
 
@@ -138,12 +141,12 @@ def job_files(user, job_id):
         return _resp(404, {"error": "작업 없음"})
     if job["status"] not in ("ok", "partial"):
         return _resp(409, {"error": f"아직 결과 없음(status={job['status']})"})
-    bucket, prefix = _env("BUCKET"), f"reports/{job_id}/"
+    bucket, prefix = _env("OUTPUT_BUCKET"), f"{_env('OUTPUT_PREFIX', 'ai-output/')}{job_id}/"
     listed = s3().list_objects_v2(Bucket=bucket, Prefix=prefix, Delimiter="/")
     files = []
     for obj in listed.get("Contents", []):
         name = obj["Key"][len(prefix):]
-        if REPORT_RE.match(name):
+        if name in CUSTOMER_FILES:
             files.append({"name": name, "bytes": obj.get("Size"), "url": s3().generate_presigned_url(
                 "get_object", Params={"Bucket": bucket, "Key": obj["Key"]}, ExpiresIn=DOWNLOAD_TTL)})
     return _resp(200, {"job_id": job_id, "status": job["status"], "files": files,

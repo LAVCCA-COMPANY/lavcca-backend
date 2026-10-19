@@ -20,7 +20,7 @@
         { "name": "LEARN_TO_DB", "value": "false" },
         { "name": "GEN_MODEL_FALLBACK", "value": "models/gemini-3.6-flash" },
         { "name": "TRANSCRIBE_FALLBACK", "value": "aws" },
-        { "name": "AWS_TRANSCRIBE_S3", "value": "s3://__BUCKET__/transcribe-tmp/" }
+        { "name": "AWS_TRANSCRIBE_S3", "value": "s3://lavcca-dev-customer-uploads/transcribe-tmp/" }
       ],
       "secrets": [
         { "name": "GEMINI_API_KEY",            "valueFrom": "__SECRET_ARN__:GEMINI_API_KEY::" },

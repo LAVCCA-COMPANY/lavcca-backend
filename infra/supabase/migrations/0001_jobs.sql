@@ -11,14 +11,14 @@ create table public.jobs (
   user_id           uuid not null references auth.users (id) on delete cascade,
   status            text not null default 'uploading'
                     check (status in ('uploading', 'queued', 'running', 'ok', 'partial', 'failed', 'retry_later')),
-  input_key         text not null,              -- S3 uploads/{id}/{파일명}
+  input_key         text not null,              -- lavcca-dev-customer-uploads 의 uploads/{id}/{파일명}
   input_name        text,                       -- 사용자가 올린 원래 파일명(표시용)
   input_bytes       bigint,
   include_copyright boolean not null default true,
   video_sha256      text,                       -- W0 캐시 조회용(해시 + 파이프라인/모델 버전)
   pipeline_version  text,
   model_version     text,
-  report_prefix     text,                       -- s3://버킷/reports/{id}/
+  report_prefix     text,                       -- s3://lavcca-dev-datalake/ai-output/{id}/
   error             text,
   llm_cost_usd      numeric(10, 6),             -- 위기 엔진 Gemini 추정치(저작권 API 비용 미포함)
   created_at        timestamptz not null default now(),

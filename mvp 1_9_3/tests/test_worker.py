@@ -75,22 +75,30 @@ def test_download_keeps_file_name(tmp_path):
     assert s3.downloads == [("b", "uploads/j1/[ZZZ] 영상.mp4")]
 
 
-def test_upload_puts_job_result_last(tmp_path):
+def test_upload_layout(tmp_path):
     (tmp_path / "job_result.json").write_text("{}")
-    (tmp_path / "report_x.json").write_text("{}")
-    (tmp_path / "FINAL.md").write_text("#")
-    (tmp_path / "FINAL.pdf").write_bytes(b"%PDF")
+    (tmp_path / "report_[ZZZ] 영상.json").write_text("{}")
+    (tmp_path / "FINAL_REPORT_ZZZ_영상.md").write_text("#")
+    (tmp_path / "FINAL_REPORT_ZZZ_영상.pdf").write_bytes(b"%PDF")
     (tmp_path / "transcripts").mkdir()
     (tmp_path / "transcripts" / "x_raw.json").write_text("{}")
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "worker_1.log").write_text("log")
+    outputs = {"json": str(tmp_path / "report_[ZZZ] 영상.json"),
+               "md": str(tmp_path / "FINAL_REPORT_ZZZ_영상.md"),
+               "pdf": str(tmp_path / "FINAL_REPORT_ZZZ_영상.pdf"),
+               "log": str(tmp_path / "logs" / "worker_1.log")}
     s3 = FakeS3()
-    n = worker.upload_outputs(tmp_path, "s3://b/reports/j1", s3=s3)
-    assert n == 5
+    n = worker.upload_outputs(tmp_path, "s3://lake/ai-output/j1", outputs, s3=s3)
     keys = [k for _, k, _ in s3.uploads]
-    assert keys[-1] == "reports/j1/job_result.json"
-    assert "reports/j1/transcripts/x_raw.json" in keys
+    assert n == 5 and sorted(keys) == sorted([
+        "ai-output/j1/report.pdf", "ai-output/j1/report.md", "ai-output/j1/_internal/report.json",
+        "ai-output/j1/_internal/transcripts/x_raw.json", "ai-output/j1/_internal/job_result.json"])
+    assert keys[-1] == "ai-output/j1/_internal/job_result.json"   # 완료 표시는 맨 마지막
+    assert {b for b, _, _ in s3.uploads} == {"lake"}
     ctypes = {k: c for _, k, c in s3.uploads}
-    assert ctypes["reports/j1/FINAL.pdf"] == "application/pdf"
-    assert ctypes["reports/j1/FINAL.md"].startswith("text/markdown")
+    assert ctypes["ai-output/j1/report.pdf"] == "application/pdf"
+    assert ctypes["ai-output/j1/report.md"].startswith("text/markdown")
 
 
 def test_google_credentials_from_env(tmp_path, monkeypatch):

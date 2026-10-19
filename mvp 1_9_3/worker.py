@@ -3,15 +3,18 @@ worker.py — 영상 1개 = 작업 1개를 비대화식으로 처리하는 서�
 
   python worker.py --job-id JOB123 --input /data/in/video.mp4 --output-dir /data/out/JOB123
   python worker.py ... --no-copyright        # 위기 분석만
-  python worker.py --job-id JOB123 --input s3://버킷/uploads/JOB123/video.mp4 \
-                   --output-dir /tmp/out --output-s3 s3://버킷/reports/JOB123/
+  python worker.py --job-id JOB123 --input s3://lavcca-dev-customer-uploads/uploads/JOB123/video.mp4 \
+                   --output-dir /tmp/out --output-s3 s3://lavcca-dev-datalake/ai-output/JOB123/
 
-입력은 로컬 영상 파일 또는 s3:// (URL 다운로드는 워커 밖에서). 결과는 --output-dir 에 쓰고,
---output-s3 를 주면 끝난 뒤 폴더 전체를 올린다(job_result.json 은 맨 마지막 = 완료 표시).
-  report_*.json, FINAL_REPORT_*.md/.pdf   통합 리포트 3종
+입력은 로컬 영상 파일 또는 s3:// (URL 다운로드는 워커 밖에서). 결과는 --output-dir 에 쓴다.
+  report_*.json, FINAL_REPORT_*.md/.pdf   통합 리포트 3종(이름은 원본 영상 파일명에서 나온다)
   transcripts/                            전사·교정 결과(리포트가 참조)
   logs/worker_*.log                       콘솔 전체 로그
   job_result.json                         상태·산출물·단계별 소요/메모리·LLM 비용
+--output-s3 를 주면 끝난 뒤 이름을 고정해 올린다(upload_layout).
+  report.pdf, report.md                   고객용 — api 가 이 두 개만 다운로드 링크로 준다
+  _internal/report.json, _internal/transcripts/…, _internal/job_result.json   내부용
+  logs/ 는 올리지 않는다(CloudWatch 에 같은 내용). job_result.json 은 맨 마지막 = 완료 표시.
 
 상태: ok(리포트 3종 + 저작권 결과) / partial(리포트 3종, 저작권 실패) / failed(리포트 누락·예외·업로드 실패·영구 판정 누락)
       / retry_later(Gemini 429·5xx 만 — 전사 예외, 또는 판정 누락이 전부 일시 장애로 표시된 경우).
@@ -102,23 +105,37 @@ def download_input(uri: str, dest_dir: Path, s3=None) -> Path:
     return path
 
 
-def upload_outputs(out_dir: Path, uri: str, s3=None) -> int:
-    """out_dir 아래 파일을 전부 올린다. job_result.json 은 마지막(완료 표시)."""
+CUSTOMER_NAMES = {"pdf": "report.pdf", "md": "report.md", "json": "_internal/report.json"}
+
+
+def upload_layout(out_dir: Path, outputs: dict) -> list[tuple[Path, str]]:
+    """(로컬 파일, 접두사 아래 키) 목록. 리포트 3종은 고정 이름(원본 파일명이 S3 키에 안 들어가게),
+    나머지는 _internal/ 아래, logs/ 는 뺀다. job_result.json 은 맨 마지막(완료 표시)."""
+    fixed = {Path(outputs[k]).resolve(): name for k, name in CUSTOMER_NAMES.items() if outputs.get(k)}
+    pairs = []
+    for p in sorted(out_dir.rglob("*")):
+        rel = p.relative_to(out_dir)
+        if not p.is_file() or rel.parts[0] == "logs":
+            continue
+        pairs.append((p, fixed.get(p.resolve(), "_internal/" + rel.as_posix())))
+    pairs.sort(key=lambda x: x[1] == "_internal/job_result.json")   # 안정 정렬 → 그것만 맨 뒤로
+    return pairs
+
+
+def upload_outputs(out_dir: Path, uri: str, outputs: dict, s3=None) -> int:
     import boto3
     s3 = s3 or boto3.client("s3")
     bucket, prefix = split_s3(uri)
     if prefix and not prefix.endswith("/"):
         prefix += "/"
-    files = sorted(p for p in out_dir.rglob("*") if p.is_file())
-    files.sort(key=lambda p: p.name == "job_result.json")   # 안정 정렬 → 그것만 맨 뒤로
-    for p in files:
+    pairs = upload_layout(out_dir, outputs)
+    for p, key in pairs:
         ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         if p.suffix in (".md", ".log", ".json"):
             ctype = {"md": "text/markdown", "log": "text/plain",
                      "json": "application/json"}[p.suffix[1:]] + "; charset=utf-8"
-        s3.upload_file(str(p), bucket, prefix + p.relative_to(out_dir).as_posix(),
-                       ExtraArgs={"ContentType": ctype})
-    return len(files)
+        s3.upload_file(str(p), bucket, prefix + key, ExtraArgs={"ContentType": ctype})
+    return len(pairs)
 
 
 # ── Supabase 상태 기록 (선택) ─────────────────────────────────────────
@@ -347,7 +364,7 @@ def main(argv=None) -> int:
     _write()
     if args.output_s3:
         try:
-            n = upload_outputs(args.output_dir, args.output_s3)
+            n = upload_outputs(args.output_dir, args.output_s3, result["outputs"])
             result["outputs"]["s3_prefix"] = args.output_s3
             print(f"☁️  S3 업로드 {n}개 → {args.output_s3}")
         except Exception as e:

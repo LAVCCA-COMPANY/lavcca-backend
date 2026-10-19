@@ -13,7 +13,8 @@ dispatcher.py — SQS 작업 메시지를 받아 ECS Fargate 태스크(worker.py
           이벤트 소스 매핑에 ReportBatchItemFailures 켜기.
 
 환경변수: CLUSTER, TASK_DEFINITION(family 또는 family:rev), CONTAINER_NAME(기본 worker),
-          SUBNETS, SECURITY_GROUPS(쉼표 구분), BUCKET, QUEUE_URL, MAX_RUNNING(기본 2),
+          SUBNETS, SECURITY_GROUPS(쉼표 구분), UPLOAD_BUCKET, UPLOAD_PREFIX(기본 uploads/),
+          OUTPUT_BUCKET, OUTPUT_PREFIX(기본 ai-output/), QUEUE_URL, MAX_RUNNING(기본 2),
           DEFER_SECONDS(기본 120, 최대 900), MAX_DEFERS(기본 30), ASSIGN_PUBLIC_IP(기본 ENABLED),
           SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 """
@@ -47,11 +48,13 @@ def supabase():
     return _clients["supa"]
 
 
-def worker_command(job_id: str, input_key: str, include_copyright: bool, bucket: str) -> list:
+def worker_command(job_id: str, input_key: str, include_copyright: bool) -> list:
+    """입력은 고객 업로드 버킷, 결과는 데이터레이크 ai-output/{job_id}/."""
+    output = f"s3://{_env('OUTPUT_BUCKET')}/{_env('OUTPUT_PREFIX', 'ai-output/')}{job_id}/"
     cmd = ["--job-id", job_id,
-           "--input", f"s3://{bucket}/{input_key}",
+           "--input", f"s3://{_env('UPLOAD_BUCKET')}/{input_key}",
            "--output-dir", f"/tmp/out/{job_id}",
-           "--output-s3", f"s3://{bucket}/reports/{job_id}/"]
+           "--output-s3", output]
     if not include_copyright:
         cmd.append("--no-copyright")
     return cmd
@@ -74,7 +77,7 @@ def running_count() -> int:
 
 def run_worker(msg: dict) -> str:
     job_id, key = msg["job_id"], msg["input_key"]
-    if not JOB_ID_RE.match(job_id) or not key.startswith(f"uploads/{job_id}/"):
+    if not JOB_ID_RE.match(job_id) or not key.startswith(f"{_env('UPLOAD_PREFIX', 'uploads/')}{job_id}/"):
         raise ValueError(f"잘못된 메시지: {msg}")
     r = _client("ecs").run_task(
         cluster=_env("CLUSTER"),
@@ -89,7 +92,7 @@ def run_worker(msg: dict) -> str:
             "assignPublicIp": _env("ASSIGN_PUBLIC_IP", "ENABLED")}},
         overrides={"containerOverrides": [{
             "name": _env("CONTAINER_NAME", "worker"),
-            "command": worker_command(job_id, key, msg.get("include_copyright", True), _env("BUCKET"))}]},
+            "command": worker_command(job_id, key, msg.get("include_copyright", True))}]},
     )
     if r.get("failures") or not r.get("tasks"):
         raise RuntimeError(f"RunTask 실패: {r.get('failures')}")

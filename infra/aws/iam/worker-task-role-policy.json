@@ -5,19 +5,19 @@
       "Sid": "ReadUploads",
       "Effect": "Allow",
       "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::__BUCKET__/uploads/*"
+      "Resource": "arn:aws:s3:::lavcca-dev-customer-uploads/uploads/*"
     },
     {
-      "Sid": "WriteReports",
+      "Sid": "WriteAiOutput",
       "Effect": "Allow",
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::__BUCKET__/reports/*"
+      "Resource": "arn:aws:s3:::lavcca-dev-datalake/ai-output/*"
     },
     {
       "Sid": "TranscribeFallbackAudio",
       "Effect": "Allow",
       "Action": ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::__BUCKET__/transcribe-tmp/*"
+      "Resource": "arn:aws:s3:::lavcca-dev-customer-uploads/transcribe-tmp/*"
     },
     {
       "Sid": "TranscribeFallbackJobs",

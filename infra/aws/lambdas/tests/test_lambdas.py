@@ -91,7 +91,7 @@ class FakeECS:
 
 @pytest.fixture
 def env(monkeypatch):
-    for k, v in {"BUCKET": "bkt", "QUEUE_URL": "q", "CLUSTER": "c", "TASK_DEFINITION": "natam-worker:3",
+    for k, v in {"UPLOAD_BUCKET": "up", "OUTPUT_BUCKET": "lake", "QUEUE_URL": "q", "CLUSTER": "c", "TASK_DEFINITION": "natam-worker:3",
                  "SUBNETS": "s1,s2", "SECURITY_GROUPS": "g1", "MAX_RUNNING": "2"}.items():
         monkeypatch.setenv(k, v)
 
@@ -125,6 +125,7 @@ def test_create_job(env):
     assert table == "jobs" and row["status"] == "uploading" and row["user_id"] == "u-1"
     assert row["input_key"] == f"uploads/{body['job_id']}/영상.mp4"
     assert body["upload"]["conditions"][0][0] == "content-length-range"
+    assert body["upload"]["url"] == "https://up.s3"   # 고객 업로드 버킷
 
 
 @pytest.mark.parametrize("body,code", [
@@ -168,13 +169,13 @@ def test_submit_job_checks(env):
 
 
 def test_job_files(env):
-    objs = {"reports/j1/report_a.json": 1, "reports/j1/FINAL_REPORT_a.md": 2,
-            "reports/j1/FINAL_REPORT_a.pdf": 3, "reports/j1/job_result.json": 4,
-            "reports/j1/logs/worker.log": 5}
+    objs = {"ai-output/j1/report.md": 2, "ai-output/j1/report.pdf": 3,
+            "ai-output/j1/_internal/report.json": 1, "ai-output/j1/_internal/job_result.json": 4,
+            "ai-output/j1x/report.pdf": 6}
     api._clients = {"supa": FakeSupa(jobs={"j1": _job(status="ok")}), "s3": FakeS3(objs)}
     r = api.handler(_ev("GET", "/jobs/j1/files"))
     names = sorted(f["name"] for f in json.loads(r["body"])["files"])
-    assert names == ["FINAL_REPORT_a.md", "FINAL_REPORT_a.pdf", "report_a.json"]   # 로그·내부 파일 제외
+    assert names == ["report.md", "report.pdf"]   # _internal/·다른 작업 파일 제외
 
     api._clients = {"supa": FakeSupa(jobs={"j1": _job(status="running")}), "s3": FakeS3(objs)}
     assert api.handler(_ev("GET", "/jobs/j1/files"))["statusCode"] == 409
@@ -202,8 +203,19 @@ def test_dispatch_runs_task(env):
     assert run["taskDefinition"] == "natam-worker:3"
     assert run["networkConfiguration"]["awsvpcConfiguration"]["subnets"] == ["s1", "s2"]
     assert run["overrides"]["containerOverrides"][0]["command"] == [
-        "--job-id", "j1", "--input", "s3://bkt/uploads/j1/a b.mp4", "--output-dir", "/tmp/out/j1",
-        "--output-s3", "s3://bkt/reports/j1/", "--no-copyright"]
+        "--job-id", "j1", "--input", "s3://up/uploads/j1/a b.mp4", "--output-dir", "/tmp/out/j1",
+        "--output-s3", "s3://lake/ai-output/j1/", "--no-copyright"]
+
+
+def test_dispatch_prefix_env(env, monkeypatch):
+    monkeypatch.setenv("UPLOAD_PREFIX", "")
+    monkeypatch.setenv("OUTPUT_PREFIX", "out/")
+    ecs = FakeECS()
+    dispatcher._clients = {"ecs": ecs, "sqs": FakeSQS()}
+    msg = dict(MSG, input_key="j1/a.mp4")
+    assert dispatcher.dispatch(_sqs_event(msg)) == {"batchItemFailures": []}
+    cmd = ecs.runs[0]["overrides"]["containerOverrides"][0]["command"]
+    assert cmd[3] == "s3://up/j1/a.mp4" and cmd[7] == "s3://lake/out/j1/"
 
 
 def test_dispatch_defers_when_busy(env):
