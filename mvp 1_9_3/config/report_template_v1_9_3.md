@@ -329,27 +329,18 @@
 | L11 | 피해자 조롱 | 사건·사고 피해자를 대상으로 한 조롱 |
 | L12 | 해당 없음 | 위 유형에 해당하지 않음 |
 
-### B. 생성 파일 경로
+### B. 분석에 쓰인 모델
 
-| 파일 | 경로 |
+| 단계 | 모델 |
 |------|------|
-| Whisper 원본 전사 | `{TRANSCRIPT_RAW_PATH}` |
-| 정규화 전사 | `{TRANSCRIPT_NORMALIZED_PATH}` |
-| Gemini 교정 전사 | `{TRANSCRIPT_REFINED_PATH}` |
-| 분석 보고서 (JSON) | `{REPORT_JSON_PATH}` |
+| 음성 받아쓰기 | {MODEL_ASR} |
+| 자막 교정 | {MODEL_REFINE} |
+| 위기 분석 | {MODEL_ANALYSIS} |
+| 유사 사례 검색 | {MODEL_EMBED} |
 
-### C. 분석 파라미터
-
-| 파라미터 | 값 |
-|---------|----|
-| Whisper 모델 | {WHISPER_MODEL} |
-| Gemini 분석 모델 | {GEN_MODEL} |
-| Gemini 교정 모델 | {GEMINI_REFINE_MODEL} |
-| 임베딩 모델 | {EMBED_MODEL} |
-| FAISS 사례 DB 크기 | {CASE_DB_SIZE}건 |
-| 배치 크기 | {GEMINI_BATCH_SIZE} |
+*이번 분석에서 실제로 응답한 모델입니다. 기본 모델에 일시 장애가 있으면 대체 모델로 바뀔 수 있습니다.*
 
 ---
 
 *본 보고서는 AI 기반 자동 분석 결과이며, 최종 판단은 전문가 검토를 거쳐야 합니다.*
-*RISK RADAR v1.9.3 — 위기관리 + 저작권 통합 자동 생성*
+*LAVCCA v1.9.3 — 위기관리 + 저작권 통합 자동 생성*

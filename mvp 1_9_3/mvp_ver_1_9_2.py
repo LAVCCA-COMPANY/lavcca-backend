@@ -344,10 +344,11 @@ class CostTracker:
             self.in_tokens += pin
             self.out_tokens += pout + think
             self.thinking_tokens += think
-            b = self.by_label.setdefault(label or "other", {"calls": 0, "in": 0, "out": 0})
+            b = self.by_label.setdefault(label or "other", {"calls": 0, "in": 0, "out": 0, "models": {}})
             b["calls"] += 1
             b["in"]    += pin
             b["out"]   += pout + think
+            b["models"][model] = b["models"].get(model, 0) + 1   # 용도별로 어느 모델이 응답했나(리포트 부록)
             self.by_model[model] = self.by_model.get(model, 0) + 1
 
     def summary(self) -> dict:
@@ -359,7 +360,7 @@ class CostTracker:
                 "in_tokens":       self.in_tokens,
                 "out_tokens":      self.out_tokens,       # thinking 포함
                 "thinking_tokens": self.thinking_tokens,
-                "by_label":        {k: dict(v) for k, v in self.by_label.items()},
+                "by_label":        {k: dict(v, models=dict(v["models"])) for k, v in self.by_label.items()},
                 "by_model":        dict(self.by_model),   # est_usd 는 주 모델 단가로만 계산한다
                 "price_per_1k":    {"in": _PRICE_PER_1K_IN, "out": _PRICE_PER_1K_OUT},
                 "est_usd":         round(usd, 6),
@@ -756,6 +757,55 @@ def assess_natam_risk(
     )
     sheet["transient"] = call_transient   # 마지막 호출이 429·5xx 일 때만 워커가 재시도
     return sheet
+
+
+def _fmt_models(counts: dict) -> str:
+    """{'gemini-3.8-flash': 18, 'gemini-3.6-flash': 2} → 'gemini-3.8-flash 18회, gemini-3.6-flash(대체 모델) 2회'.
+    모델이 하나면 횟수 없이 이름만."""
+    if not counts:
+        return "—"
+    fallback = GEN_MODEL_FALLBACK.removeprefix("models/")
+
+    def name(m):
+        m = str(m).removeprefix("models/")
+        return f"{m}(대체 모델)" if fallback and m.startswith(fallback) else m
+
+    items = sorted(counts.items(), key=lambda x: -x[1])
+    if len(items) == 1:
+        return name(items[0][0])
+    return ", ".join(f"{name(m)} {n}회" for m, n in items)
+
+
+def _models_used_placeholders(meta: dict) -> dict:
+    """리포트 부록 '분석에 쓰인 모델'. 설정값이 아니라 이번 분석에서 실제로 응답한 모델을 적는다
+    (Gemini 일시 장애 시 GEN_MODEL_FALLBACK, 전사는 AWS Transcribe·Whisper 로 바뀔 수 있다)."""
+    by_label = (meta.get("cost") or {}).get("by_label") or {}
+
+    def merged(labels):
+        out = {}
+        for lb, v in by_label.items():
+            if labels(lb):
+                for m, n in (v.get("models") or {}).items():
+                    out[m] = out.get(m, 0) + n
+        return out
+
+    engine = meta.get("asr_engine")
+    if engine == "gemini":
+        asr = "Gemini · " + _fmt_models(merged(lambda lb: lb == "transcribe"))
+    elif engine == "aws_transcribe":
+        asr = "AWS Transcribe (Gemini 장애로 대체)"
+    elif engine == "whisper":
+        asr = f"Whisper {meta.get('whisper_model') or WHISPER_MODEL} (Gemini 장애로 대체)"
+    else:
+        asr = "—"   # 텍스트 입력 또는 이 항목이 생기기 전 리포트
+    idx = (meta.get("similar_index") or {}).get("count")
+    return {
+        "MODEL_ASR":      asr,
+        "MODEL_REFINE":   _fmt_models(merged(lambda lb: lb == "refine")),
+        "MODEL_ANALYSIS": _fmt_models(merged(lambda lb: lb not in ("transcribe", "refine"))),
+        "MODEL_EMBED":    f"{EMBED_MODEL.removeprefix('models/')} (사례 {idx}건)" if idx
+                          else "사용 안 함 (사례 인덱스 없음)",
+    }
 
 
 def _build_natam_placeholders(natam: dict) -> dict:
@@ -1801,7 +1851,6 @@ class CrisisReportEngine:
         claims = (report.get("claim_check", {}) or {}).get("claims", [])  # [L04 Stage1]
         kf     = report.get("keyframe_analysis", [])
         wa     = report.get("worst_actions", [])
-        tf     = report.get("transcript_files", {})
         pat    = report.get("pattern_summary", "")
         yt     = report.get("youtube_meta", {})  # 유튜브 메타데이터
         natam  = report.get("natam_risk", {})    # NATAM v2.0 리스크
@@ -1954,19 +2003,7 @@ class CrisisReportEngine:
                 "유사 사례에서 초기 투명한 사실 관계 인정이 여론 악화를 줄이는 패턴이 관찰되었습니다. "
                 "반면 축소·부인·법적 대응 예고는 오히려 위기를 심화시키는 경향이 있습니다."
             ),
-            "TRANSCRIPT_RAW_PATH":        _rp_safe(tf.get("raw","—")),
-            "TRANSCRIPT_NORMALIZED_PATH": _rp_safe(tf.get("normalized","—")),
-            "TRANSCRIPT_REFINED_PATH":    _rp_safe(tf.get("refined","—")),
-            "REPORT_JSON_PATH": os.path.join(
-                "reports",
-                f"report_{_rp_safe(meta.get('video_filename','unknown')).replace('.','_')}.json"
-            ),
-            "WHISPER_MODEL":       WHISPER_MODEL,
-            "GEN_MODEL":           GEN_MODEL,
-            "GEMINI_REFINE_MODEL": GEMINI_REFINE_MODEL,
-            "EMBED_MODEL":         EMBED_MODEL,
-            "CASE_DB_SIZE":        "30",
-            "GEMINI_BATCH_SIZE":   "20",
+            **_models_used_placeholders(meta),
         }
 
         # NATAM v2.0 플레이스홀더 병합
@@ -3729,6 +3766,7 @@ class CrisisConsultantSystem:
                 "youtube_channel":  youtube_meta.get("channel","") if youtube_meta else "",
                 "elapsed_sec":      elapsed,
                 "transcribe_engine": TRANSCRIBE_ENGINE,
+                "asr_engine":       raw["video_info"].get("asr_engine"),   # 실제로 받아쓴 엔진(폴백 포함)
                 "cost":             self.cost.summary(),
                 "similar_index": {
                     "count":   sim_manifest.get("count"),
