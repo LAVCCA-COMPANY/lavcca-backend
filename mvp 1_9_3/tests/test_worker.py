@@ -4,6 +4,7 @@ S3 클라이언트와 HTTP 세션은 가짜로 바꿔 인자 검사, 업로드 �
 
 실행:  cd "mvp 1_9_3" && python -m pytest tests -q
 """
+import os
 import sys
 from pathlib import Path
 
@@ -207,6 +208,7 @@ def _fake_engine(monkeypatch, analyze):
                                  run_logging=None, CopyrightRunner=None,
                                  analyze_only=analyze_only, finalize_reports=finalize_reports)
     monkeypatch.setitem(sys.modules, "mvp_ver_1_9_3", fake)
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")   # worker.require_env 통과용(가짜 엔진)
 
 
 def _report(out, natam="ok", adjudicated=(), natam_transient=False):
@@ -267,3 +269,19 @@ def test_run_failed_on_other_error(tmp_path, monkeypatch):
     _fake_engine(monkeypatch, analyze)
     code, res = _run(tmp_path, monkeypatch)
     assert (code, res["status"]) == (1, "failed") and "retry_after_sec" not in res
+
+
+def test_scope_transcribe_prefix(monkeypatch):
+    monkeypatch.delenv("AWS_TRANSCRIBE_S3", raising=False)
+    assert worker.scope_transcribe_prefix("J1") == ""
+    monkeypatch.setenv("AWS_TRANSCRIBE_S3", "s3://up/transcribe-tmp/")
+    assert worker.scope_transcribe_prefix("J1") == "s3://up/transcribe-tmp/J1/"
+    assert os.environ["AWS_TRANSCRIBE_S3"] == "s3://up/transcribe-tmp/J1/"
+
+
+def test_require_env(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "  ")
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        worker.require_env(worker.REQUIRED_ENV)
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    worker.require_env(worker.REQUIRED_ENV)

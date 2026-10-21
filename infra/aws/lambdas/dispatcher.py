@@ -84,7 +84,7 @@ def run_worker(msg: dict) -> str:
         taskDefinition=_env("TASK_DEFINITION"),
         launchType="FARGATE",
         count=1,
-        startedBy="natam-dispatcher",
+        startedBy="lavcca-dispatcher",
         tags=[{"key": "job_id", "value": job_id}],
         networkConfiguration={"awsvpcConfiguration": {
             "subnets": _env("SUBNETS").split(","),

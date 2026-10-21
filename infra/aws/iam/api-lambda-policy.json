@@ -31,7 +31,7 @@
       "Sid": "Enqueue",
       "Effect": "Allow",
       "Action": "sqs:SendMessage",
-      "Resource": "arn:aws:sqs:ap-northeast-2:__ACCOUNT_ID__:natam-dev-jobs"
+      "Resource": "arn:aws:sqs:ap-northeast-2:__ACCOUNT_ID__:lavcca-dev-jobs"
     },
     {
       "Sid": "Logs",
@@ -41,7 +41,7 @@
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/aws/lambda/natam-dev-api:*"
+      "Resource": "arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/aws/lambda/lavcca-dev-api:*"
     }
   ]
 }

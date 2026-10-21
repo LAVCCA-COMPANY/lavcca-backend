@@ -62,7 +62,9 @@ Run everything from inside `mvp 1_9_3/` (paths below are relative to it).
   --output-dir <dir> [--output-s3 s3://...] [--no-copyright]` — non-interactive,
   one video per run, writes reports + `job_result.json`. Container image:
   `mvp 1_9_3/Dockerfile`. The planned (not yet deployed) AWS/Supabase pieces
-  around it live in repo-root `infra/` — see `infra/README.md`.
+  around it live in repo-root `infra/` — see `infra/README.md`. AWS resource
+  names use the `lavcca-*` prefix; the first worker deployment is the
+  CloudFormation stack `infra/aws/cloudformation/lavcca-worker-dev.yaml`.
 - **Copyright detector standalone**:
   - `python copyright_detector/main.py "video.mp4"` (add `--force` to
     re-analyze ignoring cache)
@@ -165,7 +167,9 @@ These are not interchangeable — because the detector runs with its own
   and an explicit `cwd`, which matters more on Windows (no shell-relative
   path resolution the way a POSIX shell might do it) — keep that pattern if
   you touch `run_copyright_detection()`.
-- README notes the project targets **Python 3.14**.
+- The worker container runs **Python 3.11** (`mvp 1_9_3/Dockerfile`); that is the
+  deployment baseline. A Python 3.12 hashed-lock setup lives on
+  `chore/py312-reproducible-env` and is a separate, not-yet-merged change.
 
 ## Testing
 

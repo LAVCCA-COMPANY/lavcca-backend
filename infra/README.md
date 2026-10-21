@@ -1,104 +1,175 @@
-# NATAM 온라인 서비스 인프라 (dev, 초안)
+# Lavcca 온라인 서비스 인프라 (dev)
 
-> 계획 문서: `NATAM_AWS_PIPELINE_HANDOFF_2026-10-12.md` 4·7절. 여기 있는 것은 **아직 아무것도 만들거나 적용하지 않은** 코드·템플릿이다.
-> 리소스 생성, 시크릿 입력, DB 마이그레이션 실행은 JH 가 한다(또는 JH 승인 후 Claude Code).
-> 리전은 서울(`ap-northeast-2`), dev 만. 이름의 `__ACCOUNT_ID__`·`__SECRET_ARN__`·`__IMAGE_TAG__` 는 실제 값으로 바꿔 쓴다.
-> 버킷은 PM 이 만든 두 개를 쓴다: 입력 `lavcca-dev-customer-uploads`, 결과 `lavcca-dev-datalake` 의 `ai-output/`.
+> 리전은 서울(`ap-northeast-2`), dev 만. AWS CLI 프로필은 `lavcca-admin`(IAM Identity Center SSO).
+> 담당: **PM(최민규)** AWS·Supabase 리소스 생성·시크릿 입력·배포 승인 / **이지후(JH)** AI 엔진·Docker·ECS 워커 코드 / **고균탁** 데이터 수집·라벨링.
+> 리소스 생성, 시크릿 입력, DB 마이그레이션 실행은 PM 이 한다(또는 PM 승인 후 Claude Code).
+> 버킷은 PM 이 만든 두 개를 쓴다(재생성 금지): 입력 `lavcca-dev-customer-uploads`, 결과 `lavcca-dev-datalake` 의 `ai-output/`.
+> 계정은 **유료 플랜(크레딧 없음)**, 월 예산 $30(AWS Budgets 85%·100%·예측 100% 알림).
 
-## 흐름
+## 흐름 (최종 목표)
 
 ```
 웹(Manus) ─ Supabase 로그인
   ① POST /jobs (api Lambda)            → jobs=uploading, S3 presigned POST(크기 제한) 발급
   ② 브라우저가 s3://lavcca-dev-customer-uploads/uploads/{id}/파일 로 직접 업로드
-  ③ POST /jobs/{id}/submit             → jobs=queued, SQS natam-dev-jobs
+  ③ POST /jobs/{id}/submit             → jobs=queued, SQS lavcca-dev-jobs
   ④ dispatcher Lambda                  → 워커 수 < MAX_RUNNING 이면 ECS RunTask, 아니면 지연 재전송
   ⑤ ECS Fargate 워커(worker.py)       → jobs=running → 분석 → s3://lavcca-dev-datalake/ai-output/{id}/ → jobs=ok|partial|failed
      (워커가 죽으면 task-stopped Lambda 가 jobs=failed)
   ⑥ 웹은 Supabase 에서 jobs 상태를 읽고(RLS), 끝나면 GET /jobs/{id}/files 로 다운로드 링크
 ```
 
+1차 배포(T3)는 ⑤만: PM 이 `aws ecs run-task` 로 워커를 직접 한 번 실행한다. SQS·Lambda·Supabase 없이 동작한다
+(`SUPABASE_URL` 이 없으면 워커는 상태 기록을 건너뛴다).
+
 ## 파일
 
 | 경로 | 내용 | 검증 |
 |---|---|---|
-| `mvp 1_9_3/worker.py` | 작업 1개 실행. 로컬 파일 또는 s3:// 입력, `--output-s3` 업로드, Supabase 상태 기록 | 로컬 실제 영상 1개 실행(PDF 단계는 별도 확인), 단위 테스트 |
-| `mvp 1_9_3/Dockerfile` | 워커 이미지 | **빌드 미확인**(이 PC 에 Docker 없음) → `.github/workflows/worker-image.yml` 로 확인 예정 |
+| `mvp 1_9_3/worker.py` | 작업 1개 실행. 로컬 파일 또는 s3:// 입력, `--output-s3` 업로드, Supabase 상태 기록(선택) | 로컬 실제 영상 1개 실행, 단위 테스트 |
+| `mvp 1_9_3/Dockerfile` | 워커 이미지(Python 3.11) | GitHub Actions `worker-image` 빌드·스모크 |
+| `infra/aws/cloudformation/lavcca-worker-dev.yaml` | **1차 배포 스택**: ECR, ECS 클러스터·태스크 정의, 로그 그룹, 워커 IAM 역할 2개, GitHub OIDC 푸시 역할, 보안 그룹, 빈 시크릿 | cfn-lint, Access Analyzer |
+| `.github/workflows/worker-image.yml` | PR: 빌드·스모크·Trivy 보고 / main: 승인 후 OIDC 로 ECR 푸시(태그 = Git SHA) | actionlint |
 | `infra/supabase/migrations/0001_jobs.sql` | jobs·job_steps·feedback·copyright_matches·labels + RLS | PostgreSQL 파서 통과. **Supabase 적용 안 함** |
-| `infra/aws/lambdas/api.py` | 업로드·제출·다운로드 API | 단위 테스트(가짜 S3/SQS/Supabase) |
-| `infra/aws/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 | 단위 테스트(가짜 ECS/SQS) |
+| `infra/aws/lambdas/api.py` | 업로드·제출·다운로드 API (T5) | 단위 테스트(가짜 S3/SQS/Supabase) |
+| `infra/aws/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 (T5) | 단위 테스트(가짜 ECS/SQS) |
 | `infra/aws/lambdas/supa.py` | Lambda 용 Supabase REST(표준 라이브러리만) | 단위 테스트 |
-| `infra/aws/ecs/worker-task-definition.json` | Fargate 4 vCPU / 16 GB / 임시 40 GB | JSON 형식만 |
-| `infra/aws/iam/*.json` | 역할 4개(워커 실행·워커 태스크·api·dispatcher) 최소 권한 | IAM Access Analyzer 지적 0건 |
+| `infra/aws/iam/*.json` | Lambda 역할 2개(api·dispatcher) 정책 + Lambda 신뢰 정책 (T5) | Access Analyzer |
+| `infra/aws/cloudformation/lavcca-ml-dev.yaml` | SageMaker 학습 실행 역할 `LavccaSageMakerExecutionRole`(학습 컴퓨트는 만들지 않음) | cfn-lint, Access Analyzer |
+| `infra/aws/iam/identity-center/*-inline-policy.json` | 권한 세트 AI-Dev·Data 인라인 정책 **제안본**(PM 이 `sso-admin put-inline-policy-to-permission-set` 로 적용) | Access Analyzer |
+| `infra/aws/s3/customer-uploads-lifecycle.json` | 업로드 버킷 수명 주기 전체본(기존 2개 + `transcribe-tmp/` 1일) | — |
 
 테스트: `cd "mvp 1_9_3" && python -m pytest tests -q` · `cd infra/aws/lambdas && python -m pytest tests -q`
 
-## 배포 순서 (JH)
+## T3. 1차 워커 배포 (PM)
 
-`aws login --profile natam-admin` 후, 아래 명령은 모두 `--profile natam-admin --region ap-northeast-2` 를 붙인다(생략 표기).
+아래 명령은 모두 `--profile lavcca-admin --region ap-northeast-2` 를 붙인다(생략 표기). `aws sso login --profile lavcca-admin` 먼저.
 
-### T3. 기반 (고정비가 생기는 단계)
+### 0. 사전 준비 (스택 밖, 기존 버킷 설정 변경 — PM 승인 후)
+- 업로드 버킷 수명 주기에 `transcribe-tmp/` 1일 삭제 규칙 추가(기존 규칙 2개 유지). 워커가 끝나면 지우지만 실패 대비.
+- 테스트 영상은 **고객 데이터가 아닌** 것을 `s3://lavcca-dev-customer-uploads/uploads/test-001/<파일>` 로 올린다.
 
-1. **이미지 저장소(ECR)**
-   `aws ecr create-repository --repository-name natam-worker --image-scanning-configuration scanOnPush=true`
-   이미지가 수 GB 라 보관비가 붙는다(GB·월 $0.10 수준) → 최근 3~5개만 남기는 수명 주기 정책 권장.
-2. **버킷** (이미 있음, PM 관리 — 새로 만들지 않는다)
-   - `lavcca-dev-customer-uploads` — 고객 원본. `uploads/{id}/파일`, `transcribe-tmp/`(Transcribe 폴백 임시 오디오).
-     수명 주기: `transcribe-tmp/` 1일 후 삭제(워커가 끝나면 지우지만 실패 대비), `uploads/` 보관 기간은 PM·JH 결정.
-     웹이 브라우저에서 직접 올리므로 CORS 에 웹 도메인의 `POST` 허용 필요.
-   - `lavcca-dev-datalake` 의 `ai-output/{id}/` — 분석 결과. 워커는 여기에만 쓴다.
-     `report.pdf`·`report.md` 는 고객용(api 가 이 두 개만 링크로 줌), `_internal/` 은 분석 JSON·전사·`job_result.json`.
-     고객 결과를 `processed/`·`labeled/`·`datasets/` 로 옮기는 일은 동의·익명화가 정해진 뒤 별도 작업으로 한다.
-   - 접두사(`uploads/`, `ai-output/`)는 api·dispatcher 환경변수 `UPLOAD_PREFIX`·`OUTPUT_PREFIX` 로 바꿀 수 있다.
-     바꾸면 IAM 정책의 리소스 경로도 같이 바꾼다.
-3. **시크릿**: Secrets Manager `natam/dev/worker` (JSON 1개, 월 $0.40). 키 이름은
-   `worker-task-definition.json` 의 `secrets` 와 정확히 같아야 한다(없는 키가 하나라도 있으면 태스크가 시작 실패).
-   값이 없는 서비스는 빈 문자열로 넣는다. `GOOGLE_CREDENTIALS_JSON` 은 키 파일 **내용** 전체.
-4. **로그 그룹**: `aws logs create-log-group --log-group-name /natam/dev/worker` + 보관 14일(`put-retention-policy`).
-5. **IAM 역할 4개** (`infra/aws/iam/`):
-   - `NatamWorkerExecutionRole` (신뢰: ecs-tasks) ← `worker-execution-role-policy.json`
-   - `NatamWorkerTaskRole` (신뢰: ecs-tasks) ← `worker-task-role-policy.json`
-   - `NatamApiLambdaRole` (신뢰: lambda) ← `api-lambda-policy.json`
-   - `NatamDispatcherLambdaRole` (신뢰: lambda) ← `dispatcher-lambda-policy.json`
-6. **네트워크**: 기본 VPC 의 퍼블릭 서브넷 + 인바운드 없는 보안 그룹(아웃바운드만). NAT Gateway 는 만들지 않는다(고정비).
-7. **ECS 클러스터** `natam-dev` (Fargate 전용, 고정비 없음) + 태스크 정의 등록:
-   `aws ecs register-task-definition --cli-input-json file://infra/aws/ecs/worker-task-definition.json`
-8. **이미지 올리기**: Docker 로 빌드 후 ECR 푸시(Docker Desktop 설치 필요) 또는 GitHub Actions 에 OIDC 역할을 만들어 푸시(나중에 추가).
+### 1. 스택 생성 (ImageTag=bootstrap)
+```
+cfn-lint infra/aws/cloudformation/lavcca-worker-dev.yaml
+aws cloudformation create-change-set --stack-name lavcca-worker-dev --change-set-name init \
+  --change-set-type CREATE --capabilities CAPABILITY_NAMED_IAM \
+  --template-body file://infra/aws/cloudformation/lavcca-worker-dev.yaml \
+  --parameters ParameterKey=VpcId,ParameterValue=<기본 VPC id> \
+  --tags Key=Project,Value=lavcca Key=Env,Value=dev
+aws cloudformation describe-change-set --stack-name lavcca-worker-dev --change-set-name init   # 리소스 11개 확인
+aws cloudformation execute-change-set  --stack-name lavcca-worker-dev --change-set-name init
+```
+GitHub OIDC 공급자가 이미 계정에 있으면 `CreateGitHubOidcProvider=false`.
 
-### T4. Supabase (dev 프로젝트)
+### 2. 시크릿 값 입력 (CloudFormation 밖)
+스택은 값 없는 시크릿 `lavcca/dev/worker` 만 만든다(삭제 시에도 보존). 값은 **콘솔**(Secrets Manager → lavcca/dev/worker
+→ Retrieve secret value → Set secret value → Key/value)에서 아래 3개를 넣는 것을 권장한다. 터미널·채팅·커밋에 붙여 넣지 않는다.
+
+| 키 | 용도 | 비어 있으면 |
+|---|---|---|
+| `GEMINI_API_KEY` | 전사·교정·위기 판정(필수) | 분석 실패 |
+| `GOOGLE_API_KEY` | 저작권: Google Vision 역검색(REST) | 해당 검색 생략 |
+| `YOUTUBE_API_KEY` | 저작권: YouTube 유사 영상 대조 | 해당 검색 생략 |
+
+키 이름은 태스크 정의 `Secrets` 와 정확히 같아야 한다(하나라도 없으면 태스크 시작 실패, 값은 빈 문자열 가능).
+CLI 로 넣어야 하면 OneDrive 밖 임시 폴더의 파일로 `aws secretsmanager put-secret-value --secret-id lavcca/dev/worker --secret-string file://<파일>` 후 파일을 지운다.
+Naver·ACRCloud·Supabase 키는 1차 배포에서 쓰지 않는다(확산 신호·음악 분석 꺼짐, Supabase 기록 생략). 켤 때 태스크 정의 `Secrets` 와 함께 추가한다.
+
+### 3. GitHub 설정
+- Settings → Environments → `lavcca-dev`: Deployment branches = `main` 만, Required reviewers = PM.
+- Environment 변수 `LAVCCA_ECR_PUSH_ROLE_ARN` = 스택 출력 `GitHubEcrPushRoleArn`(비밀값 아님).
+- **OIDC sub 에 브랜치 포함**(저장소 관리자, 한 번): `gh api -X PUT repos/NATAM-KESSOKUBAND/MVP/actions/oidc/customization/sub -F use_default=false -f "include_claim_keys[]=repo" -f "include_claim_keys[]=context" -f "include_claim_keys[]=ref"`
+  → 토큰 sub = `repo:NATAM-KESSOKUBAND/MVP:environment:lavcca-dev:ref:refs/heads/main`. 역할 신뢰 정책은 이 값만 받는다
+  (Environment 설정이 빠져도 다른 브랜치·워크플로는 AWS 에서 거부). 이 설정 전에는 푸시가 실패한다(fail closed).
+  이 저장소의 다른 OIDC 사용처가 생기면 그쪽 신뢰 정책도 새 sub 형식에 맞춰야 한다.
+
+### 4. 이미지 푸시
+main 에 병합되면 `worker-image` 의 `publish` 잡이 승인을 기다린다 → 승인 → 빌드·스모크·Trivy(fixable CRITICAL 이면 중단) → ECR `lavcca-worker:<Git SHA>` 푸시
+→ ECR 스캔 결과를 잡 요약에 남긴다. 태그는 변경 불가(IMMUTABLE), 최근 5개만 보관.
+
+### 4-1. 실행 전 점검 (값은 출력하지 않는다)
+```
+aws secretsmanager get-secret-value --secret-id lavcca/dev/worker --query SecretString --output text \
+  | python -c "import json,sys; d=json.load(sys.stdin); print({k: bool(v.strip()) for k, v in d.items()})"
+# 기대: {'GEMINI_API_KEY': True, 'GOOGLE_API_KEY': True|False, 'YOUTUBE_API_KEY': True|False}
+```
+- 값이 한 번도 안 들어간 시크릿 → 태스크가 컨테이너 시작 전에 실패(ResourceInitializationError), 비용 거의 없음.
+- 키는 있고 `GEMINI_API_KEY` 가 빈 값 → 워커가 다운로드·분석 전에 `failed`(종료 코드 1)로 끝난다(`worker.require_env`).
+- `ImageTag=bootstrap` 동안은 이미지가 없어 실행 자체가 안 된다. 5단계는 점검 통과 뒤에만.
+
+### 5. 태스크 정의에 이미지 반영
+```
+aws cloudformation create-change-set --stack-name lavcca-worker-dev --change-set-name image-<sha7> \
+  --use-previous-template --capabilities CAPABILITY_NAMED_IAM \
+  --parameters ParameterKey=ImageTag,ParameterValue=<Git SHA> ParameterKey=VpcId,UsePreviousValue=true
+# describe-change-set 로 WorkerTaskDefinition 교체만 있는지 확인 후 execute-change-set
+```
+
+### 6. 실행 (영상 1개)
+```
+aws ecs run-task --cluster lavcca-dev --launch-type FARGATE --task-definition lavcca-worker \
+  --network-configuration "awsvpcConfiguration={subnets=[<기본 VPC 퍼블릭 서브넷>],securityGroups=[<SecurityGroupId>],assignPublicIp=ENABLED}" \
+  --overrides '{"containerOverrides":[{"name":"worker","command":["--job-id","test-001",
+     "--input","s3://lavcca-dev-customer-uploads/uploads/test-001/<파일>",
+     "--output-dir","/tmp/out","--output-s3","s3://lavcca-dev-datalake/ai-output/test-001/"]}]}'
+```
+퍼블릭 IP 는 외부 API(Gemini·Google·ECR·S3) 접근용이다. 보안 그룹은 인바운드 없음·아웃바운드 443 만이라 외부에서 태스크로 들어올 수 없다.
+
+### 7. 검증
+1. `aws ecs describe-tasks` → `containers[0].exitCode` 0(ok·partial), 75 면 Gemini 일시 장애(retry_later), 1 이면 실패.
+2. `aws s3 ls s3://lavcca-dev-datalake/ai-output/test-001/ --recursive` → `report.pdf`, `report.md`, `_internal/report.json`, `_internal/job_result.json`.
+3. `job_result.json` 의 `status`, 단계별 소요·메모리(`steps`), `llm_cost`.
+4. CloudWatch Logs `/lavcca/dev/worker` 에 키 형태 문자열(`AIza` 등)이 없는지 검색.
+5. PDF 한글 렌더링 확인. 메모리 최고치를 보고 4 vCPU / 16 GB 를 줄일 수 있는지 판단.
+
+### 롤백
+- 실행 중 태스크: `aws ecs stop-task --cluster lavcca-dev --task <arn>`.
+- 잘못된 이미지: 5단계를 이전 SHA 로 다시(태스크 정의 새 리비전). ECR 이미지는 남는다.
+- 전체 철거: `aws cloudformation delete-stack --stack-name lavcca-worker-dev`
+  — ECR 이미지는 **복구 불가로 삭제**(`EmptyOnDelete`; Git SHA 로 다시 빌드 가능), IAM 역할·OIDC 공급자(스택이 만든 경우)·
+  보안 그룹·클러스터·로그 그룹도 삭제, 태스크 정의는 INACTIVE.
+  (ECR 은 이미지째 삭제, 로그 그룹 삭제. **시크릿은 보존**됨 → 필요하면 `aws secretsmanager delete-secret --secret-id lavcca/dev/worker --recovery-window-in-days 7`.
+  시크릿을 남긴 채 스택을 다시 만들면 이름 충돌 → 먼저 시크릿을 지우거나 복구 기간이 끝나야 한다.)
+- 테스트 결과물: `ai-output/test-*` 만 삭제. 고객 경로는 건드리지 않는다.
+
+### 비용 감 (서울 단가 추정, 실제 단가 확인 필요)
+- 고정: Secrets Manager $0.40/월, ECR 보관 이미지 5~8 GB × 최대 5개 × $0.10/GB·월, 로그·S3 소량. NAT·ECS Service 없음.
+- 영상 1개(5분 내외): Fargate 4 vCPU/16 GB 약 $0.27/시간 × 10~20분 ≈ $0.05~0.10, 퍼블릭 IPv4 $0.005/시간.
+- AWS 밖(예산 $30 에 안 잡힘): Gemini 약 $0.11/영상(2026-10-13 실측), Google Vision 작업당 최대 40회.
+
+## T4. Supabase (dev 프로젝트)
 
 1. dev 프로젝트 생성(리전: 서울 권장). **마이그레이션 실행 전 확인**: `0001_jobs.sql` 의 테이블·RLS.
 2. SQL Editor 에서 `0001_jobs.sql` 실행.
-3. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` → 시크릿 `natam/dev/worker` 와 Lambda 환경변수. `SUPABASE_ANON_KEY` → api Lambda 만.
+3. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` → 시크릿 `lavcca/dev/worker`(+ 태스크 정의 `Secrets`)와 Lambda 환경변수. `SUPABASE_ANON_KEY` → api Lambda 만.
    service_role 키는 RLS 를 우회한다 — 웹(프런트) 코드에 절대 넣지 않는다.
 4. `copyright_db.sqlite` → Postgres 이전은 별도 작업(먼저 SQLite 백업).
 
-### T5. 큐·Lambda
+## T5. 큐·Lambda
 
-1. SQS: DLQ `natam-dev-jobs-dlq` → 본 큐 `natam-dev-jobs` (redrive 최대 3회, 가시성 타임아웃 ≥ dispatcher 제한시간 × 6).
-2. Lambda 3개 (Python 3.12, 같은 zip: `cd infra/aws/lambdas && zip ../lambdas.zip supa.py api.py dispatcher.py`):
-   - `natam-dev-dispatcher` 핸들러 `dispatcher.dispatch` — **예약 동시성 1**, SQS 트리거 배치 크기 1, `ReportBatchItemFailures` 켬
-   - `natam-dev-task-stopped` 핸들러 `dispatcher.task_stopped` — EventBridge 규칙: source `aws.ecs`, detail-type `ECS Task State Change`, `lastStatus=STOPPED`, `clusterArn=natam-dev`
-   - `natam-dev-api` 핸들러 `api.handler` — Function URL(인증 NONE, 인증은 Supabase 토큰으로 코드에서) + CORS(웹 도메인만)
-   환경변수는 각 파일 맨 위 설명 참조. `MAX_RUNNING` 은 2 로 시작.
+1. SQS: DLQ `lavcca-dev-jobs-dlq` → 본 큐 `lavcca-dev-jobs` (redrive 최대 3회, 가시성 타임아웃 ≥ dispatcher 제한시간 × 6).
+2. IAM 역할(`infra/aws/iam/`, 신뢰 정책 `lambda-trust-policy.json`):
+   - `LavccaApiLambdaRole` ← `api-lambda-policy.json`
+   - `LavccaDispatcherLambdaRole` ← `dispatcher-lambda-policy.json` (워커 역할 2개 PassRole, `lavcca-worker` RunTask)
+3. Lambda 3개 (Python 3.12, 같은 zip: `cd infra/aws/lambdas && zip ../lambdas.zip supa.py api.py dispatcher.py`):
+   - `lavcca-dev-dispatcher` 핸들러 `dispatcher.dispatch` — **예약 동시성 1**, SQS 트리거 배치 크기 1, `ReportBatchItemFailures` 켬
+   - `lavcca-dev-task-stopped` 핸들러 `dispatcher.task_stopped` — EventBridge 규칙: source `aws.ecs`, detail-type `ECS Task State Change`, `lastStatus=STOPPED`, `clusterArn=lavcca-dev`
+   - `lavcca-dev-api` 핸들러 `api.handler` — Function URL(인증 NONE, 인증은 Supabase 토큰으로 코드에서) + CORS(웹 도메인만)
+   환경변수는 각 파일 맨 위 설명 참조. `MAX_RUNNING` 은 2 로 시작. `TASK_DEFINITION=lavcca-worker`, `CLUSTER=lavcca-dev`.
    api·dispatcher 공통: `UPLOAD_BUCKET=lavcca-dev-customer-uploads`, `OUTPUT_BUCKET=lavcca-dev-datalake`
    (`UPLOAD_PREFIX` 기본 `uploads/`, `OUTPUT_PREFIX` 기본 `ai-output/`).
-3. 완료 기준(계획 문서): 영상 10개 연속 처리, 일부러 실패시킨 작업이 DLQ·failed 로 가는지 확인.
+4. 완료 기준: 영상 10개 연속 처리, 일부러 실패시킨 작업이 DLQ·failed 로 가는지 확인.
 
-### T6. 웹 연결 (Manus)
+## T6. 웹 연결 (Manus)
 
 웹이 할 일: Supabase 로그인 → `POST /jobs` → 받은 `upload.url`/`upload.fields` 로 multipart POST 업로드
 → `POST /jobs/{id}/submit` → Supabase `jobs` 구독/폴링 → `GET /jobs/{id}/files`.
-
-## 비용 감 (계획 문서 수치 기준, 서울 단가 미확인)
-
-- 고정: Secrets Manager $0.40/월, ECR 보관 수 GB, 로그·S3 소량. NAT 없음. Fargate·Lambda·SQS 는 쓸 때만.
-- 영상 1개: Gemini 약 $0.11(4분 35초, 2026-10-13 로컬 실측, 저작권 API 별도) + Fargate 4 vCPU/16 GB 약 3분(US-East 단가로 1센트대).
-- 무료 플랜 계정이라 크레딧($140)에서 차감된다. 무료 플랜에서 막힌 서비스가 있는지는 생성 시 확인.
+업로드 버킷 CORS 에 웹 도메인의 `POST` 허용 필요.
 
 ## Gemini 장애 대응 순서 (워커)
 
-Gemini 가 429·5xx·네트워크 오류를 내면 아래 순서로 넘어간다. 설정은 태스크 정의 `environment`.
+Gemini 가 429·5xx·네트워크 오류를 내면 아래 순서로 넘어간다. 설정은 태스크 정의 `Environment`.
 
 1. 같은 모델로 최대 `GEMINI_RETRIES`(기본 4)번, 3·6·12초 × 지터. 429 가 대기 시간을 주면 그만큼.
 2. `GEN_MODEL_FALLBACK`(기본 `models/gemini-3.6-flash`)으로 같은 횟수. 쓰였는지는 `job_result.json` 의 `llm_cost.by_model`.
@@ -106,9 +177,9 @@ Gemini 가 429·5xx·네트워크 오류를 내면 아래 순서로 넘어간다
    어떤 엔진이 받아썼는지는 전사 결과 `video_info.asr_engine`(gemini | aws_transcribe | whisper).
 4. 그래도 실패하면 `retry_later`(종료 코드 75). 컨테이너는 로컬 Whisper 를 쓰지 않는다(`WHISPER_FALLBACK=0`).
 
-Transcribe 는 쓸 때만 과금(분 단위, 서울 단가 미확인). 고객 음성이라 임시 오디오는 고객 업로드 버킷에 둔다
+Transcribe 는 쓸 때만 과금(분 단위). 고객 음성이라 임시 오디오는 고객 업로드 버킷에 둔다
 (`s3://lavcca-dev-customer-uploads/transcribe-tmp/`). 워커 태스크 역할에 그 경로의 S3 권한과
-`lavcca-asr-*` Transcribe 작업 권한이 들어 있다(`worker-task-role-policy.json`).
+`lavcca-asr-*` Transcribe 작업 권한이 들어 있다(CloudFormation `WorkerTaskRole`).
 
 ## 아직 안 한 것 (코드)
 
@@ -117,5 +188,23 @@ Transcribe 는 쓸 때만 과금(분 단위, 서울 단가 미확인). 고객 �
   그 작업을 언제·몇 번까지 큐에 다시 넣을지는 아직 없다(T5).
 - W0 영상 해시 캐시(`video_sha256` 컬럼만 준비).
 - 리포트 JSON → `copyright_matches` 적재, 피드백 야간 export(T7).
-- 사례 인덱스(`casedb/`)를 S3 에서 받아오기 — 인덱스 자체가 아직 없다(빌드는 유료 임베딩 ~10만 건, JH 승인 대기).
+- 사례 인덱스(`casedb/`)를 S3 에서 받아오기 — 인덱스 자체가 아직 없다(빌드는 유료 임베딩 ~10만 건, 승인 대기).
 - lazy import 로 이미지 줄이기(T9).
+- Python 3.12 통합(`chore/py312-reproducible-env`, 해시 고정 lock)은 워커 1차 배포 뒤 별도 PR.
+
+## 권한·데이터 경계 (설계, PM 승인 후 적용)
+
+사람(Identity Center 권한 세트)과 서비스 실행 역할(CloudFormation)을 분리한다. 고객 데이터(`uploads/`, `ai-output/`, `raw/`)의
+학습 재사용은 동의·익명화 검토 전까지 SageMaker 역할과 AI-Dev 에서 **명시적으로 거부(Deny)** 한다.
+
+| 주체 | 읽기 | 쓰기 | 그 밖 |
+|---|---|---|---|
+| AI-Dev (이지후) | processed·labeled·datasets·models·experiments, `ai-output/test-*` | experiments/ | ECR lavcca-worker push/pull, 워커·SageMaker 로그, ECS 태스크 조회, `lavcca-*` 학습 작업(인스턴스 4종·최대 4시간), SageMaker 역할 PassRole, Service Quotas 읽기, Transcribe `lavcca-asr-dev-*` |
+| Data (고균탁) | raw·processed·labeled·datasets·ai-output | raw·processed·labeled·datasets | 삭제 권한 없음(데이터레이크 버전 관리 전) |
+| ECS 워커 태스크 | uploads/ | ai-output/, transcribe-tmp/(삭제 포함) | Transcribe `lavcca-asr-*`, Rekognition DetectLabels(기본 꺼짐) |
+| ECS 실행 역할 | — | — | ECR pull, 로그, 시크릿 `lavcca/dev/worker` 하나 |
+| SageMaker 실행 역할 | datasets/controversy/ | models/, experiments/ | 학습 로그·지표, `lavcca-*` ECR pull |
+
+S3 경로: 입력 `uploads/{job_id}/파일`(30일), Transcribe 임시 `transcribe-tmp/{job_id}/`(1일, 워커가 job_id 를 붙인다),
+결과 `ai-output/{job_id}/report.*` + `_internal/`, 학습 `raw/ processed/ labeled/ datasets/controversy/{version}/ models/ experiments/`.
+`ai-output/` 보관 기간은 미적용(제안: 고객용 report.* 1년, `_internal/` 90일 — 접두사가 같아 객체 태그 기반 규칙과 워커 태깅이 필요).

@@ -237,6 +237,26 @@ def quality_issues(report: dict) -> tuple[dict, list, list]:
 
 
 # ── 실행 ────────────────────────────────────────────────────────────
+REQUIRED_ENV = ("GEMINI_API_KEY",)
+
+
+def require_env(names) -> None:
+    """빈 시크릿(키만 있고 값이 빈 문자열)으로 시작한 태스크를 분석 전에 failed 로 끝낸다. 값은 출력하지 않는다."""
+    missing = [n for n in names if not os.getenv(n, "").strip()]
+    if missing:
+        raise RuntimeError("필수 환경변수 비어 있음: " + ", ".join(missing))
+
+
+def scope_transcribe_prefix(job_id: str) -> str:
+    """AWS_TRANSCRIBE_S3(s3://버킷/접두사/)가 있으면 끝에 {job_id}/ 를 붙인다(작업별 임시 오디오 경로)."""
+    base = os.getenv("AWS_TRANSCRIBE_S3", "")
+    if not base:
+        return ""
+    scoped = base.rstrip("/") + f"/{job_id}/"
+    os.environ["AWS_TRANSCRIBE_S3"] = scoped
+    return scoped
+
+
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="NATAM 분석 워커 (영상 1개)")
     p.add_argument("--job-id", required=True, help="영문·숫자·_- 1~64자")
@@ -281,9 +301,12 @@ def run_job(args) -> dict:
     system = None
     tmp = None
     try:
+        # 엔진이 import 시점에 읽으므로 그 전에: Transcribe 임시 오디오를 transcribe-tmp/{job_id}/ 아래로
+        scope_transcribe_prefix(args.job_id)
         # 무거운 import(whisper·torch·faiss·cv2)는 인자 검사 뒤에
         import mvp_ver_1_9_3 as v193
         mvp = v193.mvp
+        require_env(REQUIRED_ENV)   # .env 로드(엔진 import) 뒤, 다운로드·분석 전
 
         if v193.run_logging is not None:
             log_path = v193.run_logging.setup(log_dir=str(out / "logs"), prefix="worker")

@@ -1,10 +1,10 @@
-# NATAM 분석 워커 이미지 (위기 분석 + 저작권 감지기, 큰 이미지 1개). 빌드 컨텍스트 = mvp 1_9_3/
+# Lavcca(NATAM 엔진) 분석 워커 이미지 (위기 분석 + 저작권 감지기, 큰 이미지 1개). 빌드 컨텍스트 = mvp 1_9_3/
 #
-#   docker build -t natam-worker .
+#   docker build -t lavcca-worker .
 #   docker run --rm \
 #     --env-file .env --env-file copyright_detector/.env \
 #     -v "<영상 폴더>:/data/in:ro" -v "<결과 폴더>:/data/out" \
-#     natam-worker --job-id test1 --input /data/in/video.mp4 --output-dir /data/out/test1
+#     lavcca-worker --job-id test1 --input /data/in/video.mp4 --output-dir /data/out/test1
 #
 # 비밀값은 이미지에 넣지 않는다(.dockerignore). 실행 시 환경변수로 주입한다.
 #   · docker --env-file 은 값의 따옴표를 벗기지 않는다. .env 값이 "..." 로 감싸져 있으면 따옴표를 빼고 쓸 것.

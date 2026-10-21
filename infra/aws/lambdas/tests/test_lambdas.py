@@ -91,7 +91,7 @@ class FakeECS:
 
 @pytest.fixture
 def env(monkeypatch):
-    for k, v in {"UPLOAD_BUCKET": "up", "OUTPUT_BUCKET": "lake", "QUEUE_URL": "q", "CLUSTER": "c", "TASK_DEFINITION": "natam-worker:3",
+    for k, v in {"UPLOAD_BUCKET": "up", "OUTPUT_BUCKET": "lake", "QUEUE_URL": "q", "CLUSTER": "c", "TASK_DEFINITION": "lavcca-worker:3",
                  "SUBNETS": "s1,s2", "SECURITY_GROUPS": "g1", "MAX_RUNNING": "2"}.items():
         monkeypatch.setenv(k, v)
 
@@ -200,7 +200,7 @@ def test_dispatch_runs_task(env):
     dispatcher._clients = {"ecs": ecs, "sqs": FakeSQS()}
     assert dispatcher.dispatch(_sqs_event(MSG)) == {"batchItemFailures": []}
     run = ecs.runs[0]
-    assert run["taskDefinition"] == "natam-worker:3"
+    assert run["taskDefinition"] == "lavcca-worker:3"
     assert run["networkConfiguration"]["awsvpcConfiguration"]["subnets"] == ["s1", "s2"]
     assert run["overrides"]["containerOverrides"][0]["command"] == [
         "--job-id", "j1", "--input", "s3://up/uploads/j1/a b.mp4", "--output-dir", "/tmp/out/j1",

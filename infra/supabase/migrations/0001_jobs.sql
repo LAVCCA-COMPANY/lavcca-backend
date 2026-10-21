@@ -1,6 +1,6 @@
 -- 0001_jobs.sql — NATAM 작업 상태 스키마 (초안, 아직 어디에도 적용 안 함)
 --
--- 적용은 JH 승인 후 dev 프로젝트에만: Supabase SQL Editor 에 붙여넣거나 `supabase db push`.
+-- 적용은 PM(인프라 담당) 승인 후 dev 프로젝트에만: Supabase SQL Editor 에 붙여넣거나 `supabase db push`.
 -- 원칙: 쓰기는 서버(API Lambda·워커 = service_role, RLS 우회)만 한다.
 --       로그인 사용자는 자기 작업만 읽고, 피드백만 직접 쓴다.
 -- 저작권 감지기 SQLite(copyright_db.sqlite) 이전은 이 파일 범위 밖(별도 마이그레이션, 백업 먼저).
