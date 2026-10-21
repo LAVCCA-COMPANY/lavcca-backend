@@ -21,6 +21,7 @@ REPORT_TEMPLATE_V193 = CONFIG_DIR / "report_template_v1_9_3.md"
 CONTROVERSY_MODEL   = MODELS_DIR / "controversy_model.joblib"
 
 SAMPLES_JSON        = DATA_DIR / "controversy_samples.json"
+SAMPLES_REVIEW      = DATA_DIR / "controversy_samples_review.json"   # 학습 문장 재검토 결과(label_golden.py --samples)
 GOLDEN_CANDIDATES   = DATA_DIR / "golden_set_candidates.json"
 GOLDEN_SET          = DATA_DIR / "golden_set.json"
 EVAL_BASELINE       = DATA_DIR / "eval_baseline.json"

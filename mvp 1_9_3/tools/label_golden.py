@@ -10,12 +10,18 @@ golden_set.json 에 바로 저장한다 (라벨을 채운 항목만 저장 → e
   python tools/label_golden.py      # http://127.0.0.1:8765 이 열린다
   (라벨링 후) python tools/eval_harness.py data/golden_set.json --save-baseline
 
+  python tools/label_golden.py --samples   # 학습 문장 재검토, http://127.0.0.1:8766
+    controversy_samples.json 의 원래 라벨을 미리 채워 보여 주고, 검토한 문장만
+    controversy_samples_review.json 에 쓴다(학습 데이터 원본은 안 바꾼다).
+    골든셋과 섞지 않는다 — 학습 문장이 평가에 들어가면 점수가 부풀려진다.
+
 키:
   1~9, 0   라벨 토글 (화면 버튼 순서)     Enter  저장 후 다음
   ← / →    이전 / 다음 (저장 안 함)        Del    이 문장 라벨 지우기
   H        모델·Tier2 참고 정보 보기/숨기기
 """
 
+import argparse
 import glob
 import json
 import re
@@ -29,9 +35,11 @@ import paths
 
 CANDIDATES_PATH = paths.GOLDEN_CANDIDATES
 GOLDEN_PATH     = paths.GOLDEN_SET
+SAMPLES_PATH    = paths.SAMPLES_JSON
+REVIEW_PATH     = paths.SAMPLES_REVIEW
 LABELS_PATH     = paths.LABELS_YAML
 REPORT_GLOB     = str(paths.REPORTS_DIR / "report_*.json")
-HOST, PORT      = "127.0.0.1", 8765
+HOST            = "127.0.0.1"
 HIGH_SEVERITY   = {"L03", "L06", "L09", "L11"}
 CONTEXT_N       = 2   # 앞뒤로 보여 줄 자막 줄 수
 
@@ -103,20 +111,43 @@ def build_items():
                     if s["segment_id"] == item["source"]["segment_id"]), None)
         item["_before"] = [s["text"] for s in segs[max(0, pos - CONTEXT_N):pos]] if pos is not None else []
         item["_after"] = [s["text"] for s in segs[pos + 1:pos + 1 + CONTEXT_N]] if pos is not None else []
+        item["_reviewed"] = bool(item["labels"])
     items.sort(key=_priority)
     return items
 
 
-ITEMS = build_items()
+def build_sample_items():
+    """학습 문장 재검토: 원래 라벨을 미리 채운다. 이미 검토한 건 검토 결과를 불러온다."""
+    saved = {}
+    if REVIEW_PATH.exists():
+        saved = {r["id"]: r["labels"] for r in json.loads(REVIEW_PATH.read_text(encoding="utf-8-sig"))}
+    items = []
+    for smp in json.loads(SAMPLES_PATH.read_text(encoding="utf-8-sig")):
+        orig = list(smp.get("labels") or [])
+        items.append({"id": smp["id"], "text": smp["text"],
+                      "labels": list(saved.get(smp["id"], orig)),
+                      "source": {"video_id": "학습샘플", "segment_id": smp["id"], "timestamp": ""},
+                      "model_suggested": {}, "tier2": None,
+                      "_orig": orig, "_reviewed": smp["id"] in saved, "_before": [], "_after": []})
+    return items
+
+
+MODE, OUT_PATH, ITEMS = "golden", GOLDEN_PATH, []
 
 
 def save():
-    """라벨이 있는 항목만 golden_set.json 으로. 임시 파일에 쓰고 바꿔 끼운다."""
-    done = [{k: v for k, v in it.items() if not k.startswith("_")}
-            for it in ITEMS if it["labels"]]
-    tmp = GOLDEN_PATH.with_suffix(".json.tmp")
+    """골든셋: 라벨이 있는 항목만 golden_set.json 으로.
+    학습 재검토: 검토한 항목만 {id, text, labels_before, labels} 로 (빈 labels = 학습에서 빼자는 뜻).
+    임시 파일에 쓰고 바꿔 끼운다."""
+    if MODE == "samples":
+        done = [{"id": it["id"], "text": it["text"], "labels_before": it["_orig"], "labels": it["labels"]}
+                for it in ITEMS if it["_reviewed"]]
+    else:
+        done = [{k: v for k, v in it.items() if not k.startswith("_")}
+                for it in ITEMS if it["labels"]]
+    tmp = OUT_PATH.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(done, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(GOLDEN_PATH)
+    tmp.replace(OUT_PATH)
     return len(done)
 
 
@@ -133,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/":
             self._send(200, PAGE, "text/html; charset=utf-8")
         elif self.path == "/api/items":
-            self._send(200, json.dumps({"items": ITEMS, "labels": _load_label_defs(),
+            self._send(200, json.dumps({"items": ITEMS, "labels": _load_label_defs(), "mode": MODE,
                                         "high": sorted(HIGH_SEVERITY)}, ensure_ascii=False))
         else:
             self._send(404, "{}")
@@ -145,8 +176,10 @@ class Handler(BaseHTTPRequestHandler):
         labels = [l for l in body.get("labels", []) if isinstance(l, str)]
         if "L12" in labels and len(labels) > 1:   # 해당 없음은 다른 라벨과 겹칠 수 없다
             return self._send(400, json.dumps({"error": "L12 는 단독으로만"}))
-        ITEMS[int(body["idx"])]["labels"] = labels
-        self._send(200, json.dumps({"saved": save()}))
+        item = ITEMS[int(body["idx"])]
+        item["labels"] = labels
+        item["_reviewed"] = MODE == "samples" or bool(labels)
+        self._send(200, json.dumps({"saved": save(), "file": OUT_PATH.name}, ensure_ascii=False))
 
     def log_message(self, *args):
         pass
@@ -183,19 +216,22 @@ PAGE = r"""<!doctype html>
  <button onclick="nextUnlabeled()">다음 미검수로</button>
  <span id="status"></span>
 </div>
-<div class="keys">1~9·0 라벨 토글 · Enter 저장 후 다음 · ←/→ 이동 · Del 라벨 지우기 · H 참고 정보 · 애매하면 비워 두고 넘어가세요(평가에서 빠짐). 빨간 줄 = 고심각도</div>
+<div class="keys" id="keys">1~9·0 라벨 토글 · Enter 저장 후 다음 · ←/→ 이동 · Del 라벨 지우기 · H 참고 정보 · 애매하면 비워 두고 넘어가세요(평가에서 빠짐). 빨간 줄 = 고심각도</div>
 <script>
-let items=[], defs=[], high=[], i=0, sel=new Set(), showHint=false;
+let items=[], defs=[], high=[], mode="golden", i=0, sel=new Set(), showHint=false;
 const KEYS="1234567890";
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-fetch("/api/items").then(r=>r.json()).then(d=>{items=d.items;defs=d.labels;high=d.high;
- i=Math.max(0,items.findIndex(x=>!x.labels.length));render();});
+fetch("/api/items").then(r=>r.json()).then(d=>{items=d.items;defs=d.labels;high=d.high;mode=d.mode;
+ if(mode==="samples"){document.title="학습 문장 재검토";
+  document.getElementById("keys").textContent="학습 문장 재검토 · 원래 라벨이 미리 켜져 있음 · 맞으면 Enter, 틀리면 고친 뒤 Enter · Del = 학습에서 빼기 · ←/→ 이동 · 1~9·0 라벨 토글";}
+ i=Math.max(0,items.findIndex(x=>!x._reviewed));render();});
 function render(){
  const it=items[i]; sel=new Set(it.labels);
- const done=items.filter(x=>x.labels.length).length;
+ const done=items.filter(x=>x._reviewed).length;
  document.getElementById("prog").style.width=(100*done/items.length)+"%";
  const s=it.source;
- document.getElementById("meta").textContent=`${i+1} / ${items.length} · 검수 ${done}개 · ${s.video_id} #${s.segment_id} ${s.timestamp||""}`;
+ document.getElementById("meta").textContent=`${i+1} / ${items.length} · 검수 ${done}개 · ${s.video_id} #${s.segment_id} ${s.timestamp||""}`+
+  (it._orig?` · 원래 라벨 ${it._orig.join(", ")||"없음"}${it._reviewed&&it.labels.join()!==it._orig.join()?" → 바꿈":""}`:"");
  document.getElementById("before").innerHTML=it._before.map(esc).join("<br>");
  document.getElementById("after").innerHTML=it._after.map(esc).join("<br>");
  document.getElementById("text").textContent=it.text;
@@ -213,12 +249,13 @@ function toggle(id){
 }
 async function send(labels){
  const r=await fetch("/api/label",{method:"POST",body:JSON.stringify({idx:i,labels})});
- const d=await r.json(); document.getElementById("status").textContent=r.ok?`저장됨 (golden_set.json ${d.saved}개)`:d.error;
+ const d=await r.json(); if(r.ok) items[i]._reviewed=mode==="samples"||labels.length>0;
+ document.getElementById("status").textContent=r.ok?`저장됨 (${d.file} ${d.saved}개)`:d.error;
  return r.ok;
 }
 async function commit(){ if(await send([...sel])) go(1); }
 function go(n){ i=Math.min(items.length-1,Math.max(0,i+n)); render(); }
-function nextUnlabeled(){ const k=items.findIndex((x,j)=>j>i&&!x.labels.length); if(k>=0){i=k;render();} }
+function nextUnlabeled(){ const k=items.findIndex((x,j)=>j>i&&!x._reviewed); if(k>=0){i=k;render();} }
 document.addEventListener("keydown",e=>{
  const k=KEYS.indexOf(e.key);
  if(k>=0&&defs[k]) toggle(defs[k].id);
@@ -234,7 +271,17 @@ document.addEventListener("keydown",e=>{
 
 
 if __name__ == "__main__":
-    url = f"http://{HOST}:{PORT}"
-    print(f"🏷️  라벨링 도구: {url}  (후보 {len(ITEMS)}개, 저장 → {GOLDEN_PATH.name})  종료: Ctrl+C")
+    ap = argparse.ArgumentParser(description="골든셋 라벨링 / 학습 문장 재검토")
+    ap.add_argument("--samples", action="store_true", help="학습 문장(controversy_samples.json) 재검토 모드")
+    ap.add_argument("--port", type=int, help="기본 8765(골든셋) / 8766(학습 재검토)")
+    args = ap.parse_args()
+    if args.samples:
+        MODE, OUT_PATH, ITEMS = "samples", REVIEW_PATH, build_sample_items()
+    else:
+        ITEMS = build_items()
+    port = args.port or (8766 if args.samples else 8765)
+    url = f"http://{HOST}:{port}"
+    print(f"🏷️  {'학습 문장 재검토' if args.samples else '라벨링 도구'}: {url}  "
+          f"(문장 {len(ITEMS)}개, 저장 → {OUT_PATH.name})  종료: Ctrl+C")
     webbrowser.open(url)
-    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, port), Handler).serve_forever()
