@@ -16,6 +16,8 @@ dispatcher.py — SQS 작업 메시지를 받아 ECS Fargate 태스크(worker.py
           SUBNETS, SECURITY_GROUPS(쉼표 구분), UPLOAD_BUCKET, UPLOAD_PREFIX(기본 uploads/),
           OUTPUT_BUCKET, OUTPUT_PREFIX(기본 ai-output/), QUEUE_URL, MAX_RUNNING(기본 2),
           DEFER_SECONDS(기본 120, 최대 900), MAX_DEFERS(기본 30), ASSIGN_PUBLIC_IP(기본 ENABLED),
+          CAPACITY_PROVIDER(비우면 Fargate 온디맨드, FARGATE_SPOT 이면 Spot — 클러스터에 Spot 용량 공급자 연결 필요.
+            회수되면 워커가 SIGTERM 을 받아 retry_later 로 끝난다),
           SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 """
 import json
@@ -79,10 +81,16 @@ def run_worker(msg: dict) -> str:
     job_id, key = msg["job_id"], msg["input_key"]
     if not JOB_ID_RE.match(job_id) or not key.startswith(f"{_env('UPLOAD_PREFIX', 'uploads/')}{job_id}/"):
         raise ValueError(f"잘못된 메시지: {msg}")
+    provider = _env("CAPACITY_PROVIDER", "")
+    if provider not in ("", "FARGATE", "FARGATE_SPOT"):
+        raise RuntimeError(f"CAPACITY_PROVIDER 는 FARGATE 또는 FARGATE_SPOT: {provider}")
+    # 둘 중 하나만: 용량 공급자 전략을 주면 launchType 은 빼야 한다(ECS 규칙)
+    launch = ({"capacityProviderStrategy": [{"capacityProvider": provider, "weight": 1}]}
+              if provider == "FARGATE_SPOT" else {"launchType": "FARGATE"})
     r = _client("ecs").run_task(
         cluster=_env("CLUSTER"),
         taskDefinition=_env("TASK_DEFINITION"),
-        launchType="FARGATE",
+        **launch,
         count=1,
         startedBy="lavcca-dispatcher",
         tags=[{"key": "job_id", "value": job_id}],
