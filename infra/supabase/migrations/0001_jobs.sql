@@ -1,9 +1,21 @@
 -- 0001_jobs.sql — NATAM 작업 상태 스키마 (초안, 아직 어디에도 적용 안 함)
 --
--- 적용은 PM(인프라 담당) 승인 후 dev 프로젝트에만: Supabase SQL Editor 에 붙여넣거나 `supabase db push`.
+-- 적용은 PM(인프라 담당) 승인 후 dev 프로젝트에만: Supabase SQL Editor 에 파일 전체를 붙여넣어 한 번 실행.
 -- 원칙: 쓰기는 서버(API Lambda·워커 = service_role, RLS 우회)만 한다.
 --       로그인 사용자는 자기 작업만 읽고, 피드백만 직접 쓴다.
 -- 저작권 감지기 SQLite(copyright_db.sqlite) 이전은 이 파일 범위 밖(별도 마이그레이션, 백업 먼저).
+--
+-- 트랜잭션: BEGIN/COMMIT 을 넣지 않는다 — SQL Editor 는 여러 문장을 한 번에 보내 하나의 암묵적 트랜잭션으로
+--   실행하므로 중간에 실패하면 전부 취소된다. 재실행: 아래 가드가 명확한 오류로 막는다(부분 적용 없음).
+-- 검증: infra/supabase/tests/0001_jobs_verify.sql(읽기 전용) → 0001_jobs_rls_test.sql(ROLLBACK)
+-- 되돌리기: infra/supabase/rollback/0001_jobs_down.sql
+
+do $$
+begin
+  if to_regclass('public.jobs') is not null then
+    raise exception '0001_jobs 이미 적용됨(public.jobs 존재) — 재실행하지 않는다';
+  end if;
+end $$;
 
 -- ── 작업 ─────────────────────────────────────────────────────────────
 create table public.jobs (
@@ -108,6 +120,19 @@ create policy feedback_insert_own on public.feedback
               and exists (select 1 from public.jobs j
                           where j.id = job_id and j.user_id = (select auth.uid())
                             and j.status in ('ok', 'partial')));
+
+-- ── 권한 (최소 권한) ─────────────────────────────────────────────────
+-- Supabase 기본 권한은 새 public 테이블에 anon/authenticated 의 INSERT·UPDATE·DELETE·TRUNCATE 까지 준다.
+-- TRUNCATE 는 RLS 를 거치지 않으므로 이 다섯 테이블에서만 명시적으로 걷어낸다(다른 테이블·기본 권한은 건드리지 않음).
+-- service_role 은 기본 권한 그대로(서버 쓰기 경로, RLS 우회).
+revoke all on table public.jobs, public.job_steps, public.feedback, public.copyright_matches, public.labels
+  from anon, authenticated;
+revoke all on sequence public.job_steps_id_seq, public.feedback_id_seq, public.copyright_matches_id_seq,
+  public.labels_id_seq from anon, authenticated;
+
+grant select on table public.jobs, public.copyright_matches, public.feedback to authenticated;
+-- id·user_id·created_at 은 기본값만 쓴다(user_id 는 auth.uid())
+grant insert (job_id, target, target_ref, verdict, comment) on table public.feedback to authenticated;
 
 -- 웹이 폴링 대신 Realtime 으로 상태를 받으려면(RLS 가 그대로 적용된다):
 -- alter publication supabase_realtime add table public.jobs;

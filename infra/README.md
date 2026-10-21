@@ -30,7 +30,9 @@
 | `mvp 1_9_3/Dockerfile` | 워커 이미지(Python 3.11) | GitHub Actions `worker-image` 빌드·스모크 |
 | `infra/aws/cloudformation/lavcca-worker-dev.yaml` | **1차 배포 스택**: ECR, ECS 클러스터·태스크 정의, 로그 그룹, 워커 IAM 역할 2개, GitHub OIDC 푸시 역할, 보안 그룹, 빈 시크릿 | cfn-lint, Access Analyzer |
 | `.github/workflows/worker-image.yml` | PR: 빌드·스모크·Trivy 보고 / main: 승인 후 OIDC 로 ECR 푸시(태그 = Git SHA) | actionlint |
-| `infra/supabase/migrations/0001_jobs.sql` | jobs·job_steps·feedback·copyright_matches·labels + RLS | PostgreSQL 파서 통과. **Supabase 적용 안 함** |
+| `infra/supabase/migrations/0001_jobs.sql` | jobs·job_steps·feedback·copyright_matches·labels + RLS + anon/authenticated 최소 권한 | **dev 적용됨**(2026-10-21) |
+| `infra/supabase/migrations/0002_service_role_grants.sql` | service_role 에 5개 테이블 SELECT/INSERT/UPDATE/DELETE | **dev 적용됨**(2026-10-21) |
+| `infra/supabase/tests/`, `rollback/` | 카탈로그 검증(읽기 전용)·RLS 동작 테스트(ROLLBACK)·되돌리기 | dev 실행: 검증 8/8, RLS PASS |
 | `infra/aws/lambdas/api.py` | 업로드·제출·다운로드 API (T5) | 단위 테스트(가짜 S3/SQS/Supabase) |
 | `infra/aws/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 (T5) | 단위 테스트(가짜 ECS/SQS) |
 | `infra/aws/lambdas/supa.py` | Lambda 용 Supabase REST(표준 라이브러리만) | 단위 테스트 |
@@ -140,8 +142,21 @@ aws ecs run-task --cluster lavcca-dev --launch-type FARGATE --task-definition la
 
 ## T4. Supabase (dev 프로젝트)
 
+**적용 기록 (dev, ref `vbfurkpxfudyksfuzusw`)** — SQL Editor(postgres)로 실행해 Supabase 쪽 마이그레이션 이력(`supabase_migrations`)은 없다. 이 표가 기록이다.
+
+| 날짜 | 실행 | 결과 |
+|---|---|---|
+| 2026-10-21 | `0001_jobs.sql` | 성공. 검증 7/8 — service_role 에 SELECT/INSERT/UPDATE/DELETE 없음(이 프로젝트의 postgres 소유 테이블 기본 권한은 MAINTAIN·REFERENCES·TRIGGER·TRUNCATE 뿐) |
+| 2026-10-21 | `0002_service_role_grants.sql` | 성공. 검증 **8/8** (시퀀스 GRANT 불필요: id 는 IDENTITY) |
+| 2026-10-21 | `tests/0001_jobs_rls_test.sql` | `PASS`, 남은 테스트 데이터 0 (auth.users·5개 테이블 0행 확인, MCP 읽기 전용) |
+
+Supabase MCP 는 `read_only=true` 로 둔다. 다음 마이그레이션도 새 테이블마다 권한을 명시적으로 GRANT 한다.
+
 1. dev 프로젝트 생성(리전: 서울 권장). **마이그레이션 실행 전 확인**: `0001_jobs.sql` 의 테이블·RLS.
-2. SQL Editor 에서 `0001_jobs.sql` 실행.
+2. SQL Editor 에서 `0001_jobs.sql` → `0002_service_role_grants.sql` 순서로 실행(파일 전체가 한 트랜잭션, 0001 재실행은 가드가 막음).
+   이 프로젝트는 postgres 가 만든 테이블에 SELECT/INSERT/UPDATE/DELETE 기본 권한을 주지 않는다 → 0002 없으면 서버 쓰기 42501.
+   검증: `tests/0001_jobs_verify.sql`(읽기 전용, 전부 ok=true) → `tests/0001_jobs_rls_test.sql`(끝에서 ROLLBACK, `PASS`).
+   되돌리기: `rollback/0001_jobs_down.sql`(테이블이 비어 있을 때만).
 3. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` → 시크릿 `lavcca/dev/worker`(+ 태스크 정의 `Secrets`)와 Lambda 환경변수. `SUPABASE_ANON_KEY` → api Lambda 만.
    service_role 키는 RLS 를 우회한다 — 웹(프런트) 코드에 절대 넣지 않는다.
 4. `copyright_db.sqlite` → Postgres 이전은 별도 작업(먼저 SQLite 백업).
