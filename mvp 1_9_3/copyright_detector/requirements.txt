@@ -15,7 +15,7 @@ requests>=2.31.0
 aiohttp>=3.9.0
 
 # Image Analysis
-Pillow>=10.0.0
+Pillow>=13.0.0
 imagehash>=4.3.0
 
 # OCR

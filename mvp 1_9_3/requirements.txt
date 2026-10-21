@@ -13,7 +13,7 @@ PyYAML==6.0.3
 numpy==2.4.3
 faiss-cpu==1.13.2
 opencv-python-headless==4.13.0.92
-pillow==12.1.1
+pillow==13.0.0
 joblib==1.5.3
 scikit-learn==1.8.0
 easyocr==1.7.2
