@@ -59,7 +59,7 @@ aws cloudformation create-change-set --stack-name lavcca-worker-dev --change-set
   --template-body file://infra/aws/cloudformation/lavcca-worker-dev.yaml \
   --parameters ParameterKey=VpcId,ParameterValue=<기본 VPC id> \
   --tags Key=Project,Value=lavcca Key=Env,Value=dev
-aws cloudformation describe-change-set --stack-name lavcca-worker-dev --change-set-name init   # 리소스 11개 확인
+aws cloudformation describe-change-set --stack-name lavcca-worker-dev --change-set-name init   # 리소스 10개(Add) 확인 — OIDC 공급자를 이미 갖고 있으면 9개
 aws cloudformation execute-change-set  --stack-name lavcca-worker-dev --change-set-name init
 ```
 GitHub OIDC 공급자가 이미 계정에 있으면 `CreateGitHubOidcProvider=false`.
@@ -92,9 +92,9 @@ main 에 병합되면 `worker-image` 의 `publish` 잡이 승인을 기다린다
 
 ### 4-1. 실행 전 점검 (값은 출력하지 않는다)
 ```
-aws secretsmanager get-secret-value --secret-id lavcca/dev/worker --query SecretString --output text \
-  | python -c "import json,sys; d=json.load(sys.stdin); print({k: bool(v.strip()) for k, v in d.items()})"
-# 기대: {'GEMINI_API_KEY': True, 'GOOGLE_API_KEY': True|False, 'YOUTUBE_API_KEY': True|False}
+python infra/aws/tools/check_worker_secret.py
+# 기대: GEMINI_API_KEY: set / GOOGLE_API_KEY: set|EMPTY / YOUTUBE_API_KEY: set|EMPTY / OK
+# 값은 스크립트 프로세스 안에서만 다룬다(파이프·셸 변수·화면에 안 남김). 키 목록은 템플릿 Secrets 에서 읽는다.
 ```
 - 값이 한 번도 안 들어간 시크릿 → 태스크가 컨테이너 시작 전에 실패(ResourceInitializationError), 비용 거의 없음.
 - 키는 있고 `GEMINI_API_KEY` 가 빈 값 → 워커가 다운로드·분석 전에 `failed`(종료 코드 1)로 끝난다(`worker.require_env`).

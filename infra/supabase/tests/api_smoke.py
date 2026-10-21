@@ -31,7 +31,7 @@ def _key(env, prefix):
     k = os.getenv(env) or getpass.getpass(f"{env} ({prefix}…, 입력은 화면에 안 보임): ")
     k = k.strip()
     if not k.startswith(prefix):
-        sys.exit(f"{env} 형식이 아님({prefix}… 이어야 함) — 중단")
+        sys.exit(f"{env} 형식이 아님({prefix}… 이어야 함) - 중단")
     return k
 
 
@@ -64,7 +64,7 @@ def main(base=None):
     base = (base or os.getenv("SUPABASE_URL") or f"https://{REF}.supabase.co").rstrip("/") + "/rest/v1"
     host = urllib.parse.urlsplit(base).hostname or ""
     if host not in (f"{REF}.supabase.co", "127.0.0.1", "localhost"):   # dev 전용(로컬은 가짜 서버 점검용)
-        sys.exit(f"대상이 Lavcca dev({REF})가 아님: {host} — 중단")
+        sys.exit(f"대상이 Lavcca dev({REF})가 아님: {host} - 중단")
     pub = _key("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_")
     sec = _key("SUPABASE_SECRET_KEY", "sb_secret_")
     results = []

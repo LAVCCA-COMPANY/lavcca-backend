@@ -55,7 +55,11 @@ jobs:
           fail-on-critical: "0"
 
   publish:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    # main(push·수동) + main 병합 전 1차 배포용 브랜치(수동 실행만). AWS 쪽도 sub 의 ref 로 같은 브랜치만 받는다.
+    if: >-
+      github.event_name != 'pull_request' &&
+      (github.ref == 'refs/heads/main' ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/chore/lavcca-worker-deploy'))
     runs-on: ubuntu-latest
     timeout-minutes: 75
     environment: lavcca-dev
@@ -76,6 +80,7 @@ jobs:
           role-to-assume: ${{ vars.LAVCCA_ECR_PUSH_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-worker-${{ github.run_id }}
+          mask-aws-account-id: true   # 공개 저장소: 로그에 계정 ID 를 남기지 않는다
 
       - name: ECR login
         id: ecr
