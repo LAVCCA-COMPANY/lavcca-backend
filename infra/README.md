@@ -32,7 +32,7 @@
 | `.github/workflows/worker-image.yml` | PR: 빌드·스모크·Trivy 보고 / main: 승인 후 OIDC 로 ECR 푸시(태그 = Git SHA) | actionlint |
 | `infra/supabase/migrations/0001_jobs.sql` | jobs·job_steps·feedback·copyright_matches·labels + RLS + anon/authenticated 최소 권한 | **dev 적용됨**(2026-10-21) |
 | `infra/supabase/migrations/0002_service_role_grants.sql` | service_role 에 5개 테이블 SELECT/INSERT/UPDATE/DELETE | **dev 적용됨**(2026-10-21) |
-| `infra/supabase/tests/`, `rollback/` | 카탈로그 검증(읽기 전용)·RLS 동작 테스트(ROLLBACK)·되돌리기 | dev 실행: 검증 8/8, RLS PASS |
+| `infra/supabase/tests/`, `rollback/` | 카탈로그 검증(읽기 전용)·RLS 동작 테스트(ROLLBACK)·PostgREST 점검(`api_smoke.py`)·되돌리기 | dev 실행: 검증 8/8, RLS PASS, API 17/17 |
 | `infra/aws/lambdas/api.py` | 업로드·제출·다운로드 API (T5) | 단위 테스트(가짜 S3/SQS/Supabase) |
 | `infra/aws/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 (T5) | 단위 테스트(가짜 ECS/SQS) |
 | `infra/aws/lambdas/supa.py` | Lambda 용 Supabase REST(표준 라이브러리만) | 단위 테스트 |
@@ -149,6 +149,10 @@ aws ecs run-task --cluster lavcca-dev --launch-type FARGATE --task-definition la
 | 2026-10-21 | `0001_jobs.sql` | 성공. 검증 7/8 — service_role 에 SELECT/INSERT/UPDATE/DELETE 없음(이 프로젝트의 postgres 소유 테이블 기본 권한은 MAINTAIN·REFERENCES·TRIGGER·TRUNCATE 뿐) |
 | 2026-10-21 | `0002_service_role_grants.sql` | 성공. 검증 **8/8** (시퀀스 GRANT 불필요: id 는 IDENTITY) |
 | 2026-10-21 | `tests/0001_jobs_rls_test.sql` | `PASS`, 남은 테스트 데이터 0 (auth.users·5개 테이블 0행 확인, MCP 읽기 전용) |
+| 2026-10-21 | `tests/api_smoke.py` (PostgREST, 새 sb_ 키를 apikey 헤더로만) | **17/17 PASS** — publishable: 5개 테이블 HTTP 401 / secret: 5개 테이블 HTTP 200·`count=exact` 0행 / 없는 id PATCH: 204·`*/0` / jobs 전후 0→0 (MCP 로 재확인) |
+
+`api_smoke.py` 는 PM 터미널에서 `python infra/supabase/tests/api_smoke.py` 로 실행한다. 키는 숨김 입력(getpass)으로만 받고, 대상이 dev 가 아니면 키를 묻기 전에 중단한다.
+쓰기는 무작위 없는 id 에 대한 PATCH 1건뿐이다(0행). 출력은 HTTP 코드·행 수·Content-Range 만.
 
 Supabase MCP 는 `read_only=true` 로 둔다. 다음 마이그레이션도 새 테이블마다 권한을 명시적으로 GRANT 한다.
 
