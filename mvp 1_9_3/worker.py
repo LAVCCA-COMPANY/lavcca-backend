@@ -21,7 +21,7 @@ worker.py — 영상 1개 = 작업 1개를 비대화식으로 처리하는 서�
       400·JSON 파싱 실패로 비어 있는 판정은 failed. 영구 실패가 하나라도 있으면 재시도하지 않는다.
       retry_later 는 나중에 같은 작업을 다시 돌리라는 뜻(재투입은 T5 큐 쪽 몫). 컨테이너는 WHISPER_FALLBACK=0.
 종료 코드: ok·partial → 0, retry_later → 75(EX_TEMPFAIL), failed → 1.
-SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 가 있으면 jobs/job_steps 에 상태를 기록한다
+SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY(새 sb_secret_ 키 권장, 레거시 service_role JWT 도 가능)가 있으면 jobs/job_steps 에 상태를 기록한다
 (스키마: 저장소 루트 infra/supabase/migrations/0001_jobs.sql, 배포 순서: infra/README.md). 없으면 기록 생략.
 비밀값은 환경변수로 받는다. 저작권 감지기는 자기 폴더의 .env 와 환경변수를 쓴다.
 """
@@ -122,13 +122,14 @@ def upload_layout(out_dir: Path, outputs: dict) -> list[tuple[Path, str]]:
     return pairs
 
 
-def upload_outputs(out_dir: Path, uri: str, outputs: dict, s3=None) -> int:
+def upload_outputs(out_dir: Path, uri: str, outputs: dict, s3=None, only: set | None = None) -> int:
+    """only: 이 파일 이름들만 다시 올린다(예: {"job_result.json"})."""
     import boto3
     s3 = s3 or boto3.client("s3")
     bucket, prefix = split_s3(uri)
     if prefix and not prefix.endswith("/"):
         prefix += "/"
-    pairs = upload_layout(out_dir, outputs)
+    pairs = [(p, k) for p, k in upload_layout(out_dir, outputs) if only is None or p.name in only]
     for p, key in pairs:
         ctype = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
         if p.suffix in (".md", ".log", ".json"):
@@ -139,41 +140,85 @@ def upload_outputs(out_dir: Path, uri: str, outputs: dict, s3=None) -> int:
 
 
 # ── Supabase 상태 기록 (선택) ─────────────────────────────────────────
+def affected_rows(content_range: str | None) -> int | None:
+    """PostgREST 쓰기 응답의 Content-Range → 바뀐 행 수. "0-0/1"·"*/0"(count=exact), "0-2/*"·"*/*"(count 없음).
+    헤더가 없거나 형식을 모르면 None."""
+    rng, sep, total = (content_range or "").strip().partition("/")
+    if not sep:
+        return None
+    if total.isdigit():
+        return int(total)
+    if rng == "*":
+        return 0
+    lo, _, hi = rng.partition("-")
+    return int(hi) - int(lo) + 1 if lo.isdigit() and hi.isdigit() else None
+
+
 class JobStatus:
     """PostgREST 로 jobs 행을 갱신하고 job_steps 를 넣는다. 환경변수가 없으면 아무것도 안 한다.
-    기록 실패는 경고만 남긴다 — S3 의 job_result.json 이 결과의 원본 사본."""
+    기록 실패는 경고만 남기고 errors 로 센다 — S3 의 job_result.json 이 결과의 원본 사본.
+    로그에는 키·헤더를 넣지 않는다(메서드, 경로, HTTP 코드, 응답 본문 앞부분만)."""
 
     def __init__(self, url: str = "", key: str = "", session=None):
+        if key.startswith("sb_publishable_"):
+            print("⚠️ SUPABASE_SERVICE_ROLE_KEY 에 publishable 키가 들어옴 → 상태 기록 생략(sb_secret_ 키 필요)")
+            key = ""
         self.url = url.rstrip("/")
         self.key = key
         self.session = session
+        self.errors = 0
 
     @classmethod
     def from_env(cls):
-        return cls(os.getenv("SUPABASE_URL", ""), os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))
+        url, key = os.getenv("SUPABASE_URL", ""), os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+        if bool(url) != bool(key):
+            missing = "SUPABASE_SERVICE_ROLE_KEY" if url else "SUPABASE_URL"
+            print(f"⚠️ {missing} 없음 → Supabase 상태 기록 꺼짐(SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 둘 다 필요)")
+        return cls(url, key)
 
     @property
     def enabled(self) -> bool:
         return bool(self.url and self.key)
 
-    def _call(self, method, path, body):
+    def error_count(self) -> int | None:
+        """job_result.json 의 status_write_errors: 기록 꺼짐이면 None, 켜져 있으면 실패 횟수."""
+        return self.errors if self.enabled else None
+
+    def _fail(self, method, path, why):
+        self.errors += 1
+        print(f"⚠️ 상태 기록 실패 {method} {path}: {why}")
+
+    def _call(self, method, path, body, prefer="return=minimal"):
+        """성공하면 응답, 꺼져 있거나 실패하면 None."""
         if not self.enabled:
-            return
+            return None
         try:
             if self.session is None:
                 import requests
                 self.session = requests.Session()
+            headers = {"apikey": self.key, "Content-Type": "application/json", "Prefer": prefer}
+            if not self.key.startswith("sb_"):   # 레거시 JWT 키만 Bearer 로도(새 sb_secret_ 키는 Bearer 에서 거부됨)
+                headers["Authorization"] = f"Bearer {self.key}"
             r = self.session.request(
-                method, f"{self.url}/rest/v1/{path}", json=body, timeout=10,
-                headers={"apikey": self.key, "Authorization": f"Bearer {self.key}",
-                         "Content-Type": "application/json", "Prefer": "return=minimal"})
-            if r.status_code >= 300:
-                print(f"⚠️ 상태 기록 실패 {method} {path}: HTTP {r.status_code} {r.text[:200]}")
+                method, f"{self.url}/rest/v1/{path}", json=body, timeout=10, headers=headers)
         except Exception as e:
-            print(f"⚠️ 상태 기록 실패 {method} {path}: {e}")
+            self._fail(method, path, type(e).__name__)   # 예외 문자열은 요청 정보를 담을 수 있어 이름만
+            return None
+        if r.status_code >= 300:
+            self._fail(method, path, f"HTTP {r.status_code} {r.text[:200]}")
+            return None
+        return r
 
     def update(self, job_id: str, **fields):
-        self._call("PATCH", f"jobs?id=eq.{job_id}", fields)
+        path = f"jobs?id=eq.{job_id}"
+        r = self._call("PATCH", path, fields, prefer="return=minimal, count=exact")
+        if r is None:
+            return
+        n = affected_rows(r.headers.get("Content-Range"))
+        if n == 0:
+            self._fail("PATCH", path, "jobs 행 없음(0행 갱신) — 작업이 API 로 만들어졌는지 확인")
+        elif n is None:
+            print(f"⚠️ PATCH {path}: Content-Range 없음 → 갱신 행 수 확인 불가")
 
     def add_steps(self, job_id: str, steps: list):
         if steps:
@@ -368,6 +413,8 @@ def run_job(args) -> dict:
 def main(argv=None) -> int:
     args = parse_args(argv)
     status = JobStatus.from_env()
+    if not status.enabled:
+        print("ℹ️ Supabase 상태 기록 꺼짐 → job_result.json status_write_errors=null")
     status.update(args.job_id, status="running", started_at=_now())
 
     secrets_dir = Path(tempfile.mkdtemp(prefix="natam_sec_"))   # 결과 폴더(S3 업로드 대상) 밖
@@ -384,6 +431,8 @@ def main(argv=None) -> int:
     def _write():
         path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    status.add_steps(args.job_id, result["steps"])
+    result["status_write_errors"] = status.error_count()
     _write()
     if args.output_s3:
         try:
@@ -396,11 +445,20 @@ def main(argv=None) -> int:
             result["error"] = f"S3 업로드 실패: {type(e).__name__}: {e}"
             _write()
 
-    status.add_steps(args.job_id, result["steps"])
+    # 최종 상태는 업로드 뒤에 쓴다(웹은 ok 를 보고 파일을 받는다). 여기서 실패하면 job_result.json 만 다시 올린다
+    before = status.errors
     status.update(args.job_id, status=result["status"], finished_at=result["finished_at"],
                   error=result.get("error"),
                   report_prefix=result["outputs"].get("s3_prefix"),
                   llm_cost_usd=(result.get("llm_cost") or {}).get("est_usd"))
+    if status.errors != before:
+        result["status_write_errors"] = status.error_count()
+        _write()
+        if result["outputs"].get("s3_prefix"):
+            try:
+                upload_outputs(args.output_dir, args.output_s3, result["outputs"], only={path.name})
+            except Exception as e:
+                print(f"⚠️ job_result.json 재업로드 실패: {type(e).__name__}")
     print(f"🧾 job {args.job_id} → {result['status']}  ({path})")
     if result["status"] == "retry_later":
         return EXIT_RETRY_LATER

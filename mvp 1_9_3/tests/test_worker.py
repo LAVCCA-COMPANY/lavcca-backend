@@ -33,14 +33,19 @@ class FakeResp:
     status_code = 204
     text = ""
 
+    def __init__(self, headers=None):
+        self.headers = headers or {}
+
 
 class FakeSession:
-    def __init__(self):
+    def __init__(self, content_range=None):
         self.calls = []
+        self.content_range = content_range   # PATCH 응답 Content-Range(None 이면 헤더 없음)
 
     def request(self, method, url, json=None, timeout=None, headers=None):
         self.calls.append((method, url, json, headers))
-        return FakeResp()
+        cr = self.content_range if method == "PATCH" else None
+        return FakeResp({"Content-Range": cr} if cr else {})
 
 
 def test_split_s3():
@@ -142,6 +147,89 @@ def test_job_status_requests():
     assert b2 == [{"name": "analyze", "sec": 1.0, "maxrss_mb": None, "job_id": "j1"}]
 
 
+
+@pytest.mark.parametrize("key, bearer", [("sb_secret_TEST", None), ("eyJ.legacy.test", "Bearer eyJ.legacy.test")])
+def test_job_status_auth_headers(key, bearer):
+    sess = FakeSession()
+    st = worker.JobStatus("https://x.supabase.co", key, session=sess)
+    st.update("j1", status="running")
+    st.add_steps("j1", [{"name": "download", "sec": 1.0, "maxrss_mb": 10.0}])
+    assert len(sess.calls) == 2
+    for *_, h in sess.calls:
+        assert h["apikey"] == key and h.get("Authorization") == bearer
+
+
+def test_job_status_rejects_publishable_key(capsys):
+    sess = FakeSession()
+    st = worker.JobStatus("https://x.supabase.co", "sb_publishable_TEST", session=sess)
+    st.update("j1", status="running")
+    assert not st.enabled and sess.calls == []
+    assert "sb_publishable_TEST" not in capsys.readouterr().out
+
+
+def test_job_status_http_error_only_warns(capsys):
+    class Resp401:
+        status_code = 401
+        text = '{"message":"Invalid API key"}'
+
+    class Sess(FakeSession):
+        def request(self, *a, **k):
+            super().request(*a, **k)
+            return Resp401()
+
+    st = worker.JobStatus("https://x.supabase.co", "sb_secret_TEST", session=Sess())
+    st.update("j1", status="ok")                 # 상태 기록 실패는 작업을 멈추지 않는다
+    out = capsys.readouterr().out
+    assert "HTTP 401" in out and "sb_secret_TEST" not in out
+
+
+# ── 상태 기록 관측성: 0행 갱신, 부분 설정, 실패 집계 ─────────────────────
+@pytest.mark.parametrize("cr, n", [("0-0/1", 1), ("*/0", 0), ("0-2/*", 3), ("*/*", 0),
+                                   (None, None), ("", None), ("bogus", None), ("a-b/*", None)])
+def test_affected_rows(cr, n):
+    assert worker.affected_rows(cr) == n
+
+
+@pytest.mark.parametrize("cr, errors, warn", [
+    ("0-0/1", 0, None),                     # 정상 갱신
+    ("*/0", 1, "0행 갱신"),                  # jobs 행 없음 → 실패로 센다
+    (None, 0, "Content-Range 없음"),         # 헤더 누락 → 확인 불가 경고만
+])
+def test_job_status_patch_rows(cr, errors, warn, capsys):
+    sess = FakeSession(content_range=cr)
+    st = worker.JobStatus("https://x.supabase.co", "sb_secret_TEST", session=sess)
+    st.update("j1", status="running")
+    assert "count=exact" in sess.calls[0][3]["Prefer"]
+    out = capsys.readouterr().out
+    assert st.error_count() == errors
+    assert (warn in out) if warn else out == ""
+    assert "sb_secret_TEST" not in out
+
+
+@pytest.mark.parametrize("env, missing", [({"SUPABASE_URL": "https://x.supabase.co"}, "SUPABASE_SERVICE_ROLE_KEY"),
+                                          ({"SUPABASE_SERVICE_ROLE_KEY": "sb_secret_TEST"}, "SUPABASE_URL")])
+def test_job_status_partial_config_warns(env, missing, monkeypatch, capsys):
+    for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    st = worker.JobStatus.from_env()
+    out = capsys.readouterr().out
+    assert missing in out and "sb_secret_TEST" not in out
+    assert not st.enabled and st.error_count() is None      # 꺼짐(None) ≠ 실패 0회
+
+
+def test_job_status_exception_hides_message(capsys):
+    class Boom(FakeSession):
+        def request(self, *a, **k):
+            raise ConnectionError("https://x.supabase.co apikey=sb_secret_TEST")
+
+    st = worker.JobStatus("https://x.supabase.co", "sb_secret_TEST", session=Boom())
+    st.update("j1", status="ok")
+    st.add_steps("j1", [{"name": "x"}])
+    out = capsys.readouterr().out
+    assert st.error_count() == 2 and "ConnectionError" in out and "sb_secret_TEST" not in out
+
 # ── retry_later (Gemini 일시 장애) ──────────────────────────────────────
 class TransientAPIError(RuntimeError):
     """엔진(mvp_ver_1_9_2)의 같은 이름 예외 흉내 — worker 는 retry_after 속성으로 판정한다."""
@@ -234,6 +322,30 @@ def test_run_ok(tmp_path, monkeypatch):
     code, res = _run(tmp_path, monkeypatch)
     assert (code, res["status"]) == (0, "ok")
     assert res["quality"] == {"natam_evaluation_status": "ok", "tier2_unverified": 0, "tier2_transient": 0}
+    assert res["status_write_errors"] is None                     # 기록 꺼짐
+
+
+def test_run_records_status_write_errors(tmp_path, monkeypatch, capsys):
+    _fake_engine(monkeypatch, lambda out: _report(out, adjudicated=[{"is_controversy": False}]))
+    sess = FakeSession(content_range="*/0")                   # jobs 행이 없는 수동 실행 흉내
+    monkeypatch.setattr(worker.JobStatus, "from_env",
+                        classmethod(lambda cls: cls("https://x.supabase.co", "sb_secret_TEST", session=sess)))
+    uploads = []
+    monkeypatch.setattr(worker, "upload_outputs",
+                        lambda out_dir, uri, outputs, s3=None, only=None: uploads.append(only) or 1)
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    out = tmp_path / "out"
+    code = worker.main(["--job-id", "j1", "--input", str(video), "--output-dir", str(out), "--no-copyright",
+                        "--output-s3", "s3://b/ai-output/j1/"])
+    raw = (out / "job_result.json").read_text(encoding="utf-8")
+    import json
+    res = json.loads(raw)
+    assert code == 0 and res["status"] == "ok"                  # 기록 실패는 분석 결과를 바꾸지 않는다
+    assert res["status_write_errors"] == 2                      # running·최종 PATCH 둘 다 0행
+    assert [m for m, *_ in sess.calls] == ["PATCH", "POST", "PATCH"]
+    assert uploads == [None, {"job_result.json"}]               # 최종 실패 뒤 job_result.json 만 재업로드
+    assert "sb_secret_TEST" not in raw and "sb_secret_TEST" not in capsys.readouterr().out
 
 
 def test_run_retry_later_on_transient_error(tmp_path, monkeypatch):

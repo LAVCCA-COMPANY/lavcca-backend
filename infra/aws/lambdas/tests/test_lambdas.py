@@ -309,3 +309,56 @@ def test_supa_update_filters_in_url():
         "jobs", {"id": "eq.j1", "status": "in.(queued,running)"}, {"status": "failed"})
     assert http.reqs[0].full_url == "https://x/rest/v1/jobs?id=eq.j1&status=in.(queued,running)"
     assert http.reqs[0].get_method() == "PATCH"
+
+
+# 키 형식별 인증 헤더 — 가짜 키 문자열만 쓴다
+SECRET, PUBLISHABLE, LEGACY = "sb_secret_TEST", "sb_publishable_TEST", "eyJ.legacy.test"
+
+
+def _calls(sb):
+    sb.insert("jobs", {"id": "j1"})
+    sb.update("jobs", {"id": "eq.j1"}, {"status": "ok"})
+    sb.select("jobs", {"id": "eq.j1"})
+
+
+def test_supa_secret_key_goes_in_apikey_only():
+    http = FakeHTTP(status=200, body=b"[]", headers={"content-range": "*/0"})
+    sb = Supabase("https://x", SECRET, PUBLISHABLE, opener=http)
+    _calls(sb)
+    sb.count("jobs", {})
+    assert len(http.reqs) == 4
+    for req in http.reqs:
+        assert req.get_header("Apikey") == SECRET
+        assert req.get_header("Authorization") is None
+
+
+def test_supa_legacy_jwt_key_also_bearer():
+    http = FakeHTTP(status=200, body=b"[]")
+    _calls(Supabase("https://x", LEGACY, opener=http))
+    for req in http.reqs:
+        assert req.get_header("Apikey") == LEGACY
+        assert req.get_header("Authorization") == f"Bearer {LEGACY}"
+
+
+def test_supa_get_user_keeps_user_jwt_with_new_keys():
+    http = FakeHTTP(body=b'{"id": "u-1"}')
+    sb = Supabase("https://x", SECRET, PUBLISHABLE, opener=http)
+    assert sb.get_user("user.jwt") == {"id": "u-1"}
+    req = http.reqs[0]
+    assert req.get_header("Apikey") == PUBLISHABLE                  # 서버 secret 키가 아니라 publishable
+    assert req.get_header("Authorization") == "Bearer user.jwt"
+
+
+def test_supa_rejects_publishable_as_server_key():
+    with pytest.raises(SupabaseError, match="publishable"):
+        Supabase("https://x", PUBLISHABLE)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_supa_auth_errors_raise_without_key(status):
+    sb = Supabase("https://x", SECRET, opener=FakeHTTP(status=status))
+    for call in (lambda: sb.insert("jobs", {}), lambda: sb.update("jobs", {"id": "eq.j"}, {}),
+                 lambda: sb.select("jobs", {}), lambda: sb.count("jobs", {})):
+        with pytest.raises(SupabaseError) as e:
+            call()
+        assert str(status) in str(e.value) and SECRET not in str(e.value)

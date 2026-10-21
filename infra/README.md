@@ -158,6 +158,8 @@ Supabase MCP 는 `read_only=true` 로 둔다. 다음 마이그레이션도 새 �
    검증: `tests/0001_jobs_verify.sql`(읽기 전용, 전부 ok=true) → `tests/0001_jobs_rls_test.sql`(끝에서 ROLLBACK, `PASS`).
    되돌리기: `rollback/0001_jobs_down.sql`(테이블이 비어 있을 때만).
 3. `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` → 시크릿 `lavcca/dev/worker`(+ 태스크 정의 `Secrets`)와 Lambda 환경변수. `SUPABASE_ANON_KEY` → api Lambda 만.
+   값은 새 키를 쓴다: `SUPABASE_SERVICE_ROLE_KEY` = secret 키(`sb_secret_…`), `SUPABASE_ANON_KEY` = publishable 키(`sb_publishable_…`).
+   레거시 JWT 키는 2026년 말 종료. 새 sb_ 키는 `apikey` 헤더로만 보낸다(`supa.py`·`worker.py` 가 키 형식을 보고 처리).
    service_role 키는 RLS 를 우회한다 — 웹(프런트) 코드에 절대 넣지 않는다.
 4. `copyright_db.sqlite` → Postgres 이전은 별도 작업(먼저 SQLite 백업).
 
