@@ -1,0 +1,4276 @@
+[
+  {
+    "text": "저런 싸가지 없는 새끼가 기껏 씻겨 놨더니",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.983,
+      "L02": 0.95
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 5,
+      "timestamp": "00:09–00:11"
+    }
+  },
+  {
+    "text": "어 인판티노 이딴 개씹노잼 스포츠 피플 인조이?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.352
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "CAUTION"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 13,
+      "timestamp": "00:25–00:28"
+    }
+  },
+  {
+    "text": "친구 자체가 없다 이 새끼야",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.918,
+      "L03": 0.552
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 4,
+      "timestamp": "00:20–00:23"
+    }
+  },
+  {
+    "text": "웃음이 많아요 그죠 피해자가",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.872
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L11",
+      "severity": "DANGER"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 45,
+      "timestamp": "03:05–03:07"
+    }
+  },
+  {
+    "text": "화가 나겠군요. 이것은 아니 그런데 왜 어쩌다가 제정신이 아닌 거 같아. 이것이 맞냐?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.942
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 0,
+      "timestamp": "00:00–00:04"
+    }
+  },
+  {
+    "text": "제정신이 아닌 거 같아. 이것이 맞냐? 할아버지가 할머니한테 번호 따기를 함.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.629
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 1,
+      "timestamp": "00:03–00:06"
+    }
+  },
+  {
+    "text": "인맥 많고 많이 뿌렸으면 진짜 아까울 수도 있겠다 뭐 이런 생각은 드는데 와",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.904
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 10,
+      "timestamp": "00:44–00:49"
+    }
+  },
+  {
+    "text": "제목을 씨 아휴",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.372
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 13,
+      "timestamp": "00:46–00:49"
+    }
+  },
+  {
+    "text": "제목을 씨발 하유",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 13,
+      "timestamp": "00:58–01:00"
+    }
+  },
+  {
+    "text": "진짜 추노 중독되면 끊기가 담배보다 더 힘들다. 이 씨발 미친놈인가.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 28,
+      "timestamp": "02:02–02:07"
+    }
+  },
+  {
+    "text": "아 마지막 저거 진짜 미친 새끼네 이거 와",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.586
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "CAUTION"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 33,
+      "timestamp": "02:26–02:29"
+    }
+  },
+  {
+    "text": "그 자리에는 또 신규가 앉음. 물론 기존 커피 제조 사업도 안 사라지고 같이 맡게 됨. 현직이 아닐 수가 없다 이것은.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.538
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 69,
+      "timestamp": "07:46–07:53"
+    }
+  },
+  {
+    "text": "지자체 재량에 맡김. 책임 회피 단어 goat. 진짜 충격이다 정말 와",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.931
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L07",
+      "severity": "CAUTION"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 70,
+      "timestamp": "07:53–07:59"
+    }
+  },
+  {
+    "text": "시발 진짜 있다.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.998,
+      "L02": 0.874
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 88,
+      "timestamp": "07:39–07:43"
+    }
+  },
+  {
+    "text": "아 존나 심각하다 와",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.859
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L01",
+      "severity": "CAUTION"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 99,
+      "timestamp": "08:28–08:31"
+    }
+  },
+  {
+    "text": "라우카넨은 똑같은 사고를 세 번이나 친 선수가 되었다. 이 새끼 일부러 던지는 거 아니냐 이 정도면. 두 번쯤 했으면 안 던질 만도 한데 야",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.792
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "CAUTION"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 112,
+      "timestamp": "10:18–10:29"
+    }
+  },
+  {
+    "text": "아 하필 주워도 저런 사람이 줍냐.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.634,
+      "L03": 0.383
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "WARNING"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 134,
+      "timestamp": "11:59–12:02"
+    }
+  },
+  {
+    "text": "마누라도 가만히 안 두고 바꾼 분이 저런 말 하니까 믿음이 안 가네요. ㅋㅋ 아 진짜 이거는 접지 않았을까? 야 이거는 와.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.63
+    },
+    "tier2": {
+      "is_controversy": true,
+      "category": "L02",
+      "severity": "PROBABLE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 51,
+      "timestamp": "03:32–04:03"
+    }
+  },
+  {
+    "text": "어이 꼬맹이 많이 컸네",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.943,
+      "L02": 0.568
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 1,
+      "timestamp": "00:01–00:03"
+    }
+  },
+  {
+    "text": "야 메시 왜 그래 어떤 놈이야",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.525,
+      "L02": 0.519,
+      "L09": 0.47
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 6,
+      "timestamp": "00:11–00:12"
+    }
+  },
+  {
+    "text": "어 레프리 이 새끼 입 가리고 말했어요 퇴장 아이 형 짜지게 왜 그래요",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.93,
+      "L06": 0.329
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 41,
+      "timestamp": "02:13–02:15"
+    }
+  },
+  {
+    "text": "라이터는 부활 패시브가 있기 때문에 큰 리스크 없이 쓸 수 있을 것으로 보입니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.888
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 14,
+      "timestamp": "00:48–00:52"
+    }
+  },
+  {
+    "text": "매입가가 계속 바뀌기 때문에 비쌀 때 팔아주면 되고요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.63
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 28,
+      "timestamp": "01:49–01:53"
+    }
+  },
+  {
+    "text": "두 번째 보스 융합 연주자는 두꺼운 불 실드를 가지고 있는데 여기서만 쓸 수 있는 추가 스킬 빙결 반격을 사용해서 실드를 까줘야 됩니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.523
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 41,
+      "timestamp": "02:44–02:54"
+    }
+  },
+  {
+    "text": "보상 상자를 찾게 되면은 아군 전체에 이로운 효과를 주게 되고요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.546
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 43,
+      "timestamp": "02:58–03:02"
+    }
+  },
+  {
+    "text": "이 자식 도플라밍고 정상전쟁에서 전사했다는 편이 모양새가 날 텐데 정부에 제거되었다는 것보다는 말이지",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.587,
+      "L02": 0.389
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 19,
+      "timestamp": "01:16–01:23"
+    }
+  },
+  {
+    "text": "이것이 바로 사격 사격 열매 저격수인 너한테 이 얼마나 안성맞춤인 열매인가",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.52
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 34,
+      "timestamp": "02:21–02:28"
+    }
+  },
+  {
+    "text": "제길 역시 안 되나",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.577
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 38,
+      "timestamp": "02:37–02:39"
+    }
+  },
+  {
+    "text": "흰수염 반응 오즈를 밟고 전진하라 슬픈 기색 0",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.581,
+      "L02": 0.404
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 51,
+      "timestamp": "03:20–03:22"
+    }
+  },
+  {
+    "text": "와 여러 사람도 돼",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.683,
+      "L02": 0.441
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 72,
+      "timestamp": "04:38–04:40"
+    }
+  },
+  {
+    "text": "자연계까지 허리몽둥이를 조사버리면 압도적으로 루피 해적단 전력 1황이기에 연재 끝나는 날까지 로빈에게 무장색을 주진 않을 것 같다 마지막으로 즉사기에 대해 알아보겠다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.615
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 78,
+      "timestamp": "05:10–05:19"
+    }
+  },
+  {
+    "text": "이렇게 급소를 노리면 한 방에 저세상으로 보내버릴 수 있기 때문에 관련 질문을 오다가 많이 받았다고 한다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.757
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 80,
+      "timestamp": "05:26–05:32"
+    }
+  },
+  {
+    "text": "전부 로저라는 녀석의 탓이라고 어렴결에 들은 얘기로는 녀석이 처형당하기 직전에 하나뿐인 대비보인가 뭔가 알 수 없는 소리를 해대서",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.559,
+      "L09": 0.383
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 86,
+      "timestamp": "06:04–06:14"
+    }
+  },
+  {
+    "text": "헛소리는 그쯤 해두려무나 좆같은 소리로 와이파이 낭비 좀 하지 말거라 도플아 로그아웃하거라 너 때문에 임펠다운에 민원 폭탄이 접수되었단다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.637
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 111,
+      "timestamp": "08:44–08:52"
+    }
+  },
+  {
+    "text": "원피스 내에서 가장 정치 잘하는 놈",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L07": 0.772,
+      "L09": 0.31
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 114,
+      "timestamp": "09:00–09:03"
+    }
+  },
+  {
+    "text": "왕궁 병사 태양해적단 칠무해 흰수염 빅맘 루피 이렇게 밥 먹듯이 라인 갈아타면서 의리 캐릭터 유지하는 실력이 예술적임",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.533,
+      "L11": 0.305
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 127,
+      "timestamp": "10:18–10:28"
+    }
+  },
+  {
+    "text": "이쯤 되면 징베는 라인 갈아타기의 신이자 인의 가스라이팅의 신인 것 같음",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.65,
+      "L11": 0.613
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 129,
+      "timestamp": "10:33–10:38"
+    }
+  },
+  {
+    "text": "계단에서 발을 삐끗했나 원피스 세계관은 원래 계단이 제일 세거든요 계 D 단이라고 D의 일족 중에 계 D 단이라고 있어요 그것 때문에 죽었나 보다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.615
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 143,
+      "timestamp": "11:31–11:42"
+    }
+  },
+  {
+    "text": "센고쿠 저 새끼는 누구 편이냐 존나 하는 대사마다 같은 편 사기 떨어지게 만드네 원수라는 새끼가 아군 사기 다 떨궈놓는 멘트만 치네 저딴 게 해군 유일 패왕색 보유자",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.921,
+      "L01": 0.795,
+      "L11": 0.333
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 153,
+      "timestamp": "12:23–12:34"
+    }
+  },
+  {
+    "text": "B 임 부하인 오로성들부터 이미 말도 안 되게 강한 괴물들인데 오로성을 부하로 둔 임이 최종 보스가 아닐 리 없음 그리고 임은 공백의 100년 D의 일족 포네그리프 같은 거대한 떡밥과 관련이 있음 그래서 임이 최종 보스임",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.723
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 165,
+      "timestamp": "13:22–13:36"
+    }
+  },
+  {
+    "text": "이 새끼 나 여자친구 있는 거 몰라?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.937,
+      "L09": 0.367
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 2,
+      "timestamp": "00:09–00:10"
+    }
+  },
+  {
+    "text": "미라의 옷을 입은 남성이 나를 계속하여 추격한다?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.529,
+      "L09": 0.323
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 13,
+      "timestamp": "01:12–01:15"
+    }
+  },
+  {
+    "text": "번듯해 보이는 호랑이 그림이 그려진 배지. 배지에 작은 옷핀이 있다. 어디에 걸 수 있다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.623
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 30,
+      "timestamp": "01:21–01:26"
+    }
+  },
+  {
+    "text": "납치당한 건가 왜 이렇게 띨빡하냐",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.822,
+      "L11": 0.71,
+      "L01": 0.329
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 45,
+      "timestamp": "02:00–02:03"
+    }
+  },
+  {
+    "text": "밑에는 이상한 자물쇠 같은 게 있는데",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.802
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 56,
+      "timestamp": "02:28–02:30"
+    }
+  },
+  {
+    "text": "어어 어 나 이거 읽고 있는데 야 나 이거 읽고 있는데",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.593
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 72,
+      "timestamp": "03:12–03:16"
+    }
+  },
+  {
+    "text": "야 핀을 걸었는데 갑자기 이 새끼는 느낌을 거네",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.618,
+      "L01": 0.437
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 156,
+      "timestamp": "07:35–07:38"
+    }
+  },
+  {
+    "text": "충언하려다 죽은 충신.jpg",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.997,
+      "L02": 0.607,
+      "L03": 0.316
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 11,
+      "timestamp": "00:49–00:52"
+    }
+  },
+  {
+    "text": "애견 카페 첫날 교육받는데 두 달 된 여알바 두 명 있었음.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L06": 0.696,
+      "L01": 0.435
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 16,
+      "timestamp": "01:07–01:11"
+    }
+  },
+  {
+    "text": "본인 상하차 자존심 때문에 추노한 썰.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.895
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 25,
+      "timestamp": "01:49–01:52"
+    }
+  },
+  {
+    "text": "상하차하고 있는데 딱 봐도 몽골족 새끼가 어눌한 한국말로",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.954,
+      "L02": 0.786,
+      "L09": 0.349
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 26,
+      "timestamp": "01:52–01:56"
+    }
+  },
+  {
+    "text": "목소리 크게 하고 빠릿빠릿하게 뼈를 묻겠다는 행동 보여주면서 이 녀석 젊은 나이에 열심히 하는구나 생각 들게끔 하다가",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.868,
+      "L09": 0.319
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 30,
+      "timestamp": "02:10–02:16"
+    }
+  },
+  {
+    "text": "카지노 650억 잭팟 터졌는데 먹튀 당한 여성",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.862,
+      "L02": 0.414
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 34,
+      "timestamp": "02:29–02:33"
+    }
+  },
+  {
+    "text": "반면 전라도 애들은 조진 만큼만 분다. 요만큼 조지면 요만큼 나오고 저만큼 더 조지면 조금 더 나온다. 잔머리 끝내준다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L03": 0.969
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 49,
+      "timestamp": "03:41–03:49"
+    }
+  },
+  {
+    "text": "심지어 공용 의자에 앉아있다. 그리고 익숙한 분홍색 크록스 신발이 보인다. 왜 그런 행동을 했을까?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.96
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 89,
+      "timestamp": "07:43–07:48"
+    }
+  },
+  {
+    "text": "미화원분들도 힘들어하시잖아요. 그런 건 내가 안 해봐서 모르겠네.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.849
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 92,
+      "timestamp": "07:58–08:02"
+    }
+  },
+  {
+    "text": "핀란드의 유하 라우카넨이 바로 그런 선수다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.809
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 104,
+      "timestamp": "08:48–08:52"
+    }
+  },
+  {
+    "text": "그러나 룬드는 창이 자신의 팔에 박히자 자기 손으로 창을 뽑아내는 기행을 보인다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.633
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 107,
+      "timestamp": "10:19–10:23"
+    }
+  },
+  {
+    "text": "다행히 동맥은 다치지 않아 룬드는 치료에 성공했다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.539,
+      "L09": 0.347
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 110,
+      "timestamp": "10:01–10:05"
+    }
+  },
+  {
+    "text": "하닉 오 하닉 많이 벌고 싶어!",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.943,
+      "L02": 0.568
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 6,
+      "timestamp": "00:13–00:17"
+    }
+  },
+  {
+    "text": "시발 역시 병신들 고점에 처물렸겠네",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.994,
+      "L02": 0.589,
+      "L09": 0.359
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 26,
+      "timestamp": "01:28–01:30"
+    }
+  },
+  {
+    "text": "개미털기 지렸네 손절한 흑우 없제? 쭉쭉 오르네 역시 개미털기였고",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.598,
+      "L03": 0.506
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 30,
+      "timestamp": "01:35–02:00"
+    }
+  },
+  {
+    "text": "와 시발 뭐고 건강한 조정인가? 아 갑자기 많이 오르긴 했지.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.959,
+      "L02": 0.798,
+      "L11": 0.43
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 31,
+      "timestamp": "02:00–02:04"
+    }
+  },
+  {
+    "text": "너무 고통스러워서 반차 내고 집 와서 내 자아도 없이 짜파게티 4봉 끓여먹고 자위행위를 2번 연속으로 하다가 지금 현타가 세게 옴. 그 어떤 맛도 쾌감도 못 느낌. 다 했으니까 느낌이 없지. 시발 다 충족했네. 성욕, 식욕, 수면욕까지 다 어 와.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.69,
+      "L09": 0.315
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 39,
+      "timestamp": "02:17–02:29"
+    }
+  },
+  {
+    "text": "투자 실패로 중성화 당한 주주",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L11": 0.862,
+      "L02": 0.414
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 57,
+      "timestamp": "04:36–04:37"
+    }
+  },
+  {
+    "text": "약간 오징어 게임처럼 이렇게 끌려온 그런 거지 않을까?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.862
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 2,
+      "timestamp": "00:04–00:06"
+    }
+  },
+  {
+    "text": "당신은 항상 예리하게 대비해야 합니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L03": 0.63
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 5,
+      "timestamp": "00:09–00:10"
+    }
+  },
+  {
+    "text": "그런데 이것이 거지 같은 게 걸릴 수도 있는 거잖아.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.758
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 30,
+      "timestamp": "01:19–01:21"
+    }
+  },
+  {
+    "text": "태닝숍을 가지.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L09": 0.67
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 35,
+      "timestamp": "01:30–01:31"
+    }
+  },
+  {
+    "text": "자, 몬티홀의 법칙이라면 바꾸는 게 확률이 더 높은 거지만",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L03": 0.538
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 37,
+      "timestamp": "01:33–01:34"
+    }
+  },
+  {
+    "text": "몬티홀 개새끼야.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.598,
+      "L06": 0.427
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 44,
+      "timestamp": "02:11–02:13"
+    }
+  },
+  {
+    "text": "또 비명을 지르겠지. 내가 잘못했다고? 납치는 본인이 했지만 내가 납치를",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.763,
+      "L11": 0.396
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 166,
+      "timestamp": "09:35–09:37"
+    }
+  },
+  {
+    "text": "이렇게. 아, 키, 키, 키.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.533,
+      "L11": 0.305
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 199,
+      "timestamp": "12:17–12:19"
+    }
+  },
+  {
+    "text": "그 보호구를 쓰는 건 계집애 같은 짓이야인데 번역을",
+    "labels": [
+      "L03"
+    ],
+    "model_suggested": {
+      "L09": 0.751,
+      "L02": 0.355
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 225,
+      "timestamp": "14:20–14:22"
+    }
+  },
+  {
+    "text": "혼다 어떻게 우린 잘할 수 있어",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.504
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 19,
+      "timestamp": "01:06–01:08"
+    }
+  },
+  {
+    "text": "아 연장전 막판 페란 토레스의 골이 터집니다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.661
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 52,
+      "timestamp": "02:34–02:36"
+    }
+  },
+  {
+    "text": "아르헨티나가 36년 만에 월드컵 우승을 차지합니다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.993
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 60,
+      "timestamp": "03:24–03:27"
+    }
+  },
+  {
+    "text": "아직 안 끝났어 2차로 붙어보자",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.518
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 61,
+      "timestamp": "03:27–03:29"
+    }
+  },
+  {
+    "text": "관심 있으신 분들은 직접 확인하시는 걸 추천드립니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.896
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 5,
+      "timestamp": "00:17–00:21"
+    }
+  },
+  {
+    "text": "이 아이템을 먹으면 강한 침식 증상이 유발되는 대신에 세 개를 모두 모으게 되면은 가치가 매우 높은 희귀 아이템으로 바뀌게 됩니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.693
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 33,
+      "timestamp": "02:08–02:16"
+    }
+  },
+  {
+    "text": "모의 세계 섬멸전이 업데이트됩니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.667
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 38,
+      "timestamp": "02:30–02:32"
+    }
+  },
+  {
+    "text": "함정 상자를 발동시키게 되면은 직접 체험해 보랍니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.896
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 44,
+      "timestamp": "03:02–03:06"
+    }
+  },
+  {
+    "text": "이건 원피스 모음입니다 여러분",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L07": 0.609
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 0,
+      "timestamp": "00:00–00:02"
+    }
+  },
+  {
+    "text": "형은 가족 몰살했어",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.555,
+      "L01": 0.414
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 11,
+      "timestamp": "00:49–00:51"
+    }
+  },
+  {
+    "text": "제길 티치 이 귀한 걸 나한테",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.747,
+      "L01": 0.617
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 42,
+      "timestamp": "02:53–02:56"
+    }
+  },
+  {
+    "text": "사실 저 새끼가 먹은 열매는 긍정긍정 열매가 아닐까",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.951,
+      "L02": 0.784
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 43,
+      "timestamp": "02:56–03:00"
+    }
+  },
+  {
+    "text": "코알라 좆밥이 로빈한테 한 수 알려주고 싶다니까 실버가 챌린저한테 훈수 두는 꼴이라고 일침 놓는 핵",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.533
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 75,
+      "timestamp": "04:47–04:53"
+    }
+  },
+  {
+    "text": "도플라밍고 씨 와이파이 사용 시간입니다 저번처럼 이상한 사이트 접속하시면 끊습니다 흣흣흣흣 좆같은 새끼들 원버갤이나 접속해야겠다 흣흣흣흣",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L07": 0.647,
+      "L01": 0.56
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 106,
+      "timestamp": "08:04–08:14"
+    }
+  },
+  {
+    "text": "심심하지 않다니까 이 세계 어그로 끌어서 개념글 간 도플라밍고",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.798
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 108,
+      "timestamp": "08:23–08:29"
+    }
+  },
+  {
+    "text": "한냐발 이 새끼 와이파이 그만 끊어라",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.981
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 112,
+      "timestamp": "08:52–08:55"
+    }
+  },
+  {
+    "text": "그러면서 흰수염 해적단의 산하처럼 행동함 어르신을 위한 도리 어쩌고로 훌륭하게 합리화함 흰수염 해적단과 가까운 것을 말 안 했는지 해군은 까맣게 몰랐음",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.57,
+      "L01": 0.411
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 118,
+      "timestamp": "09:25–09:35"
+    }
+  },
+  {
+    "text": "날뛰기 시작한다 세계 최강의 사나이가 대장들한테 개뚜드려 맞음",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.667
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 139,
+      "timestamp": "11:13–11:19"
+    }
+  },
+  {
+    "text": "겨우 그것 하고 전쟁 끝났는데 붕대질 이 새끼 상처 난 이유가 원피스 정체보다 더 궁금함",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.962,
+      "L04": 0.448
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 142,
+      "timestamp": "11:25–11:31"
+    }
+  },
+  {
+    "text": "최종장 진입 후 현재 상황",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.663,
+      "L04": 0.544
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 154,
+      "timestamp": "12:34–12:36"
+    }
+  },
+  {
+    "text": "아니 그런데 너는 첫사랑은 왜 아냐고 새끼야",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.952
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "SAFE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 1,
+      "timestamp": "00:02–00:05"
+    }
+  },
+  {
+    "text": "그런데 이 새끼가 이 새끼 나 여자친구 있는 거 몰라",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.998
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 5,
+      "timestamp": "00:12–00:15"
+    }
+  },
+  {
+    "text": "자 문 땄습니다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.603
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 40,
+      "timestamp": "01:49–01:51"
+    }
+  },
+  {
+    "text": "아 씨발 또 됐다.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 57,
+      "timestamp": "04:21–04:23"
+    }
+  },
+  {
+    "text": "아이 뭐 이도원 첫사랑이랑 뭔 상관이야. 그런데 첫사랑이 인신매매범이야? 아 나 납치한 건가? 내가 내가 공포 게임 같으면 내가 안 할 줄 알고? 이 새끼 나 좀 아는데",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.685,
+      "L02": 0.406
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 59,
+      "timestamp": "04:24–04:29"
+    }
+  },
+  {
+    "text": "불을 끈다. 물을 물을 물을 부 아우 씨발 몇 살이야 개발자 장난하냐?",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 74,
+      "timestamp": "05:37–05:39"
+    }
+  },
+  {
+    "text": "그 전화번호로 전화를 건다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.671,
+      "L02": 0.423
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 83,
+      "timestamp": "06:21–06:23"
+    }
+  },
+  {
+    "text": "어 어 어 왜 맞아 왜 맞아 왜 맞아 씨발",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.953,
+      "L02": 0.455
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "SAFE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 84,
+      "timestamp": "03:49–03:52"
+    }
+  },
+  {
+    "text": "아 씨발 좆됐다",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.999,
+      "L08": 0.596
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "SAFE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 93,
+      "timestamp": "04:14–04:16"
+    }
+  },
+  {
+    "text": "이 새끼 나 좀 아는데",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.987,
+      "L02": 0.319
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "SAFE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 97,
+      "timestamp": "04:26–04:28"
+    }
+  },
+  {
+    "text": "이러면 무조건 잡히잖아!",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L07": 0.685,
+      "L04": 0.466
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 107,
+      "timestamp": "08:09–08:11"
+    }
+  },
+  {
+    "text": "나는 거리로 나오자마자 경찰서로 찾아갔고 내가 겪은 일을 경찰에게 알렸다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L07": 0.647
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 113,
+      "timestamp": "08:20–08:23"
+    }
+  },
+  {
+    "text": "아 왜 자꾸 중국이야 다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.556,
+      "L01": 0.536
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 115,
+      "timestamp": "05:21–05:23"
+    }
+  },
+  {
+    "text": "불을 끈다 물을 물을 붓 물을 붓 아이 시발 몇 살이야 개발자? 장난하냐?",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.932,
+      "L02": 0.546
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 125,
+      "timestamp": "05:50–05:55"
+    }
+  },
+  {
+    "text": "셀룰러 폰 전화기에 전화번호가 적혀져 있다 그 전화번호로 전화를 건다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.742
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 135,
+      "timestamp": "06:23–06:27"
+    }
+  },
+  {
+    "text": "왜 첫사랑이냐고 씨",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.796
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 174,
+      "timestamp": "09:02–09:04"
+    }
+  },
+  {
+    "text": "매니저가 나한테 일 알려주고 있었는데 매니저가 나한테 잠깐 청소 맡겨놓고 카운터 간 사이에",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.616,
+      "L01": 0.477
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 17,
+      "timestamp": "01:11–01:16"
+    }
+  },
+  {
+    "text": "아 이것 씨발 좆됐다 싶어서 빗자루로 막 허공에 냄새 흩고 있는데",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.952
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 19,
+      "timestamp": "01:22–01:26"
+    }
+  },
+  {
+    "text": "너무 수치심 들어서 집까지 30분 거리를 씨발 씨발 소리 지르면서 호다닥 달려옴.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0,
+      "L02": 0.346
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 24,
+      "timestamp": "01:44–01:49"
+    }
+  },
+  {
+    "text": "아 빨리빨리 좀 해. 바로 아 씨발 하고 나옴.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.993,
+      "L02": 0.344
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 27,
+      "timestamp": "01:56–01:59"
+    }
+  },
+  {
+    "text": "저는 팔죠. 어차피 쓸데없는데 시발",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.964,
+      "L02": 0.495
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 42,
+      "timestamp": "04:05–04:07"
+    }
+  },
+  {
+    "text": "3. 중앙에 마끼아또 만드는 법 물어보려고 연락함.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.64
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 61,
+      "timestamp": "05:18–05:22"
+    }
+  },
+  {
+    "text": "9. 뭔 개좆같은 소리인지 재료 비율 알기 위해 중앙에 5,700번 전화해서 겨우 연결됨.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L07": 0.55
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 65,
+      "timestamp": "05:46–05:51"
+    }
+  },
+  {
+    "text": "씨발 진짜 있다. 심지어 공용 의자에 앉아있다.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.987,
+      "L02": 0.369
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 85,
+      "timestamp": "08:52–08:55"
+    }
+  },
+  {
+    "text": "미화 대장이에요? 아까부터 청소를 우라지게 찾네. 마누라가 청소해요?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.7
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 94,
+      "timestamp": "09:25–09:28"
+    }
+  },
+  {
+    "text": "스포츠니까 서로 자웅을 가리며 모두가 다치지 않으면 좋겠지만",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L01": 0.602
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 102,
+      "timestamp": "08:41–08:45"
+    }
+  },
+  {
+    "text": "천만 원 빌린 동생이 한 달 뒤 보낸 카톡.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L08": 0.786
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 113,
+      "timestamp": "10:29–10:33"
+    }
+  },
+  {
+    "text": "제가 폰 받고 보내드릴게요. 주소 보내주세요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.907,
+      "L08": 0.581
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 128,
+      "timestamp": "11:35–11:37"
+    }
+  },
+  {
+    "text": "정신 나가버린 주식갤 근황",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.7,
+      "L01": 0.335
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 1,
+      "timestamp": "00:03–00:04"
+    }
+  },
+  {
+    "text": "너희들 또 화장실에서 주식 보고 있냐? 주식은 쌀 때 사는 겁니다. 당연히 화장실로 와야죠. 그렇다!",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.657
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 21,
+      "timestamp": "01:18–01:21"
+    }
+  },
+  {
+    "text": "응? 와 시발 얘는 언제 이렇게 올랐냐?",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.987,
+      "L02": 0.798
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 24,
+      "timestamp": "01:25–01:27"
+    }
+  },
+  {
+    "text": "라고 할 때 살걸 아 시발 너무 올랐는데 시발 시발 시발 모르겠다!",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0,
+      "L02": 0.893
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 28,
+      "timestamp": "01:31–01:33"
+    }
+  },
+  {
+    "text": "하 20%라도 건지자 시발 매도",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 1.0,
+      "L02": 0.941
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 36,
+      "timestamp": "02:11–02:13"
+    }
+  },
+  {
+    "text": "주식 13년차 디씨인이 알려주는 돈버는 방법",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.644
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 40,
+      "timestamp": "02:29–02:31"
+    }
+  },
+  {
+    "text": "무조건 돈버는 방법 알려준다 주식 13년했다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.704,
+      "L07": 0.445
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 41,
+      "timestamp": "02:31–02:34"
+    }
+  },
+  {
+    "text": "아마겟돈이 한국에서 일어났다 시발. 무슨 일이냐고 한국 시발새끼들아.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.966,
+      "L02": 0.611
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 46,
+      "timestamp": "03:13–03:17"
+    }
+  },
+  {
+    "text": "주식 초보라 잘 모르는데요. 지금 사면 190만원인데 왜 200만원 300만원 주고 사신 거예요? 잘 긁네 시발놈이.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L04": 0.976
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 49,
+      "timestamp": "03:24–03:28"
+    }
+  },
+  {
+    "text": "하닉 주식 살 거면 레버리지를 사는 게 맞는 이유",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L04": 0.799,
+      "L08": 0.453
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 54,
+      "timestamp": "04:18–04:20"
+    }
+  },
+  {
+    "text": "어, 핫. 아이 씨발.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.993
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 50,
+      "timestamp": "02:21–02:23"
+    }
+  },
+  {
+    "text": "어, 씨발. 와, 바로 죽이네.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.999
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 87,
+      "timestamp": "04:16–04:17"
+    }
+  },
+  {
+    "text": "씨발. 드라이버가 어디 있어? 한 번 그것 한 번 해볼까? 아, 여기 있네.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.967
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 117,
+      "timestamp": "06:25–06:26"
+    }
+  },
+  {
+    "text": "이건 내 정면 앞에 서 있을 때 붙이면 안 될 거 아니야, 씨발.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.958
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 137,
+      "timestamp": "07:38–07:40"
+    }
+  },
+  {
+    "text": "좆됐다. 어떡하지? 이러면 안 되는데. 여긴 생각을 안 해봤는데.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L08": 0.513
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 145,
+      "timestamp": "08:20–08:22"
+    }
+  },
+  {
+    "text": "아, 지금도 붙일 수 있네.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L02": 0.563
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 147,
+      "timestamp": "08:24–08:25"
+    }
+  },
+  {
+    "text": "죽어, 이 개새끼",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.792
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 157,
+      "timestamp": "09:14–09:15"
+    }
+  },
+  {
+    "text": "오케이, 오케이, 오케이. 어, 깜짝이야, 씨발. 아, 놀라라, 씨.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L01": 0.711
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 205,
+      "timestamp": "12:35–12:37"
+    }
+  },
+  {
+    "text": "가자 가자 바모스",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.711
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 4,
+      "timestamp": "00:07–00:09"
+    }
+  },
+  {
+    "text": "야 야 상대 원딜 플 있어",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.624
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 23,
+      "timestamp": "01:15–01:16"
+    }
+  },
+  {
+    "text": "오케이 야 나 그럼 궁 들어간다 로메로 들어와 둘 셋",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.732
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 25,
+      "timestamp": "01:17–01:19"
+    }
+  },
+  {
+    "text": "자자 기상 후반전 뛰자",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 32,
+      "timestamp": "01:27–01:29"
+    }
+  },
+  {
+    "text": "아니 우리 경기 내내 슛 한 번을 못 때리냐 너무 개털리는데",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.958
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 36,
+      "timestamp": "01:35–01:38"
+    }
+  },
+  {
+    "text": "라민 야말의 경기를 끝낼 수 있는 프리킥",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.839
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 42,
+      "timestamp": "02:15–02:17"
+    }
+  },
+  {
+    "text": "에밀리아노 조 조금만 더 견뎌 곧 승부차기라고",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 47,
+      "timestamp": "02:27–02:29"
+    }
+  },
+  {
+    "text": "아 줄리아노 시메오네의 결정적인 찬스가 뜨고 맙니다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 57,
+      "timestamp": "02:50–03:19"
+    }
+  },
+  {
+    "text": "사실 아까는 긴장돼서 제대로 말 못 했어요 저 많이 컸죠",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.897
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 64,
+      "timestamp": "03:33–03:36"
+    }
+  },
+  {
+    "text": "꼬맹이 앞으로의 축구를 잘 부탁한다 메시 삼촌",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "7q1s4Afeezw",
+      "segment_id": 66,
+      "timestamp": "03:38–03:44"
+    }
+  },
+  {
+    "text": "리딤 코드 있으니까 확인하시고 기간이 끝나기 전에 사용을 하시면 되겠습니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.544
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 1,
+      "timestamp": "00:04–00:08"
+    }
+  },
+  {
+    "text": "회피 평타를 사용할 때마다 게이지가 차는데 이 게이지는 평타를 꾹 눌러서 소모를 할 수가 있습니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.643
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 17,
+      "timestamp": "01:00–01:06"
+    }
+  },
+  {
+    "text": "기이한 미궁이 새로운 시즌으로 업데이트됩니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 23,
+      "timestamp": "01:25–01:27"
+    }
+  },
+  {
+    "text": "새로운 로프꾼 액세서리도 교환할 수가 있습니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.565
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 36,
+      "timestamp": "02:24–02:27"
+    }
+  },
+  {
+    "text": "그 외에 자세한 내용은 화면을 참고하시면 되겠습니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 37,
+      "timestamp": "02:27–02:30"
+    }
+  },
+  {
+    "text": "전투 시작 전 도전 알림이 추가됩니다. 일부 상시 콘텐츠를 진행할 때 내 캐릭터의 스펙이 충분하지 않으면 도전 알림이 떠서 어떤 캐릭 키워라, 뭐부터 스킬 찍어라 훈수를 두는 기능이 추가됩니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.22
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "9ccjcVgvEcg",
+      "segment_id": 60,
+      "timestamp": "03:56–04:08"
+    }
+  },
+  {
+    "text": "아카이누가 에그헤드에 연락하고 키자루가 대답한다 아카이누는 키자루가 에그헤드에서 임무를 실패했다고 비난하지만 키자루는 눈물을 흘리며 화를 내며 대답한다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 2,
+      "timestamp": "00:05–00:15"
+    }
+  },
+  {
+    "text": "키자루 가장 친한 친구를 죽여본 적 있어 나를 의심한다면 여기로 와서 직접 확인해 봐",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.554
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 3,
+      "timestamp": "00:15–00:20"
+    }
+  },
+  {
+    "text": "순살을 사주려는 페로스페로",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 15,
+      "timestamp": "00:59–01:01"
+    }
+  },
+  {
+    "text": "좋은 애네 야 요즘에 순살 시키면 2,000원 더 비싸더라고 야 얘가 배려할 줄 아는 애네 이것이 사황 해적단은 다르네요 복지가",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.799
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 17,
+      "timestamp": "01:05–01:14"
+    }
+  },
+  {
+    "text": "파시피스타라고 그 로봇 있거든",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 54,
+      "timestamp": "03:28–03:31"
+    }
+  },
+  {
+    "text": "탈모가 없어서 실패한 듯 아 그렇구나",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.58
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 62,
+      "timestamp": "04:00–04:03"
+    }
+  },
+  {
+    "text": "로빈의 전투신이 많이 나오지 않지만 사실 슈가급 사기 능력자이다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.926
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 67,
+      "timestamp": "04:16–04:20"
+    }
+  },
+  {
+    "text": "일단 로빈의 능력부터 설명하자면 꽃꽃 열매 능력자로 공간에 자신의 신체를 꽃처럼 피워낼 수 있다 그런데 공간의 범주가 사람의 몸에도 해당된다 사람의 몸에도 본인 기술을 쓸 수 있다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.943
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 69,
+      "timestamp": "04:25–04:33"
+    }
+  },
+  {
+    "text": "지금 이거 봤어요 못 봤지 다시 봐도 웃기네",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.716
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 95,
+      "timestamp": "07:09–07:18"
+    }
+  },
+  {
+    "text": "전투력이 강한지 의문이 드는 캐릭터",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 96,
+      "timestamp": "07:18–07:22"
+    }
+  },
+  {
+    "text": "아카이누 온다니까 도망치고",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 98,
+      "timestamp": "07:25–07:27"
+    }
+  },
+  {
+    "text": "레일리 협상 요구에 수그리고 이길 수 있다고 확신하는 싸움만 골라서 하는데 강한 거 맞음",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.5
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 100,
+      "timestamp": "07:29–07:35"
+    }
+  },
+  {
+    "text": "그러니까 루피가 지 형 닮아가지고 분노 조절 장애 때문에 너무 말도 안 되는 짓거리들을 하고 다니고 주인공 버프로 이긴 거지",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.842
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 102,
+      "timestamp": "07:38–07:46"
+    }
+  },
+  {
+    "text": "바다의 협객 징베 의리라는 캐릭터로 자신을 어필하지만 라인 갈아타기가 가히 예술급임",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 115,
+      "timestamp": "09:03–09:10"
+    }
+  },
+  {
+    "text": "어인 왕궁 병사로 성실 복무하다가 피셔 타이거 형 못 잊어 결사수호할 거야라는 명분으로 첫 번째 런을 침",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 116,
+      "timestamp": "09:10–09:18"
+    }
+  },
+  {
+    "text": "피셔 타이거 죽자마자 칠무해로 바로 라인 갈아타기를 함 세계정부를 적대하다가 세계정부 편에 바로 붙음",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.643
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 117,
+      "timestamp": "09:18–09:25"
+    }
+  },
+  {
+    "text": "루피 코인 떡상 전에 일이 꼬이자 고민하는 징베 어떻게 하면 아름답게 포장할 수 있을까 고민하는 모습임",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.442
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 123,
+      "timestamp": "09:59–10:06"
+    }
+  },
+  {
+    "text": "루피가 꿈 말함",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.645
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 130,
+      "timestamp": "10:38–10:40"
+    }
+  },
+  {
+    "text": "반응 마음에 안 들자 바로 모범답안에 가점 사항까지 알려줌",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.554
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 132,
+      "timestamp": "10:41–10:45"
+    }
+  },
+  {
+    "text": "문제가 있는 애였구나 얘가",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.767
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 137,
+      "timestamp": "11:07–11:09"
+    }
+  },
+  {
+    "text": "베가펑크 세계가 바다에 가라앉는다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 155,
+      "timestamp": "12:36–12:39"
+    }
+  },
+  {
+    "text": "원피스 세계관에서 세상이 다 바다로 가라앉는구나",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 156,
+      "timestamp": "12:39–12:43"
+    }
+  },
+  {
+    "text": "바뀐 1화 내용",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 159,
+      "timestamp": "12:49–12:51"
+    }
+  },
+  {
+    "text": "C 샹크스 샹크스가 흑막이라 최종 보스임 샹크스가 흑막이면 스토리가 너무 산으로 갈 거 같고 둘 중 하나일 거 같긴 한데 누굴 거 같아요 여러분들은 검은 수염일 거 같아요 아니면 임일 거 같아요",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.727
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "IZpyhz0dmcw",
+      "segment_id": 166,
+      "timestamp": "13:36–13:53"
+    }
+  },
+  {
+    "text": "아니 그런데 미도우 첫사랑은 왜 하냐고 새끼야",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.851
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 0,
+      "timestamp": "00:00–00:03"
+    }
+  },
+  {
+    "text": "우리가 만난 지 1년째 되는 날입니다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.677
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 4,
+      "timestamp": "00:10–00:12"
+    }
+  },
+  {
+    "text": "아! 뭐 하는 거야 아.. 해야 되냐? 하기 싫어지네",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.842
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 6,
+      "timestamp": "00:20–00:24"
+    }
+  },
+  {
+    "text": "사실 오래전부터 당신을",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.832
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 7,
+      "timestamp": "00:18–00:20"
+    }
+  },
+  {
+    "text": "누군가 쓴 종이. 2022년 11월 5일 누군가에게 잡혀왔다. 창문이 없어 어디인지도 짐작할 수 없고 공기도 폐쇄적이라 숨쉬기도 가쁘다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.499
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 12,
+      "timestamp": "01:06–01:12"
+    }
+  },
+  {
+    "text": "납치당한 건가.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 26,
+      "timestamp": "02:15–02:16"
+    }
+  },
+  {
+    "text": "더러운 소변기다. 소변기에 무언가 걸려 있다. 건지자.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.506
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 33,
+      "timestamp": "01:29–01:33"
+    }
+  },
+  {
+    "text": "어 내가 움직이는 게 아닌데 지금",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.81
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "SAFE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 41,
+      "timestamp": "01:51–01:53"
+    }
+  },
+  {
+    "text": "요렇게 쓰는 건가?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.665
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 50,
+      "timestamp": "03:34–03:35"
+    }
+  },
+  {
+    "text": "야 이래도 안 보이는데 잘? 아이 이거 트위치 720이라고",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.822
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 63,
+      "timestamp": "05:08–05:10"
+    }
+  },
+  {
+    "text": "달력에 누군가 글을 썼다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.594
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 67,
+      "timestamp": "02:58–03:00"
+    }
+  },
+  {
+    "text": "셀룰러폰. 전화기에 전화번호가 적혀져 있다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.831
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 82,
+      "timestamp": "06:20–06:21"
+    }
+  },
+  {
+    "text": "그냥 내려가면 다칠 것 같다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.722
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 93,
+      "timestamp": "07:15–07:16"
+    }
+  },
+  {
+    "text": "아 이번엔 왜 갑자기 나와",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.799
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 94,
+      "timestamp": "04:17–04:19"
+    }
+  },
+  {
+    "text": "호랑이 배지에 작은 옷핀이 있으니까 여기에 걸 핀을 건다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.582
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 97,
+      "timestamp": "07:22–07:24"
+    }
+  },
+  {
+    "text": "뭘 다 부셔 이럴 거면 이럴 거면 저 빌런을 부셔",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.341
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 100,
+      "timestamp": "04:33–04:37"
+    }
+  },
+  {
+    "text": "야 이래도 안 보이는데 잘",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.48
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 107,
+      "timestamp": "04:55–04:57"
+    }
+  },
+  {
+    "text": "난로방 키카드 획득",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.495
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 112,
+      "timestamp": "05:11–05:14"
+    }
+  },
+  {
+    "text": "그 후 더 이상 그 살인마는 나를 쫓아오지 않았다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.623
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 112,
+      "timestamp": "08:18–08:20"
+    }
+  },
+  {
+    "text": "아래랑 연결되어 있다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.607
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 149,
+      "timestamp": "07:16–07:18"
+    }
+  },
+  {
+    "text": "호랑이 배지에 작은 옷핀이 있으니까 어디에 걸 수... 핀을 건다",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.535
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 154,
+      "timestamp": "07:29–07:33"
+    }
+  },
+  {
+    "text": "이것은 무조건 잡히잖아",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.843
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "JRQmhXNB6EY",
+      "segment_id": 167,
+      "timestamp": "08:11–08:13"
+    }
+  },
+  {
+    "text": "충청도 언어는 느리다고 소문이 나 있다. 김사인 씨는 내가 잘 모르고 있다고 했지만 사실 잘 아는 편이다. 나는 충남에서 십여 년을 살았다. 말 안 하고 가만히 쳐다보는 사람들 정말 많았다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.877
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 56,
+      "timestamp": "04:44–05:00"
+    }
+  },
+  {
+    "text": "아 진짜 웃기네.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.784
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 57,
+      "timestamp": "05:00–05:02"
+    }
+  },
+  {
+    "text": "공항에 들어가는 모습부터 예사롭지 않은 분홍 크록스녀 이 분은 이후에도 자주 나온다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.602
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 82,
+      "timestamp": "07:07–07:12"
+    }
+  },
+  {
+    "text": "그때 인터뷰 도중에도 돌발 상황 발생 공항에 오줌을 흘리면서 다니는 사람이 있다고 한다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.516
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 87,
+      "timestamp": "07:34–07:39"
+    }
+  },
+  {
+    "text": "무려 미화원 아줌마가 자신을 질투해서 음해하는 것이라고 주장하는 노숙자.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 90,
+      "timestamp": "07:48–07:52"
+    }
+  },
+  {
+    "text": "장애인 화장실 청소하는 사람들이 청소하고 나면 문 잠그고 나가 귀찮아서 못 들어가게 하려고.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.363
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 93,
+      "timestamp": "08:02–08:06"
+    }
+  },
+  {
+    "text": "라우카넨은 핀란드 최고 기록을 세운 전설이지만 핀란드 외에서는 일련의 사고들로 유명하다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 105,
+      "timestamp": "08:52–08:57"
+    }
+  },
+  {
+    "text": "그가 던진 창은 예상보다 멀리 날아가 경기 감독관이었던 호콘 룬드의 팔을 관통한다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.784
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 106,
+      "timestamp": "10:14–10:19"
+    }
+  },
+  {
+    "text": "형 제가 법 알아봤는데 그것 불법 이자예요. 계속 돈 달라고 연락하시면 불법 고리대금이랑 협박죄로 경찰서에 신고할 겁니다. 그러면 형도 귀찮아질 거예요. 더 독촉하시면 신고부터 할게요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.816
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 114,
+      "timestamp": "10:50–10:59"
+    }
+  },
+  {
+    "text": "계속 돈 달라고 연락하시면 불법 고리대금이랑 협박죄로 경찰서에 신고할 겁니다. 그러면 형도 귀찮아질 거예요. 더 독촉하시면 신고부터 할게요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.781
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 117,
+      "timestamp": "10:45–10:53"
+    }
+  },
+  {
+    "text": "돈을 빌려주면 인연이 끊어집니다. 안 빌려주면 안 끊어질 수도 있어요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.546
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 119,
+      "timestamp": "10:56–11:00"
+    }
+  },
+  {
+    "text": "핸드폰 찾았는데 힘들다는 사람.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.544
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "idgE0LMi0xE",
+      "segment_id": 120,
+      "timestamp": "11:00–11:03"
+    }
+  },
+  {
+    "text": "대출 땡겨서 사야 하나요?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 12,
+      "timestamp": "00:33–00:34"
+    }
+  },
+  {
+    "text": "gpt 이자식 조언 좀 하라니까",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 17,
+      "timestamp": "01:09–01:11"
+    }
+  },
+  {
+    "text": "라고 할 때 살걸 그랬나 아 존나 아깝다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.859
+    },
+    "tier2": {
+      "is_controversy": false,
+      "category": "L12",
+      "severity": "NONE"
+    },
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 27,
+      "timestamp": "01:30–01:31"
+    }
+  },
+  {
+    "text": "커뮤나 주식갤에 곡소리 너무 날 때 아직 매수타이밍 아님.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.902
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "l1609LuQY1s",
+      "segment_id": 42,
+      "timestamp": "02:34–02:36"
+    }
+  },
+  {
+    "text": "아니면 다른 것을 선택하세요. 말을 왜 이렇게 어렵게 하냐?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.717
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 11,
+      "timestamp": "00:18–00:21"
+    }
+  },
+  {
+    "text": "문을 선택하세요. 저 이거요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 15,
+      "timestamp": "00:27–00:29"
+    }
+  },
+  {
+    "text": "약간 그거잖아. 이거 법칙 뭐죠?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.842
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 17,
+      "timestamp": "00:31–00:32"
+    }
+  },
+  {
+    "text": "하나 골랐다가 나중에 번복하는 게 확률이 더 높다. 이거 뭐죠?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.856
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 18,
+      "timestamp": "00:32–00:34"
+    }
+  },
+  {
+    "text": "아, 몬티홀. 몬티홀 그것 같아요.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.45
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 20,
+      "timestamp": "01:01–01:02"
+    }
+  },
+  {
+    "text": "그러네. 몬티홀 형님 똑똑이네.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 22,
+      "timestamp": "01:05–01:07"
+    }
+  },
+  {
+    "text": "하지만 거부는 세 번뿐.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.678
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 28,
+      "timestamp": "01:17–01:18"
+    }
+  },
+  {
+    "text": "이걸 누가 이걸 눌러? 돌려야지.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.738
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 29,
+      "timestamp": "01:18–01:19"
+    }
+  },
+  {
+    "text": "당신은 부상에 저항하지 않았다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 41,
+      "timestamp": "02:06–02:07"
+    }
+  },
+  {
+    "text": "여잔지 남잔지 약간 남자?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.691
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 48,
+      "timestamp": "02:18–02:19"
+    }
+  },
+  {
+    "text": "좆같네 진짜. 피.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L12": 0.784
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 51,
+      "timestamp": "02:23–02:25"
+    }
+  },
+  {
+    "text": "저 도끼만 안 나오면 될 거 같은데. 도끼가 설마",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.859
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 65,
+      "timestamp": "03:10–03:11"
+    }
+  },
+  {
+    "text": "마지막 테스트? 금고 안에 자유의 열쇠가 들어있습니다.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.398
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 77,
+      "timestamp": "03:33–03:34"
+    }
+  },
+  {
+    "text": "와, 이것은 그냥 죽일 생각이네. 이",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.786
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 95,
+      "timestamp": "04:38–04:40"
+    }
+  },
+  {
+    "text": "달려라, 포레스트, 달려.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 104,
+      "timestamp": "05:27–05:28"
+    }
+  },
+  {
+    "text": "문을 하나 여는 거구나. 아, 또 해야 되잖아.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.741
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 112,
+      "timestamp": "06:08–06:10"
+    }
+  },
+  {
+    "text": "왼쪽 첫 번째, 오른쪽 두 번째. 뭔가 오른쪽 첫 번째는 아닐 거 같아. 일단 가보자. 왼쪽 방부터 가보자.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.823
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 113,
+      "timestamp": "06:10–06:13"
+    }
+  },
+  {
+    "text": "그림자? 그림자가 어디 있어?",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.4
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 118,
+      "timestamp": "06:27–06:28"
+    }
+  },
+  {
+    "text": "아, 그러니까 열쇠를 열어주고 뒤돌아있을 때 붙여야 되잖아. 열쇠 열어줄 때",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.77
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 136,
+      "timestamp": "07:36–07:38"
+    }
+  },
+  {
+    "text": "붙긴 했는데 그럼 뭐 해, 끝났는데. 왼쪽 끝에 물음표 방이 애초에 아니었던 거야.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.782
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 148,
+      "timestamp": "08:25–08:27"
+    }
+  },
+  {
+    "text": "뿌리치라고 한 건 사기꾼이잖아, 내가. 내가 잘못한 거잖아. 배신한 거니까.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.754
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 167,
+      "timestamp": "09:37–09:39"
+    }
+  },
+  {
+    "text": "산탄총, 산탄총.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 174,
+      "timestamp": "10:20–10:21"
+    }
+  },
+  {
+    "text": "얼른, 얼른, 얼른.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.531
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 197,
+      "timestamp": "11:45–11:47"
+    }
+  },
+  {
+    "text": "아까 여기 있었는데. 무, 무서워.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.759
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 202,
+      "timestamp": "12:27–12:29"
+    }
+  },
+  {
+    "text": "어, 무서워. 별거 아닌데 존나 무서워.",
+    "labels": [
+      "L12"
+    ],
+    "model_suggested": {
+      "L12": 0.859
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 220,
+      "timestamp": "13:40–13:42"
+    }
+  },
+  {
+    "text": "그 방패를 사용하는 것은 보지 움직임입니다.",
+    "labels": [
+      "L01"
+    ],
+    "model_suggested": {
+      "L12": 0.597
+    },
+    "tier2": null,
+    "source": {
+      "video_id": "r_6UCvgtwik",
+      "segment_id": 226,
+      "timestamp": "14:22–14:23"
+    }
+  }
+]
