@@ -1,6 +1,7 @@
 # Lavcca 온라인 서비스 인프라 (dev)
 
-> 리전은 서울(`ap-northeast-2`), dev 만. AWS CLI 프로필은 `lavcca-admin`(IAM Identity Center SSO).
+> 리전은 서울(`ap-northeast-2`), dev 만. 공개 저장소라 계정·VPC 등 ID 는 적지 않는다(`aws sts get-caller-identity` 로 확인, 정책 파일은 `__ACCOUNT_ID__`). AWS CLI 프로필은 `lavcca-admin`(IAM Identity Center SSO, 권한 세트 `Lavcca-Admin`, 로그인 `aws sso login --profile lavcca-admin`).
+> 장기 액세스 키(IAM 사용자)는 쓰지 않는다. 배포(CloudFormation·IAM·시크릿)는 `Lavcca-Admin` 으로만 — `AI-Dev`·`Data` 권한 세트에는 배포 권한이 없다(2026-10-22 확인).
 > 담당: **PM(최민규)** AWS·Supabase 리소스 생성·시크릿 입력·배포 승인 / **이지후(JH)** AI 엔진·Docker·ECS 워커 코드 / **고균탁** 데이터 수집·라벨링.
 > 리소스 생성, 시크릿 입력, DB 마이그레이션 실행은 PM 이 한다(또는 PM 승인 후 Claude Code).
 > 버킷은 PM 이 만든 두 개를 쓴다(재생성 금지): 입력 `lavcca-dev-customer-uploads`, 결과 `lavcca-dev-datalake` 의 `ai-output/`.
@@ -48,6 +49,9 @@
 아래 명령은 모두 `--profile lavcca-admin --region ap-northeast-2` 를 붙인다(생략 표기). `aws sso login --profile lavcca-admin` 먼저.
 
 ### 0. 사전 준비 (스택 밖, 기존 버킷 설정 변경 — PM 승인 후)
+두 버킷은 SSE-S3(AES256, SSE-C 차단)·버킷 정책 없음·퍼블릭 차단 4종·BucketOwnerEnforced 다(2026-10-22 확인). KMS 를 쓰지 않으므로
+워커 역할에 `kms:*` 권한은 필요 없다. SSE-KMS 로 바꾸면 태스크 역할에 해당 키의 `kms:Decrypt`(읽기)·`kms:GenerateDataKey`(쓰기)와
+키 정책 허용이 함께 필요하다.
 - 업로드 버킷 수명 주기에 `transcribe-tmp/` 1일 삭제 규칙 추가(기존 규칙 2개 유지). 워커가 끝나면 지우지만 실패 대비.
 - 테스트 영상은 **고객 데이터가 아닌** 것을 `s3://lavcca-dev-customer-uploads/uploads/test-001/<파일>` 로 올린다.
 
@@ -57,12 +61,17 @@ cfn-lint infra/aws/cloudformation/lavcca-worker-dev.yaml
 aws cloudformation create-change-set --stack-name lavcca-worker-dev --change-set-name init \
   --change-set-type CREATE --capabilities CAPABILITY_NAMED_IAM \
   --template-body file://infra/aws/cloudformation/lavcca-worker-dev.yaml \
-  --parameters ParameterKey=VpcId,ParameterValue=<기본 VPC id> \
+  --parameters ParameterKey=VpcId,ParameterValue=<기본 VPC id> ParameterKey=ImageTag,ParameterValue=bootstrap \
+               ParameterKey=GitHubBranch,ParameterValue=chore/lavcca-worker-deploy ParameterKey=CreateGitHubOidcProvider,ParameterValue=true \
   --tags Key=Project,Value=lavcca Key=Env,Value=dev
+# GitHubBranch: main 병합 전 1차 배포는 chore/lavcca-worker-deploy, 병합 뒤 main 으로 스택 업데이트.
 aws cloudformation describe-change-set --stack-name lavcca-worker-dev --change-set-name init   # 리소스 10개(Add) 확인 — OIDC 공급자를 이미 갖고 있으면 9개
 aws cloudformation execute-change-set  --stack-name lavcca-worker-dev --change-set-name init
 ```
 GitHub OIDC 공급자가 이미 계정에 있으면 `CreateGitHubOidcProvider=false`.
+과거 실패(2026-10-21): 새 계정에서 ECS 서비스 연결 역할이 클러스터 생성과 동시에 만들어져 `WorkerCluster` 가
+"Unable to assume the service linked role" 로 실패했다. 새 계정이면 먼저 `aws iam create-service-linked-role --aws-service-name ecs.amazonaws.com`
+후 1~2분 기다린다(이 계정은 `AWSServiceRoleForECS` 가 이미 있음).
 
 ### 2. 시크릿 값 입력 (CloudFormation 밖)
 스택은 값 없는 시크릿 `lavcca/dev/worker` 만 만든다(삭제 시에도 보존). 값은 **콘솔**(Secrets Manager → lavcca/dev/worker
@@ -78,16 +87,33 @@ GitHub OIDC 공급자가 이미 계정에 있으면 `CreateGitHubOidcProvider=fa
 CLI 로 넣어야 하면 OneDrive 밖 임시 폴더의 파일로 `aws secretsmanager put-secret-value --secret-id lavcca/dev/worker --secret-string file://<파일>` 후 파일을 지운다.
 Naver·ACRCloud·Supabase 키는 1차 배포에서 쓰지 않는다(확산 신호·음악 분석 꺼짐, Supabase 기록 생략). 켤 때 태스크 정의 `Secrets` 와 함께 추가한다.
 
+워커 비밀 키 전체(11개, 코드 `os.getenv` 기준). 1차는 앞의 3개만 태스크 정의에 연결한다 — 연결한 키가 시크릿 JSON 에 없으면 태스크가 시작 전에 실패하므로 기능을 켤 때 함께 추가한다.
+
+| 키 | 쓰는 곳 | 켜는 조건 | 단계 |
+|---|---|---|---|
+| `GEMINI_API_KEY` | 전사·분석 | 항상(필수) | 1차 |
+| `GOOGLE_API_KEY` | 저작권 Google Vision | 항상(없으면 생략) | 1차 |
+| `YOUTUBE_API_KEY` | 저작권 YouTube 대조 | 항상(없으면 생략) | 1차 |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | jobs 상태 기록(`worker.py`) | 둘 다 있을 때 | T5 |
+| `NAVER_CLIENT_ID`, `NAVER_CLIENT_SECRET` | 확산 신호(`spread_signals.py`) | `SPREAD_SIGNALS_ENABLED=1` | 후속 |
+| `ACRCLOUD_ACCESS_KEY`, `ACRCLOUD_ACCESS_SECRET` | 음악 인식(+비밀 아닌 `ACRCLOUD_HOST` 는 `Environment`) | `MUSIC_ENABLED=true` | 후속 |
+| `AUDD_API_TOKEN` | 음악 인식 백업 | `MUSIC_ENABLED=true` | 후속 |
+| `SERPAPI_KEY` | 밈 역이미지 검색(Yandex) | `YANDEX_PUBLIC_UPLOAD_ENABLED=true` | 후속 |
+
+`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` 는 넣지 않는다(태스크 역할 사용). `CLOVA_*` 는 `TRANSCRIBE_ENGINE=clova` 전용이라 컨테이너에서 쓰지 않는다.
+
 ### 3. GitHub 설정
-- Settings → Environments → `lavcca-dev`: Deployment branches = `main` 만, Required reviewers = PM.
+- Settings → Environments → `lavcca-dev`: Deployment branches = `main` + 1차 배포 동안 `chore/lavcca-worker-deploy`, Required reviewers = PM.
+  (2026-10-22 확인: 두 브랜치 정책·Required reviewers 적용됨. OIDC sub 사용자 지정은 2026-10-22 12:33 UTC 적용됨: `use_default=false`, `include_claim_keys=["repo","context","ref"]`, `use_immutable_subject=false` 유지.
+  되돌리기: `gh api -X PUT repos/NATAM-KESSOKUBAND/MVP/actions/oidc/customization/sub -F use_default=true`.)
 - Environment 변수 `LAVCCA_ECR_PUSH_ROLE_ARN` = 스택 출력 `GitHubEcrPushRoleArn`(비밀값 아님).
 - **OIDC sub 에 브랜치 포함**(저장소 관리자, 한 번): `gh api -X PUT repos/NATAM-KESSOKUBAND/MVP/actions/oidc/customization/sub -F use_default=false -f "include_claim_keys[]=repo" -f "include_claim_keys[]=context" -f "include_claim_keys[]=ref"`
-  → 토큰 sub = `repo:NATAM-KESSOKUBAND/MVP:environment:lavcca-dev:ref:refs/heads/main`. 역할 신뢰 정책은 이 값만 받는다
+  → 토큰 sub = `repo:NATAM-KESSOKUBAND/MVP:environment:lavcca-dev:ref:refs/heads/<GitHubBranch>`. 역할 신뢰 정책은 이 값만 받는다
   (Environment 설정이 빠져도 다른 브랜치·워크플로는 AWS 에서 거부). 이 설정 전에는 푸시가 실패한다(fail closed).
   이 저장소의 다른 OIDC 사용처가 생기면 그쪽 신뢰 정책도 새 sub 형식에 맞춰야 한다.
 
 ### 4. 이미지 푸시
-main 에 병합되면 `worker-image` 의 `publish` 잡이 승인을 기다린다 → 승인 → 빌드·스모크·Trivy(fixable CRITICAL 이면 중단) → ECR `lavcca-worker:<Git SHA>` 푸시
+main 에 병합되면(병합 전 1차 배포는 `chore/lavcca-worker-deploy` 에서 `workflow_dispatch` 수동 실행) `worker-image` 의 `publish` 잡이 승인을 기다린다 → 승인 → 빌드·스모크·Trivy(fixable CRITICAL 이면 중단) → ECR `lavcca-worker:<Git SHA>` 푸시
 → ECR 스캔 결과를 잡 요약에 남긴다. 태그는 변경 불가(IMMUTABLE), 최근 5개만 보관.
 
 ### 4-1. 실행 전 점검 (값은 출력하지 않는다)
@@ -117,6 +143,11 @@ aws ecs run-task --cluster lavcca-dev --launch-type FARGATE --task-definition la
      "--output-dir","/tmp/out","--output-s3","s3://lavcca-dev-datalake/ai-output/test-001/"]}]}'
 ```
 퍼블릭 IP 는 외부 API(Gemini·Google·ECR·S3) 접근용이다. 보안 그룹은 인바운드 없음·아웃바운드 443 만이라 외부에서 태스크로 들어올 수 없다.
+기본 VPC 서브넷 4개(2a·2b·2c·2d)는 모두 기본 라우팅 테이블(`0.0.0.0/0 → 인터넷 게이트웨이`)을 쓰는 퍼블릭 서브넷이다.
+플랫폼 버전은 지정하지 않으면 `LATEST`(=1.4.0)이고, 임시 저장소 40 GiB 는 1.4.0 이상에서만 된다.
+Fargate On-Demand vCPU 할당량은 30(2026-10-22) → 4 vCPU 태스크 최대 7개, T5 의 `MAX_RUNNING=2`(8 vCPU)는 여유 있음.
+S3 Gateway 엔드포인트는 두지 않는다: 같은 리전 S3 전송은 원래 무료라 절감이 없고, Gemini 등 외부 API 때문에 퍼블릭 IP 는 어차피 필요하며,
+기본 VPC 라우팅 테이블(기존 리소스)을 바꿔야 한다. NAT 를 도입할 때 함께 다시 본다.
 
 ### 7. 검증
 1. `aws ecs describe-tasks` → `containers[0].exitCode` 0(ok·partial), 75 면 Gemini 일시 장애(retry_later), 1 이면 실패.
@@ -135,9 +166,10 @@ aws ecs run-task --cluster lavcca-dev --launch-type FARGATE --task-definition la
   시크릿을 남긴 채 스택을 다시 만들면 이름 충돌 → 먼저 시크릿을 지우거나 복구 기간이 끝나야 한다.)
 - 테스트 결과물: `ai-output/test-*` 만 삭제. 고객 경로는 건드리지 않는다.
 
-### 비용 감 (서울 단가 추정, 실제 단가 확인 필요)
+### 비용 감 (서울 온디맨드 단가, Pricing API 2026-10-22)
 - 고정: Secrets Manager $0.40/월, ECR 보관 이미지 5~8 GB × 최대 5개 × $0.10/GB·월, 로그·S3 소량. NAT·ECS Service 없음.
-- 영상 1개(5분 내외): Fargate 4 vCPU/16 GB 약 $0.27/시간 × 10~20분 ≈ $0.05~0.10, 퍼블릭 IPv4 $0.005/시간.
+- 태스크 1개 시간당 약 $0.276 = vCPU 4 × $0.04656 + 메모리 16 GB × $0.00511 + 임시 저장소 초과분 20 GB × $0.000127 + 퍼블릭 IPv4 $0.005 (초 단위, 최소 1분).
+- 영상 1개(5분 내외): 10~20분 실행 ≈ $0.05~0.09.
 - AWS 밖(예산 $30 에 안 잡힘): Gemini 약 $0.11/영상(2026-10-13 실측), Google Vision 작업당 최대 40회.
 
 ## T4. Supabase (dev 프로젝트)

@@ -3,8 +3,9 @@
 #   publish (main push / 수동 실행)   GitHub Environment "lavcca-dev" 승인 → OIDC → ECR 푸시(태그 = Git SHA).
 #                                    fixable CRITICAL 취약점·스모크 실패면 푸시하지 않는다.
 # ECS 태스크 정의 갱신·실행은 여기서 하지 않는다(PM 이 CloudFormation ImageTag 로 반영, infra/README.md).
-# 필요 설정(PM): Environment lavcca-dev — 배포 브랜치 main 만, Required reviewers,
-#   변수 LAVCCA_ECR_PUSH_ROLE_ARN = 스택 출력 GitHubEcrPushRoleArn.
+# 필요 설정(PM): Environment lavcca-dev — 배포 브랜치 main(+1차 배포 동안 chore/lavcca-worker-deploy), Required reviewers,
+#   변수 LAVCCA_ECR_PUSH_ROLE_ARN = 스택 출력 GitHubEcrPushRoleArn,
+#   저장소 OIDC sub 사용자 지정 ["repo","context","ref"] (infra/README.md T3-3).
 name: worker-image
 
 on:
@@ -65,8 +66,25 @@ jobs:
     environment: lavcca-dev
     permissions:
       contents: read
-      id-token: write   # OIDC → LavccaGithubEcrPushRole (sub = repo:...:environment:lavcca-dev)
+      id-token: write   # OIDC → LavccaGithubEcrPushRole (sub = repo:...:environment:lavcca-dev:ref:refs/heads/<branch>)
     steps:
+      # 빌드(수십 분) 전에 OIDC sub 가 역할 신뢰 정책 형식인지 확인한다. 토큰은 출력하지 않고 클레임만 본다.
+      - name: OIDC subject check
+        env:
+          EXPECTED_SUB: repo:${{ github.repository }}:environment:lavcca-dev:ref:${{ github.ref }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.request
+          req = urllib.request.Request(os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
+                                       headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]})
+          payload = json.load(urllib.request.urlopen(req))["value"].split(".")[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+          sub, want = claims.get("sub"), os.environ["EXPECTED_SUB"]
+          print(f"sub={sub}\naud={claims.get('aud')}\nexpected={want}")
+          if sub != want:
+              raise SystemExit("OIDC sub 불일치: 저장소 sub 사용자 지정(infra/README.md T3-3)을 확인하세요")
+          PY
+
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/build-worker
