@@ -592,8 +592,10 @@ class GoogleVisionSearcher:
 
         try:
             import requests as req_lib
+            # 키는 헤더로 보낸다: URL 에 있으면 requests 예외 메시지(=로그)에 그대로 찍힌다
             resp = req_lib.post(
-                f"{VISION_API_URL}?key={self._api_key}",
+                VISION_API_URL,
+                headers={"x-goog-api-key": self._api_key},
                 json=payload,
                 timeout=15,
             )
@@ -635,7 +637,8 @@ class GoogleVisionSearcher:
         try:
             import requests as req_lib
             resp = req_lib.post(
-                f"{VISION_API_URL}?key={self._api_key}",
+                VISION_API_URL,
+                headers={"x-goog-api-key": self._api_key},
                 json=payload,
                 timeout=15,
             )

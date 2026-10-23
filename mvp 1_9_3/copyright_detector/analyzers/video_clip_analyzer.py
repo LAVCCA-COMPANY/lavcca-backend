@@ -79,10 +79,11 @@ class YouTubeClient:
             params = {
                 "part": "snippet", "q": title,
                 "type": "video", "maxResults": max_results,
-                "key": self.api_key,
             }
+            # 키는 헤더로 보낸다: URL 에 있으면 연결 오류 메시지(=로그)에 그대로 찍힌다
             response = requests.get(
                 f"{self.BASE_URL}/search", params=params,
+                headers={"x-goog-api-key": self.api_key},
                 timeout=config.pipeline.api_timeout_seconds
             )
             data = response.json()
