@@ -130,9 +130,21 @@ python infra/aws/tools/check_worker_secret.py
 ```
 aws cloudformation create-change-set --stack-name lavcca-worker-dev --change-set-name image-<sha7> \
   --use-previous-template --capabilities CAPABILITY_NAMED_IAM \
-  --parameters ParameterKey=ImageTag,ParameterValue=<Git SHA> ParameterKey=VpcId,UsePreviousValue=true
-# describe-change-set 로 WorkerTaskDefinition 교체만 있는지 확인 후 execute-change-set
+  --parameters ParameterKey=ImageTag,ParameterValue=<Git SHA> \
+    ParameterKey=VpcId,UsePreviousValue=true ParameterKey=TaskCpu,UsePreviousValue=true \
+    ParameterKey=TaskMemory,UsePreviousValue=true ParameterKey=UploadBucket,UsePreviousValue=true \
+    ParameterKey=UploadPrefix,UsePreviousValue=true ParameterKey=OutputBucket,UsePreviousValue=true \
+    ParameterKey=OutputPrefix,UsePreviousValue=true ParameterKey=GitHubOrg,UsePreviousValue=true \
+    ParameterKey=GitHubRepo,UsePreviousValue=true ParameterKey=GitHubEnvironment,UsePreviousValue=true \
+    ParameterKey=GitHubBranch,UsePreviousValue=true ParameterKey=CreateGitHubOidcProvider,UsePreviousValue=true
+aws cloudformation describe-change-set --stack-name lavcca-worker-dev --change-set-name image-<sha7> \
+  --query '[Status,Parameters[?ParameterKey==`ImageTag`||ParameterKey==`GitHubBranch`].[ParameterKey,ParameterValue],Changes[].ResourceChange.[Action,LogicalResourceId,Replacement]]'
+# 기대: CREATE_COMPLETE, ImageTag=<Git SHA>, GitHubBranch=스택의 현재 값, 변경은 [Modify, WorkerTaskDefinition, True] 하나뿐 → execute-change-set
+# 그 외 변경(특히 GitHubEcrPushRole·WorkerExecutionRole)이 보이면 실행하지 말고 delete-change-set
 ```
+`--parameters` 에 빠진 파라미터는 기존 값이 아니라 **템플릿 기본값**으로 돌아간다(예: `GitHubBranch` 기본값 `main` →
+푸시 역할 신뢰 정책이 바뀌어 다음 이미지 푸시가 거부됨). 그래서 `ImageTag` 외 12개 파라미터를 전부 `UsePreviousValue=true` 로 넘긴다.
+템플릿에 파라미터를 추가하면 이 목록에도 추가한다.
 
 ### 6. 실행 (영상 1개)
 ```
