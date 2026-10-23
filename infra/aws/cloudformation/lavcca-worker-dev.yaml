@@ -136,7 +136,8 @@ Resources:
               - Sid: WorkerLogs
                 Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents]
-                Resource: !Sub "${WorkerLogGroup.Arn}:*"
+                # LogGroup GetAtt Arn already ends with ":*"; build it from the name so there is exactly one.
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${WorkerLogGroup}:*"
               - Sid: WorkerSecret
                 Effect: Allow
                 Action: secretsmanager:GetSecretValue
