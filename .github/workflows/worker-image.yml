@@ -5,11 +5,17 @@
 # ECS 태스크 정의 갱신·실행은 여기서 하지 않는다(PM 이 CloudFormation ImageTag 로 반영, infra/README.md).
 # 필요 설정(PM): Environment lavcca-dev — 배포 브랜치 main(+1차 배포 동안 chore/lavcca-worker-deploy), Required reviewers,
 #   변수 LAVCCA_ECR_PUSH_ROLE_ARN = 스택 출력 GitHubEcrPushRoleArn,
-#   저장소 OIDC sub 사용자 지정 ["repo","context","ref"] (infra/README.md T3-3).
+#   저장소 OIDC sub 사용자 지정 ["repo","context","ref"] + use_immutable_subject (infra/README.md T3-3).
+#   immutable sub = repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:lavcca-dev:ref:<ref> (이름 변경에 영향 없음)
 name: worker-image
 
 on:
   workflow_dispatch:
+    inputs:
+      auth_check_only:
+        description: "OIDC → AWS 인증만 확인(빌드·ECR 푸시 없음)"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "mvp 1_9_3/**"
@@ -55,10 +61,41 @@ jobs:
           tag: ${{ github.sha }}
           fail-on-critical: "0"
 
+  # 수동 실행 + auth_check_only: OIDC 토큰으로 역할을 맡을 수 있는지만 본다. checkout·빌드·ECR 단계가 없다.
+  auth-check:
+    if: github.event_name == 'workflow_dispatch' && inputs.auth_check_only
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: lavcca-dev
+    permissions:
+      id-token: write
+    steps:
+      - name: OIDC claims (토큰은 출력하지 않음)
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, urllib.request
+          req = urllib.request.Request(os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com",
+                                       headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]})
+          payload = json.load(urllib.request.urlopen(req))["value"].split(".")[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+          print(f"sub={claims.get('sub')}\naud={claims.get('aud')}")
+          PY
+
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.LAVCCA_ECR_PUSH_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-auth-check-${{ github.run_id }}
+          mask-aws-account-id: true
+
+      - name: Caller identity
+        run: aws sts get-caller-identity --query Arn --output text
+
   publish:
     # main(push·수동) + main 병합 전 1차 배포용 브랜치(수동 실행만). AWS 쪽도 sub 의 ref 로 같은 브랜치만 받는다.
     if: >-
-      github.event_name != 'pull_request' &&
+      github.event_name != 'pull_request' && !inputs.auth_check_only &&
       (github.ref == 'refs/heads/main' ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/chore/lavcca-worker-deploy'))
     runs-on: ubuntu-latest
@@ -71,7 +108,7 @@ jobs:
       # 빌드(수십 분) 전에 OIDC sub 가 역할 신뢰 정책 형식인지 확인한다. 토큰은 출력하지 않고 클레임만 본다.
       - name: OIDC subject check
         env:
-          EXPECTED_SUB: repo:${{ github.repository }}:environment:lavcca-dev:ref:${{ github.ref }}
+          EXPECTED_SUB: repo:${{ github.repository_owner }}@${{ github.repository_owner_id }}/${{ github.event.repository.name }}@${{ github.repository_id }}:environment:lavcca-dev:ref:${{ github.ref }}
         run: |
           python3 - <<'PY'
           import base64, json, os, urllib.request
