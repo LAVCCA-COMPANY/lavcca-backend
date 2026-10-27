@@ -10,6 +10,9 @@ __pycache__/
 *.pem
 *.key
 
+# Claude Code 개인 설정(권한 허용 등) — 저장소 규칙(.claude/settings.json)을 약화하지 않도록 커밋하지 않음
+.claude/settings.local.json
+
 # local databases
 *.sqlite
 *.sqlite.bak*

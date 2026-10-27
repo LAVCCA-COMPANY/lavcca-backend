@@ -306,13 +306,14 @@ def _report(out, natam="ok", adjudicated=(), natam_transient=False):
             "two_tier": {"adjudicated": list(adjudicated)}}, str(p)
 
 
-def _run(tmp_path, monkeypatch):
+def _run(tmp_path, monkeypatch, *extra):
     for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "GOOGLE_CREDENTIALS_JSON"):
         monkeypatch.delenv(k, raising=False)
     video = tmp_path / "v.mp4"
     video.write_bytes(b"x")
     out = tmp_path / "out"
-    code = worker.main(["--job-id", "j1", "--input", str(video), "--output-dir", str(out), "--no-copyright"])
+    code = worker.main(["--job-id", "j1", "--input", str(video), "--output-dir", str(out), "--no-copyright",
+                        *extra])
     import json
     return code, json.loads((out / "job_result.json").read_text(encoding="utf-8"))
 
@@ -397,3 +398,54 @@ def test_require_env(monkeypatch):
         worker.require_env(worker.REQUIRED_ENV)
     monkeypatch.setenv("GEMINI_API_KEY", "x")
     worker.require_env(worker.REQUIRED_ENV)
+
+
+# ── 제한 시간·중지 신호 ────────────────────────────────────────────────
+def test_run_interrupted_by_sigterm(tmp_path, monkeypatch):
+    import signal
+
+    def analyze(out):
+        signal.raise_signal(signal.SIGTERM)       # ECS 중지·Spot 회수
+        raise AssertionError("SIGTERM 뒤에도 계속 돌았음")
+    _fake_engine(monkeypatch, analyze)
+    before = signal.getsignal(signal.SIGTERM)
+    code, res = _run(tmp_path, monkeypatch)
+    assert (code, res["status"]) == (75, "retry_later") and "SIGTERM" in res["error"]
+    assert worker._last_deadline.interrupted
+    assert signal.getsignal(signal.SIGTERM) == before      # 처리기는 원래대로
+    assert worker._last_deadline._hard.finished.is_set()    # 강제 종료 타이머 취소
+
+
+def test_interrupt_not_swallowed_by_engine(tmp_path, monkeypatch):
+    def analyze(out):
+        try:
+            raise worker.WorkerInterrupted("failed", "제한 시간 1초 초과")
+        except Exception:                          # 엔진의 흔한 넓은 except 에 안 잡혀야 한다
+            raise AssertionError("삼켜짐")
+    _fake_engine(monkeypatch, analyze)
+    code, res = _run(tmp_path, monkeypatch)
+    assert (code, res["status"], res["error"]) == (1, "failed", "제한 시간 1초 초과")
+
+
+@pytest.mark.skipif(not hasattr(__import__("signal"), "SIGALRM"), reason="SIGALRM 은 Linux/macOS 만")
+def test_run_times_out(tmp_path, monkeypatch):
+    import time
+
+    def analyze(out):
+        time.sleep(10)
+    _fake_engine(monkeypatch, analyze)
+    t = time.time()
+    code, res = _run(tmp_path, monkeypatch, "--timeout-sec", "1")
+    assert time.time() - t < 5
+    assert (code, res["status"]) == (1, "failed") and "제한 시간 1초" in res["error"]
+
+
+def test_timeout_arg(tmp_path, monkeypatch):
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+    base = ["--job-id", "j1", "--input", str(video), "--output-dir", "o"]
+    monkeypatch.setenv("WORKER_TIMEOUT_SEC", "120")
+    assert worker.parse_args(base).timeout_sec == 120
+    assert worker.parse_args(base + ["--timeout-sec", "0"]).timeout_sec == 0     # 끔
+    with pytest.raises(SystemExit):
+        worker.parse_args(base + ["--timeout-sec", "-1"])

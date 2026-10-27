@@ -21,6 +21,10 @@ worker.py — 영상 1개 = 작업 1개를 비대화식으로 처리하는 서�
       400·JSON 파싱 실패로 비어 있는 판정은 failed. 영구 실패가 하나라도 있으면 재시도하지 않는다.
       retry_later 는 나중에 같은 작업을 다시 돌리라는 뜻(재투입은 T5 큐 쪽 몫). 컨테이너는 WHISPER_FALLBACK=0.
 종료 코드: ok·partial → 0, retry_later → 75(EX_TEMPFAIL), failed → 1.
+제한 시간: --timeout-sec(기본 env WORKER_TIMEOUT_SEC, 없으면 3600초, 0=끔). Fargate 는 태스크 실행 시간 제한이 없어서
+      멈춘 작업이 계속 과금되는 걸 막는다. Linux 는 SIGALRM 으로 분석을 끊고 failed 를 남긴 뒤 올린다.
+      그래도 끝나지 않으면(또는 Windows) 제한+300초에 강제 종료(124) — 상태는 task-stopped Lambda 가 failed 로.
+SIGTERM(ECS 중지·Fargate Spot 회수): 분석을 끊고 retry_later(75) 를 남긴다. 업로드 중 SIGTERM 은 무시한다.
 SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY(새 sb_secret_ 키 권장, 레거시 service_role JWT 도 가능)가 있으면 jobs/job_steps 에 상태를 기록한다
 (스키마: 저장소 루트 infra/supabase/migrations/0001_jobs.sql, 배포 순서: infra/README.md). 없으면 기록 생략.
 비밀값은 환경변수로 받는다. 저작권 감지기는 자기 폴더의 .env 와 환경변수를 쓴다.
@@ -31,8 +35,10 @@ import mimetypes
 import os
 import re
 import shutil
+import signal
 import sys
 import tempfile
+import threading
 import time
 import traceback
 from datetime import datetime, timezone
@@ -52,6 +58,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 EXIT_RETRY_LATER = 75   # sysexits EX_TEMPFAIL
+EXIT_HARD_TIMEOUT = 124  # timeout(1) 관례
+HARD_GRACE_SEC = 300     # 제한 시간 뒤 정리·업로드에 주는 여유
 TRANSIENT_HTTP = {429, 500, 502, 503, 504}
 
 
@@ -281,6 +289,68 @@ def quality_issues(report: dict) -> tuple[dict, list, list]:
     }, retry, fail
 
 
+# ── 제한 시간·중지 신호 ──────────────────────────────────────────────
+class WorkerInterrupted(BaseException):
+    """제한 시간 초과(SIGALRM)·중지 요청(SIGTERM). 엔진 곳곳의 `except Exception` 에 삼켜지지 않게 BaseException."""
+
+    def __init__(self, status: str, reason: str):
+        super().__init__(reason)
+        self.status = status
+        self.reason = reason
+
+
+class Deadline:
+    """main 동안만 신호 처리기를 바꾼다. 끝나면(disarm) 원래대로 — 테스트·재호출에 남지 않게."""
+
+    def __init__(self, timeout_sec: int):
+        self.timeout_sec = timeout_sec
+        self.interrupted = False
+        self._old = {}
+        self._hard = None
+
+    def _raise(self, status, reason):
+        def handler(signum, frame):
+            self.soften()          # 한 번만 — 정리·업로드 중 다시 끊기지 않게
+            self.interrupted = True
+            raise WorkerInterrupted(status, reason)
+        return handler
+
+    def arm(self):
+        if threading.current_thread() is not threading.main_thread():
+            return self
+        self._old[signal.SIGTERM] = signal.signal(
+            signal.SIGTERM, self._raise("retry_later", "태스크 중지 요청(SIGTERM)"))
+        if self.timeout_sec > 0:
+            if hasattr(signal, "SIGALRM"):
+                self._old[signal.SIGALRM] = signal.signal(
+                    signal.SIGALRM, self._raise("failed", f"제한 시간 {self.timeout_sec}초 초과"))
+                signal.alarm(self.timeout_sec)
+            self._hard = threading.Timer(self.timeout_sec + HARD_GRACE_SEC, self._hard_exit)
+            self._hard.daemon = True
+            self._hard.start()
+        return self
+
+    def _hard_exit(self):
+        print(f"⛔ 제한 시간 {self.timeout_sec}+{HARD_GRACE_SEC}초 초과 → 강제 종료", flush=True)
+        os._exit(EXIT_HARD_TIMEOUT)
+
+    def soften(self):
+        """분석이 끝난 뒤: 시간 제한 신호는 끄고 SIGTERM 은 무시(업로드·상태 기록을 마치게)."""
+        if getattr(signal, "SIGALRM", None) in self._old:
+            signal.alarm(0)
+        if self._old:
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
+    def disarm(self):
+        if getattr(signal, "SIGALRM", None) in self._old:
+            signal.alarm(0)
+        for sig, old in self._old.items():
+            signal.signal(sig, old)
+        self._old.clear()
+        if self._hard is not None:
+            self._hard.cancel()
+
+
 # ── 실행 ────────────────────────────────────────────────────────────
 REQUIRED_ENV = ("GEMINI_API_KEY",)
 
@@ -309,7 +379,11 @@ def parse_args(argv=None):
     p.add_argument("--output-dir", required=True, help="결과를 쓸 폴더(없으면 만든다)")
     p.add_argument("--output-s3", help="끝난 뒤 결과 폴더를 올릴 s3://버킷/접두사/")
     p.add_argument("--no-copyright", action="store_true", help="저작권 분석 생략")
+    p.add_argument("--timeout-sec", type=int, default=int(os.getenv("WORKER_TIMEOUT_SEC", "3600")),
+                   help="작업 전체 제한 시간(초, 0=끔). 기본 env WORKER_TIMEOUT_SEC 또는 3600")
     a = p.parse_args(argv)
+    if a.timeout_sec < 0:
+        p.error("--timeout-sec 는 0 이상")
     if not JOB_ID_RE.match(a.job_id):
         p.error("--job-id 는 영문·숫자·_- 1~64자")
     try:
@@ -390,6 +464,10 @@ def run_job(args) -> dict:
             result["error"] = "Gemini 일시 장애로 판정 누락: " + ", ".join(retry_reasons)
         else:
             result["status"] = "ok" if result["copyright_ok"] is not False else "partial"
+    except WorkerInterrupted as e:
+        print(f"⛔ {e.reason} → {e.status}")
+        result["status"] = e.status
+        result["error"] = e.reason
     except Exception as e:
         traceback.print_exc()
         result["error"] = f"{type(e).__name__}: {e}"
@@ -410,8 +488,20 @@ def run_job(args) -> dict:
     return result
 
 
+_last_deadline: Deadline | None = None   # __main__ 이 분석 스레드를 기다리지 않고 끝낼지 판단
+
+
 def main(argv=None) -> int:
+    global _last_deadline
     args = parse_args(argv)
+    deadline = _last_deadline = Deadline(args.timeout_sec).arm()
+    try:
+        return _main(args, deadline)
+    finally:
+        deadline.disarm()
+
+
+def _main(args, deadline: Deadline) -> int:
     status = JobStatus.from_env()
     if not status.enabled:
         print("ℹ️ Supabase 상태 기록 꺼짐 → job_result.json status_write_errors=null")
@@ -425,6 +515,7 @@ def main(argv=None) -> int:
             print("⚠️ GOOGLE_CREDENTIALS_JSON 이 JSON 이 아님 → Google Vision 없이 진행")
         result = run_job(args)
     finally:
+        deadline.soften()
         shutil.rmtree(secrets_dir, ignore_errors=True)
     path = args.output_dir / "job_result.json"
 
@@ -466,4 +557,10 @@ def main(argv=None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    code = main()
+    if _last_deadline is not None and _last_deadline.interrupted:
+        # 끊긴 분석 스레드(스레드 풀)를 인터프리터 종료가 기다리지 않게 바로 끝낸다
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(code)
+    sys.exit(code)

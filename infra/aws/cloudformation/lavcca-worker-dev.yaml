@@ -258,7 +258,8 @@ Resources:
     Type: AWS::ECS::Cluster
     Properties:
       ClusterName: lavcca-dev
-      CapacityProviders: [FARGATE]
+      # FARGATE_SPOT is only used when the dispatcher sets CAPACITY_PROVIDER=FARGATE_SPOT (default: on-demand).
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
       ClusterSettings:
         - Name: containerInsights
           Value: disabled
@@ -285,9 +286,12 @@ Resources:
         - Name: worker
           Image: !Sub "${WorkerRepository.RepositoryUri}:${ImageTag}"
           Essential: true
-          StopTimeout: 30
+          # Fargate max. On SIGTERM (stop / Spot reclaim) the worker writes retry_later and uploads before exit.
+          StopTimeout: 120
           Environment:
             - { Name: MVP_LOGGING, Value: "1" }
+            # Fargate has no task time limit: the worker fails itself after this, hard-exits 300 s later.
+            - { Name: WORKER_TIMEOUT_SEC, Value: "3600" }
             - { Name: USE_LEARNED_DB, Value: "false" }
             - { Name: LEARN_TO_DB, Value: "false" }
             - { Name: GEN_MODEL_FALLBACK, Value: models/gemini-3.6-flash }
