@@ -207,6 +207,22 @@ def test_dispatch_runs_task(env):
         "--output-s3", "s3://lake/ai-output/j1/", "--no-copyright"]
 
 
+def test_dispatch_capacity_provider(env, monkeypatch):
+    ecs = FakeECS()
+    dispatcher._clients = {"ecs": ecs, "sqs": FakeSQS()}
+    dispatcher.dispatch(_sqs_event(MSG))
+    assert ecs.runs[0]["launchType"] == "FARGATE" and "capacityProviderStrategy" not in ecs.runs[0]
+
+    monkeypatch.setenv("CAPACITY_PROVIDER", "FARGATE_SPOT")
+    dispatcher.dispatch(_sqs_event(MSG))
+    assert ecs.runs[1]["capacityProviderStrategy"] == [{"capacityProvider": "FARGATE_SPOT", "weight": 1}]
+    assert "launchType" not in ecs.runs[1]
+
+    monkeypatch.setenv("CAPACITY_PROVIDER", "EC2")
+    assert dispatcher.dispatch(_sqs_event(MSG)) == {"batchItemFailures": [{"itemIdentifier": "m0"}]}
+    assert len(ecs.runs) == 2
+
+
 def test_dispatch_prefix_env(env, monkeypatch):
     monkeypatch.setenv("UPLOAD_PREFIX", "")
     monkeypatch.setenv("OUTPUT_PREFIX", "out/")
