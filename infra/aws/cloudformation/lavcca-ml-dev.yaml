@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Lavcca dev SageMaker training execution role. Reads approved datasets, writes models/ and
+  experiments/ only. Customer uploads, raw/ and ai-output/ are explicitly denied until a
+  consent/anonymisation review approves training reuse. Creates no compute.
+
+Parameters:
+  DataLakeBucket:
+    Type: String
+    Default: lavcca-dev-datalake
+  UploadBucket:
+    Type: String
+    Default: lavcca-dev-customer-uploads
+  DatasetPrefix:
+    Type: String
+    Default: datasets/controversy/
+    AllowedPattern: "^[A-Za-z0-9._/-]+/$"
+
+Resources:
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LavccaSageMakerExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: sagemaker.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:training-job/lavcca-*" }
+      Policies:
+        - PolicyName: lavcca-training
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListTrainingPrefixes
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}"
+                Condition:
+                  StringLike:
+                    "s3:prefix": [!Sub "${DatasetPrefix}*", "models/*", "experiments/*"]
+              - Sid: ReadApprovedDatasets
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}/${DatasetPrefix}*"
+              - Sid: WriteModelsAndExperiments
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}/models/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}/experiments/*"
+              - Sid: DenyCustomerData
+                Effect: Deny
+                Action: s3:*
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:s3:::${UploadBucket}"
+                  - !Sub "arn:${AWS::Partition}:s3:::${UploadBucket}/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}/raw/*"
+                  - !Sub "arn:${AWS::Partition}:s3:::${DataLakeBucket}/ai-output/*"
+              - Sid: TrainingLogs
+                Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogStreams]
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/TrainingJobs:*"
+              - Sid: TrainingMetrics
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringLike: { "cloudwatch:namespace": "/aws/sagemaker/*" }
+              - Sid: EcrAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: PullLavccaImages
+                Effect: Allow
+                Action: [ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage]
+                Resource: !Sub "arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/lavcca-*"
+
+Outputs:
+  SageMakerExecutionRoleArn:
+    Value: !GetAtt SageMakerExecutionRole.Arn

@@ -1,0 +1,47 @@
+# 워커 이미지 빌드 + 스모크 테스트 + Trivy 취약점 검사 (AWS 자격 증명 없이 실행).
+# worker-image.yml 의 PR 검사와 배포(publish) 잡이 같은 절차를 쓰도록 묶었다.
+name: build-worker
+description: Build the Lavcca worker image, smoke-test it and scan it for vulnerabilities
+inputs:
+  tag:
+    description: local image tag (lavcca-worker:<tag>)
+    required: true
+  fail-on-critical:
+    description: '"1" fails the job on fixable CRITICAL vulnerabilities, "0" only reports'
+    required: true
+runs:
+  using: composite
+  steps:
+    # torch·transformers·CLIP 가 들어가 이미지가 크다 → 러너 기본 디스크 확보
+    - name: Free disk
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+    - name: Build
+      shell: bash
+      run: docker build -t "lavcca-worker:${{ inputs.tag }}" "apps/worker"
+
+    - name: Image size
+      shell: bash
+      run: docker image ls lavcca-worker
+
+    - name: Worker CLI
+      shell: bash
+      run: docker run --rm "lavcca-worker:${{ inputs.tag }}" --help
+
+    - name: Copyright detector CLI
+      shell: bash
+      run: docker run --rm -w /app/copyright_detector --entrypoint python "lavcca-worker:${{ inputs.tag }}" main.py --help
+
+    - name: Imports, model, PDF fonts, ffmpeg
+      shell: bash
+      run: docker run --rm -i --entrypoint python "lavcca-worker:${{ inputs.tag }}" - < .github/scripts/worker_smoke.py
+
+    - name: Vulnerability scan (Trivy, fixable CRITICAL)
+      uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (commit SHA pinned)
+      with:
+        image-ref: lavcca-worker:${{ inputs.tag }}
+        severity: CRITICAL
+        ignore-unfixed: true
+        exit-code: ${{ inputs.fail-on-critical }}
+        format: table

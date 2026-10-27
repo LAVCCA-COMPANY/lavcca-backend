@@ -1,0 +1,14 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "S3ConsoleBucketList", "Effect": "Allow", "Action": "s3:ListAllMyBuckets", "Resource": "*" },
+    { "Sid": "DataLakeLocation", "Effect": "Allow", "Action": "s3:GetBucketLocation", "Resource": "arn:aws:s3:::lavcca-dev-datalake" },
+    { "Sid": "ListDataLakeFolders", "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::lavcca-dev-datalake",
+      "Condition": { "StringLike": { "s3:prefix": ["", "raw", "raw/*", "processed", "processed/*", "labeled", "labeled/*", "datasets", "datasets/*", "ai-output", "ai-output/*"] } } },
+    { "Sid": "ReadDataLake", "Effect": "Allow", "Action": "s3:GetObject",
+      "Resource": ["arn:aws:s3:::lavcca-dev-datalake/raw/*", "arn:aws:s3:::lavcca-dev-datalake/processed/*", "arn:aws:s3:::lavcca-dev-datalake/labeled/*", "arn:aws:s3:::lavcca-dev-datalake/datasets/*", "arn:aws:s3:::lavcca-dev-datalake/ai-output/*"] },
+    { "Sid": "WriteDataPipeline", "Effect": "Allow", "Action": "s3:PutObject",
+      "Resource": ["arn:aws:s3:::lavcca-dev-datalake/raw/*", "arn:aws:s3:::lavcca-dev-datalake/processed/*", "arn:aws:s3:::lavcca-dev-datalake/labeled/*", "arn:aws:s3:::lavcca-dev-datalake/datasets/*"] },
+    { "Sid": "DenyCustomerUploads", "Effect": "Deny", "Action": "s3:*", "Resource": ["arn:aws:s3:::lavcca-dev-customer-uploads", "arn:aws:s3:::lavcca-dev-customer-uploads/*"] }
+  ]
+}

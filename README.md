@@ -6,16 +6,22 @@ api 돌리면 로컬로 웹사이트에서 실행 가능, pdf 리포트 생성 �
 
 곧 copyright detector도 합쳐서 최종본 MVP 만들 예정
 
-controversy_samples.json과 cade_db.json을 이용해서 controversy_model.joblib를 classifier_model.py로 문장 학습시킴
+학습·갱신 스크립트는 전부 apps/worker/ 에 있음 (1_9_2 에서 이동)
 
-trend_updater.py를 사용해서 최근 뉴스/기사 분석, 키워드, 사건 등을 찾고 review_update.py로 검토 후 controversy_model.joblib 학습
+apps/worker/data/controversy_samples.json을 이용해서 models/controversy_model.joblib를 classifier_model.py로 문장 학습시킴
+
+tools/trend_updater.py를 사용해서 최근 뉴스/기사 분석, 키워드, 학습문장을 찾고 tools/review_updates.py로 검토 후 classifier_model.py로 재학습 (사례 수집은 case_db.json 폐기로 비활성, 유사 사례는 tools/casedb_sync.py + similar_case_engine.py)
+
+모델 성능 확인: python tools/eval_harness.py data/golden_set.json
+
+apps/worker/ 폴더 구성: 실행 코드는 루트, config/(규칙·라벨·템플릿), models/(분류 모델), data/(학습·평가 데이터), tools/(오프라인 스크립트), docs/, tests/. 경로는 paths.py 한 곳에서 관리
 
 현재 API 노출로 인해 다시 조금 수정해서 사용하고 싶으면 개인적으로 API 보내줘야됨
 
 python 3.14로 실행
 ## 웹 실행 및 보안 (베타 전 필수 확인)
 
-- `mvp 1_9_3/app.py`는 **인증이 없기 때문에 `127.0.0.1:5000`(이 PC)에서만 접속되도록** 실행됩니다.
+- `apps/worker/app.py`는 **인증이 없기 때문에 `127.0.0.1:5000`(이 PC)에서만 접속되도록** 실행됩니다.
 - **인증(로그인/접근 제어)을 도입하기 전에는 외부(인터넷·사내망)에 공개하지 마세요.** `0.0.0.0` 바인딩, 포트 포워딩, 리버스 프록시 공개 모두 해당됩니다.
 - 웹 입력은 **YouTube URL · Google Drive URL · 텍스트**만 지원합니다. 서버의 로컬 파일 경로는 웹에서 받지 않습니다(텍스트로 취급). 로컬 영상 분석은 CLI(`python mvp_ver_1_9_3.py`)를 사용하세요.
 - 분석 오류 시 사용자에게는 일반 안내 문구만 보여 주고, 상세 원인은 서버 콘솔 로그에 남깁니다.

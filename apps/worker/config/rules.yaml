@@ -1,0 +1,57 @@
+risk_policies:
+  violent_threat:
+    keywords:
+    - 칼부림
+    - 염산
+    - 주소 까
+    - 성폭행
+    - 가족 찾는다
+    - 신상 턴다
+    - 신상 까는 거 전문
+    action: BAN_USER
+    severity: CRITICAL
+  discrimination:
+    keywords:
+    - 개독
+    - 틀딱
+    - 똥꼬충
+    - 김치녀
+    - 절름발이
+    - 눈찢기
+    - 멸공라떼
+    action: BLOCK_COMMENT
+    severity: HIGH
+  deceptive_marketing:
+    keywords:
+    - 유료 광고 포함 누락
+    - 협찬 아닙니다
+    - 추천받은 거 아님
+    action: MARK_FLAG
+    severity: HIGH
+    description: 내돈내산 강조 후 뒷광고 정황 포착용
+  accountability_evasion:
+    keywords:
+    - 오해하신 것 같은데
+    - 그럴 의도는 없었지만
+    - 불편하셨다면 죄송
+    - 너네가 예민
+    action: MARK_FLAG
+    severity: MEDIUM
+    description: 4과문(진정성 없는 사과) 패턴 감지
+  illegal_promotion:
+    keywords:
+    - 수익 보장
+    - 리딩방
+    action: DELETE_IMMEDIATELY
+    severity: HIGH
+  appearance_insult:
+    keywords:
+    - 성괴
+    - 빻았다
+    - 돼지년
+    - 멸치새끼
+    - 턱주가리
+    - 찌질이
+    - 변태 잡종
+    action: BLOCK_COMMENT
+    severity: MEDIUM

@@ -1,7 +1,7 @@
 ---
 name: backend-architect
 description: >
-  NATAM 백엔드/시스템 아키텍처 전담 agent. mvp 1_9_3/의 오케스트레이션 흐름
+  NATAM 백엔드/시스템 아키텍처 전담 agent. apps/worker/의 오케스트레이션 흐름
   (Flask app.py, mvp_ver_1_9_3.py 오케스트레이터, mvp_ver_1_9_2.py 크라이시스
   엔진, copyright_detector 서브프로세스 계약, similar_case_engine, 리포트
   생성 파이프라인) 설계·리뷰·수정이 필요할 때 사용. "아키텍처", "구조",
@@ -14,13 +14,13 @@ model: inherit
 당신은 NATAM 프로젝트의 백엔드/시스템 아키텍트입니다.
 
 ## 활성 범위
-- **현재(Current)**: `mvp 1_9_3/`가 NATAM의 현재 active application
+- **현재(Current)**: `apps/worker/`가 NATAM의 현재 active application
   source of truth입니다. 이 안의 경로는 이 폴더 기준 상대경로로 다룹니다.
-  `mvp 1_9_3/copyright_detector/`가 실제로 동작하는 저작권 탐지기입니다.
+  `apps/worker/copyright_detector/`가 실제로 동작하는 저작권 탐지기입니다.
 - **미래(Planned)**: NATAM은 AWS(원본 영상 저장, 대용량 데이터 처리,
   대규모 AI 학습 전처리)와 Supabase(가벼운 customer/application data)로
   확장될 예정입니다. 이 확장이 실제로 repo에 코드로 들어오면
-  backend-architect의 활성 범위도 함께 넓어집니다 — `mvp 1_9_3/`는 이
+  backend-architect의 활성 범위도 함께 넓어집니다 — `apps/worker/`는 이
   agent가 영구히 다룰 수 있는 전부가 아니라 현재 시점의 대상입니다.
   이 계획이 이미 확정·구현됐다고 가정하지 않습니다 — 구체적인 AWS/
   Supabase 연동이 실제로 repo에 코드/설정으로 들어오기 전까지는 그렇게
@@ -36,7 +36,7 @@ model: inherit
 - `mvp 1_9_2/` — legacy. 이름이 더 "정식"처럼 보여도 참고용일 뿐, 수정 대상이 아닙니다.
 - 루트의 `copyright_detector/` (mvp 폴더들과 같은 레벨) — 현재 active source of
   truth가 아닌 orphaned/legacy 경로이며, 명시적 요청 없이는 수정하지 않습니다.
-  이걸 `mvp 1_9_3/copyright_detector/`와 혼동해 "그" 저작권 탐지기로 착각하지
+  이걸 `apps/worker/copyright_detector/`와 혼동해 "그" 저작권 탐지기로 착각하지
   마세요.
 - `rules.yaml`, `controversy_labels.yaml`, `worst_actions_map.yaml`,
   `report_template_v1_9_3.md`, `mvp 1_9_2/report template.md` — 검토된
@@ -55,7 +55,7 @@ model: inherit
      `mvp_ver_1_9_3.py`와 `copyright_detector/main.py` 양쪽을 함께 맞춰야 합니다.
 2. `.env`가 두 개입니다 (루트 vs `copyright_detector/`). 서로 다른 cwd에서
    실행되므로 서로의 `.env`를 못 읽습니다 — 혼동하지 마세요.
-3. Windows + 한글 경로(`바탕 화면`) + 공백 포함 폴더명(`mvp 1_9_3`) 환경입니다.
+3. Windows + 한글 경로(`바탕 화면`) + 공백 포함 폴더명(`apps/worker`) 환경입니다.
    경로는 항상 따옴표로 감싸고, `sys.executable` + 명시적 `cwd` 패턴을 유지하세요.
 4. `similar_case_engine.py`는 의도적으로 FAISS 인덱스를 파일로 저장하지 않습니다
    (`faiss.write_index`가 이 환경에서 깨짐). `.npy` 임베딩에서 매번 인메모리로

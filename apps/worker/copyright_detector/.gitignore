@@ -1,0 +1,57 @@
+# ── 폰트 파일 (저작권·용량 문제로 커밋 제외, 로컬에만 보관) ──
+# fonts_train 안의 모든 폰트 파일 제외, 단 구조/사용법 파일은 유지
+font_legacy/fonts_train/*
+!font_legacy/fonts_train/README.md
+!font_legacy/fonts_train/manifest.json
+
+# 기타 위치의 폰트 파일도 혹시 모르니 제외
+*.ttf
+*.otf
+*.ttc
+*.TTF
+*.OTF
+*.woff
+*.woff2
+
+# ── 학습된 모델 (용량 큰 바이너리, 재학습으로 생성 가능) ──
+models/*.pt
+models/*.pt.*
+models/*.pth
+models/*_meta.json
+models/*_meta.json.*
+
+# ── 비밀정보 (절대 커밋 금지) ──
+.env
+*.env
+!.env.example
+*credentials*.json
+google-credentials.json
+*.pem
+*.key
+
+# ── 데이터베이스 ──
+# copyright_db.sqlite 는 커밋함 (자체 학습 데이터 버전관리 목적)
+# 단, 백업본(.bak)은 제외
+*.sqlite.bak*
+*.sqlite3
+
+# ── 파이썬 / 가상환경 ──
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# ── 실행 산출물 / 임시 ──
+temp/
+results/
+downloads/
+*.log
+
+# ── OS / 에디터 ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

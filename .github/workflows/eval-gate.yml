@@ -1,0 +1,48 @@
+# 골든셋 비회귀 게이트 (작업 5)
+# 분류 모델·학습 데이터·평가 스크립트가 바뀌는 PR 에서 고심각도(L03/L06/L09/L11) 재현율이
+# baseline 대비 떨어지면 실패한다.
+# data/golden_set.json 과 data/eval_baseline.json 이 커밋되기 전까지는 스킵된다.
+name: eval-gate
+
+on:
+  pull_request:
+    paths:
+      - "apps/worker/models/controversy_model.joblib"
+      - "apps/worker/data/controversy_samples.json"
+      - "apps/worker/classifier_model.py"
+      - "apps/worker/tools/eval_harness.py"
+      - "apps/worker/data/golden_set.json"
+      - "apps/worker/data/eval_baseline.json"
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "apps/worker"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check golden set exists
+        id: check
+        run: |
+          if [ -f data/golden_set.json ] && [ -f data/eval_baseline.json ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "data/golden_set.json / data/eval_baseline.json 없음 → 게이트 스킵"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.ready == 'true'
+        with:
+          python-version: "3.11"
+
+      # joblib 모델은 학습한 scikit-learn 버전과 맞아야 로드된다 (로컬 학습 환경 기준 고정)
+      - name: Install
+        if: steps.check.outputs.ready == 'true'
+        run: pip install "scikit-learn==1.8.0" "numpy==2.4.3" "joblib==1.5.3"
+
+      - name: Gate
+        if: steps.check.outputs.ready == 'true'
+        run: python tools/eval_harness.py data/golden_set.json --gate

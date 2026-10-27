@@ -1,0 +1,336 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Lavcca dev AI worker (ECS Fargate, run-task only). ECR, ECS cluster, task definition,
+  log group, worker IAM roles, GitHub Actions OIDC push role, egress-only security group,
+  and an empty Secrets Manager secret (values are entered outside CloudFormation).
+  No NAT Gateway, no ECS Service, no inbound ports. Existing S3 buckets are referenced, not created.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC for the worker security group (dev uses the default VPC; tasks run in its public subnets).
+  ImageTag:
+    Type: String
+    Default: bootstrap
+    AllowedPattern: "^[A-Za-z0-9._-]{1,128}$"
+    Description: Git SHA tag pushed by GitHub Actions. "bootstrap" until the first image exists (task cannot run yet).
+  TaskCpu:
+    Type: String
+    Default: "4096"
+    AllowedValues: ["2048", "4096", "8192"]
+  TaskMemory:
+    Type: String
+    Default: "16384"
+    Description: MiB. Must be a valid Fargate pair with TaskCpu (4096 -> 8192..30720).
+  UploadBucket:
+    Type: String
+    Default: lavcca-dev-customer-uploads
+  UploadPrefix:
+    Type: String
+    Default: uploads/
+    AllowedPattern: "^[A-Za-z0-9._-]+/$"
+  OutputBucket:
+    Type: String
+    Default: lavcca-dev-datalake
+  OutputPrefix:
+    Type: String
+    Default: ai-output/
+    AllowedPattern: "^[A-Za-z0-9._-]+/$"
+  GitHubOrg:
+    Type: String
+    Default: NATAM-KESSOKUBAND
+  GitHubRepo:
+    Type: String
+    Default: MVP
+  GitHubEnvironment:
+    Type: String
+    Default: lavcca-dev
+    Description: GitHub Environment allowed to assume the push role (restrict it to main + required reviewers in GitHub).
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Only this branch may push images. Requires the repo OIDC sub claim to include "ref" (infra/README.md).
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: '"false" if token.actions.githubusercontent.com already exists in this account (one per account).'
+
+Conditions:
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  WorkerRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      RepositoryName: lavcca-worker
+      ImageTagMutability: IMMUTABLE
+      EmptyOnDelete: true
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      EncryptionConfiguration:
+        EncryptionType: AES256
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules": [
+            {"rulePriority": 1, "description": "untagged layers after 1 day",
+             "selection": {"tagStatus": "untagged", "countType": "sinceImagePushed", "countUnit": "days", "countNumber": 1},
+             "action": {"type": "expire"}},
+            {"rulePriority": 2, "description": "keep the 5 newest images (multi-GB each)",
+             "selection": {"tagStatus": "any", "countType": "imageCountMoreThan", "countNumber": 5},
+             "action": {"type": "expire"}}
+          ]}
+      Tags:
+        - { Key: Project, Value: lavcca }
+        - { Key: Env, Value: dev }
+
+  WorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: /lavcca/dev/worker
+      RetentionInDays: 14
+
+  # Value-less container. Keys are put with put-secret-value (infra/README.md) so they never
+  # appear in templates, parameters, stack events or drift output. Retained on stack delete.
+  WorkerSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: lavcca/dev/worker
+      Description: "Lavcca dev worker API keys (JSON: GEMINI_API_KEY, GOOGLE_API_KEY, YOUTUBE_API_KEY). Set outside CloudFormation."
+      Tags:
+        - { Key: Project, Value: lavcca }
+        - { Key: Env, Value: dev }
+
+  WorkerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LavccaWorkerExecutionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*" }
+      Policies:
+        - PolicyName: worker-execution
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: EcrAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: PullWorkerImage
+                Effect: Allow
+                Action: [ecr:BatchCheckLayerAvailability, ecr:GetDownloadUrlForLayer, ecr:BatchGetImage]
+                Resource: !GetAtt WorkerRepository.Arn
+              - Sid: WorkerLogs
+                Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                # LogGroup GetAtt Arn already ends with ":*"; build it from the name so there is exactly one.
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:${WorkerLogGroup}:*"
+              - Sid: WorkerSecret
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref WorkerSecret
+
+  WorkerTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LavccaWorkerTaskRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { "aws:SourceAccount": !Ref AWS::AccountId }
+              ArnLike: { "aws:SourceArn": !Sub "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*" }
+      Policies:
+        - PolicyName: worker-task
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadUploads
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${UploadBucket}/${UploadPrefix}*"
+              - Sid: WriteAiOutput
+                Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${OutputBucket}/${OutputPrefix}*"
+              - Sid: TranscribeFallbackAudio
+                Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+                Resource: !Sub "arn:${AWS::Partition}:s3:::${UploadBucket}/transcribe-tmp/*"
+              - Sid: TranscribeFallbackJobs
+                Effect: Allow
+                Action: [transcribe:StartTranscriptionJob, transcribe:GetTranscriptionJob, transcribe:DeleteTranscriptionJob]
+                Resource: !Sub "arn:${AWS::Partition}:transcribe:${AWS::Region}:${AWS::AccountId}:transcription-job/lavcca-asr-*"
+              # Used only when USE_REKOGNITION=true (first test keeps it false). DetectLabels has no resource ARN.
+              - Sid: CopyrightRekognition
+                Effect: Allow
+                Action: rekognition:DetectLabels
+                Resource: "*"
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubEcrPushRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: LavccaGithubEcrPushRole
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateOidc
+                - !Ref GitHubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+                # Environment AND branch are both in the token subject, so AWS enforces them itself (not only
+                # GitHub settings). Needs the repo sub template ["repo","context","ref"]; until then this fails closed.
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubOrg}/${GitHubRepo}:environment:${GitHubEnvironment}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: ecr-push-lavcca-worker
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: EcrAuth
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Sid: PushAndInspectWorkerImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                  - ecr:DescribeImages
+                  - ecr:DescribeImageScanFindings
+                Resource: !GetAtt WorkerRepository.Arn
+
+  # Tasks get a public IP (no NAT). Inbound is closed; outbound is HTTPS only
+  # (ECR, S3, Secrets Manager, CloudWatch Logs, Transcribe, Gemini, Google Vision, YouTube API).
+  WorkerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: lavcca-worker-sg
+      GroupDescription: Lavcca worker - no inbound, HTTPS egress only
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: HTTPS to AWS APIs and external AI APIs
+      Tags:
+        - { Key: Project, Value: lavcca }
+        - { Key: Env, Value: dev }
+
+  WorkerCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: lavcca-dev
+      # FARGATE_SPOT is only used when the dispatcher sets CAPACITY_PROVIDER=FARGATE_SPOT (default: on-demand).
+      CapacityProviders: [FARGATE, FARGATE_SPOT]
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+      Tags:
+        - { Key: Project, Value: lavcca }
+        - { Key: Env, Value: dev }
+
+  WorkerTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: lavcca-worker
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      RuntimePlatform:
+        CpuArchitecture: X86_64
+        OperatingSystemFamily: LINUX
+      EphemeralStorage:
+        SizeInGiB: 40
+      ExecutionRoleArn: !GetAtt WorkerExecutionRole.Arn
+      TaskRoleArn: !GetAtt WorkerTaskRole.Arn
+      ContainerDefinitions:
+        - Name: worker
+          Image: !Sub "${WorkerRepository.RepositoryUri}:${ImageTag}"
+          Essential: true
+          # Fargate max. On SIGTERM (stop / Spot reclaim) the worker writes retry_later and uploads before exit.
+          StopTimeout: 120
+          Environment:
+            - { Name: MVP_LOGGING, Value: "1" }
+            # Fargate has no task time limit: the worker fails itself after this, hard-exits 300 s later.
+            - { Name: WORKER_TIMEOUT_SEC, Value: "3600" }
+            - { Name: USE_LEARNED_DB, Value: "false" }
+            - { Name: LEARN_TO_DB, Value: "false" }
+            - { Name: GEN_MODEL_FALLBACK, Value: models/gemini-3.6-flash }
+            - { Name: TRANSCRIBE_FALLBACK, Value: aws }
+            - { Name: AWS_TRANSCRIBE_S3, Value: !Sub "s3://${UploadBucket}/transcribe-tmp/" }
+            # First-test defaults: no paid/optional external calls beyond Gemini, Google Vision, YouTube API.
+            - { Name: USE_REKOGNITION, Value: "false" }
+            - { Name: MUSIC_ENABLED, Value: "false" }
+            - { Name: SPREAD_SIGNALS_ENABLED, Value: "0" }
+            - { Name: TREND_MODE, Value: "off" }
+            - { Name: YANDEX_PUBLIC_UPLOAD_ENABLED, Value: "false" }
+          # Every key listed here must exist in the secret JSON or the task fails to start.
+          Secrets:
+            - { Name: GEMINI_API_KEY, ValueFrom: !Sub "${WorkerSecret}:GEMINI_API_KEY::" }
+            - { Name: GOOGLE_API_KEY, ValueFrom: !Sub "${WorkerSecret}:GOOGLE_API_KEY::" }
+            - { Name: YOUTUBE_API_KEY, ValueFrom: !Sub "${WorkerSecret}:YOUTUBE_API_KEY::" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref WorkerLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: worker
+      Tags:
+        - { Key: Project, Value: lavcca }
+        - { Key: Env, Value: dev }
+
+Outputs:
+  RepositoryUri:
+    Value: !GetAtt WorkerRepository.RepositoryUri
+  ClusterName:
+    Value: !Ref WorkerCluster
+  TaskDefinitionArn:
+    Value: !Ref WorkerTaskDefinition
+  SecurityGroupId:
+    Value: !Ref WorkerSecurityGroup
+  WorkerSecretArn:
+    Value: !Ref WorkerSecret
+  GitHubEcrPushRoleArn:
+    Description: Set as GitHub Environment variable LAVCCA_ECR_PUSH_ROLE_ARN (lavcca-dev).
+    Value: !GetAtt GitHubEcrPushRole.Arn
+  LogGroupName:
+    Value: !Ref WorkerLogGroup

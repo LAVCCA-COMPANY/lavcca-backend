@@ -10,6 +10,9 @@ __pycache__/
 *.pem
 *.key
 
+# Claude Code 개인 설정(권한 허용 등) — 저장소 규칙(.claude/settings.json)을 약화하지 않도록 커밋하지 않음
+.claude/settings.local.json
+
 # local databases
 *.sqlite
 *.sqlite.bak*
@@ -27,3 +30,20 @@ transcripts/
 # local case database (generated data, exceeds GitHub 100MB limit)
 casedb/
 copyright_detector/_gitignore_test_tmp/
+
+# trend_updater 가 이미 본 기사 링크 (로컬 상태)
+.trend_seen.json
+
+# graphify 지식 그래프 산출물 (로컬 분석용)
+graphify-out/
+
+# 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
+apps/worker/reports/
+apps/worker/logs/
+
+# SageMaker 연습 학습 산출물 (tools/sagemaker/train.py 기본 출력)
+apps/worker/out/
+
+# 뉴스 트렌드 원본·열기 표(apps/worker/trend_signals.py) — S3 로 주고받음, 커밋 안 함
+apps/worker/data/trends/raw/
+apps/worker/data/trends/table/

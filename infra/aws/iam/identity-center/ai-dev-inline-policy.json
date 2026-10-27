@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "S3ConsoleBucketList", "Effect": "Allow", "Action": "s3:ListAllMyBuckets", "Resource": "*" },
+    { "Sid": "DataLakeLocation", "Effect": "Allow", "Action": "s3:GetBucketLocation", "Resource": "arn:aws:s3:::lavcca-dev-datalake" },
+    { "Sid": "ListApprovedPrefixes", "Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::lavcca-dev-datalake",
+      "Condition": { "StringLike": { "s3:prefix": ["", "processed/*", "labeled/*", "datasets/*", "models/*", "experiments/*", "ai-output/", "ai-output/test-*",
+                                                    "processed", "labeled", "datasets", "models", "experiments", "ai-output"] } } },
+    { "Sid": "ReadApprovedData", "Effect": "Allow", "Action": "s3:GetObject",
+      "Resource": ["arn:aws:s3:::lavcca-dev-datalake/processed/*", "arn:aws:s3:::lavcca-dev-datalake/labeled/*", "arn:aws:s3:::lavcca-dev-datalake/datasets/*", "arn:aws:s3:::lavcca-dev-datalake/models/*", "arn:aws:s3:::lavcca-dev-datalake/experiments/*", "arn:aws:s3:::lavcca-dev-datalake/ai-output/test-*"] },
+    { "Sid": "WriteDevArtifactsOnly", "Effect": "Allow", "Action": "s3:PutObject", "Resource": "arn:aws:s3:::lavcca-dev-datalake/experiments/*" },
+    { "Sid": "DenyCustomerUploads", "Effect": "Deny", "Action": "s3:*", "Resource": ["arn:aws:s3:::lavcca-dev-customer-uploads", "arn:aws:s3:::lavcca-dev-customer-uploads/*"] },
+    { "Sid": "DenyRawData", "Effect": "Deny", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], "Resource": "arn:aws:s3:::lavcca-dev-datalake/raw/*" },
+
+    { "Sid": "EcrAuth", "Effect": "Allow", "Action": "ecr:GetAuthorizationToken", "Resource": "*" },
+    { "Sid": "WorkerImagePushPull", "Effect": "Allow",
+      "Action": ["ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload",
+                 "ecr:UploadLayerPart", "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:DescribeImages", "ecr:ListImages", "ecr:DescribeImageScanFindings"],
+      "Resource": "arn:aws:ecr:ap-northeast-2:__ACCOUNT_ID__:repository/lavcca-worker" },
+
+    { "Sid": "ListLogGroups", "Effect": "Allow", "Action": ["logs:DescribeLogGroups", "logs:GetQueryResults", "logs:StopQuery"], "Resource": "*" },
+    { "Sid": "ReadWorkerAndTrainingLogs", "Effect": "Allow",
+      "Action": ["logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents", "logs:StartQuery"],
+      "Resource": ["arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/lavcca/dev/worker:*",
+                   "arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/aws/sagemaker/TrainingJobs:*"] },
+    { "Sid": "DescribeWorkerTasks", "Effect": "Allow", "Action": ["ecs:DescribeTasks", "ecs:ListTasks"], "Resource": "*",
+      "Condition": { "ArnEquals": { "ecs:cluster": "arn:aws:ecs:ap-northeast-2:__ACCOUNT_ID__:cluster/lavcca-dev" } } },
+
+    { "Sid": "CreateBoundedTrainingJobs", "Effect": "Allow", "Action": ["sagemaker:CreateTrainingJob", "sagemaker:AddTags"],
+      "Resource": "arn:aws:sagemaker:ap-northeast-2:__ACCOUNT_ID__:training-job/lavcca-*",
+      "Condition": { "ForAllValues:StringEquals": { "sagemaker:InstanceTypes": ["ml.m5.large", "ml.m5.xlarge", "ml.c5.xlarge", "ml.g4dn.xlarge"] },
+                     "NumericLessThanEquals": { "sagemaker:MaxRuntimeInSeconds": "14400" } } },
+    { "Sid": "ManageOwnTrainingJobs", "Effect": "Allow", "Action": ["sagemaker:DescribeTrainingJob", "sagemaker:StopTrainingJob", "sagemaker:ListTags"],
+      "Resource": "arn:aws:sagemaker:ap-northeast-2:__ACCOUNT_ID__:training-job/lavcca-*" },
+    { "Sid": "ListTrainingJobs", "Effect": "Allow", "Action": ["sagemaker:ListTrainingJobs", "sagemaker:Search"], "Resource": "*" },
+    { "Sid": "PassSageMakerRoleOnly", "Effect": "Allow", "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::__ACCOUNT_ID__:role/LavccaSageMakerExecutionRole",
+      "Condition": { "StringEquals": { "iam:PassedToService": "sagemaker.amazonaws.com" } } },
+
+    { "Sid": "ReadServiceQuotas", "Effect": "Allow",
+      "Action": ["servicequotas:GetServiceQuota", "servicequotas:GetAWSDefaultServiceQuota", "servicequotas:ListServiceQuotas", "servicequotas:ListServices"],
+      "Resource": "*" },
+
+    { "Sid": "TranscribeTestJobs", "Effect": "Allow",
+      "Action": ["transcribe:StartTranscriptionJob", "transcribe:GetTranscriptionJob", "transcribe:DeleteTranscriptionJob"],
+      "Resource": "arn:aws:transcribe:ap-northeast-2:__ACCOUNT_ID__:transcription-job/lavcca-asr-dev-*" },
+    { "Sid": "TranscribeList", "Effect": "Allow", "Action": "transcribe:ListTranscriptionJobs", "Resource": "*" }
+  ]
+}

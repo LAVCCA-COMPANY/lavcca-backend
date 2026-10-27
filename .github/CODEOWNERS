@@ -1,0 +1,30 @@
+# 작업 9 초안 — 아래 경로를 바꾸는 PR 은 지정된 사람의 리뷰가 필요하다.
+# ⚠️ GitHub 사용자명(@...)은 커밋 작성자 이름으로 추정한 값이므로 실제 계정명으로 확인/수정할 것.
+# ⚠️ 실제로 강제하려면 GitHub 저장소 설정 → Branch protection(main) →
+#    "Require review from Code Owners" 를 켜야 한다.
+
+# 기본: 모든 변경은 JH 리뷰
+*                                   @yangzari
+
+# 업무 규칙·정책 YAML, 리포트 템플릿 (검토된 정책/출력 계약)
+/apps/worker/config/                 @yangzari
+
+# 모델·학습 데이터·평가 기준 (골든셋 게이트 대상)
+/apps/worker/models/                 @yangzari
+/apps/worker/data/controversy_samples.json   @yangzari
+/apps/worker/data/golden_set.json            @yangzari
+/apps/worker/data/eval_baseline.json         @yangzari
+
+# 저작권 감지기 (서브프로세스 계약)
+/apps/worker/copyright_detector/      @yangzari
+
+# 에이전트 권한·훅·CI·작업 규칙 — 권한 변경은 사람 승인 필수 (PM = @amemochan, 저장소 admin)
+/.claude/                           @yangzari @amemochan
+/.codex/                            @yangzari @amemochan
+/.github/                           @yangzari @amemochan
+/AGENTS.md                          @yangzari @amemochan
+
+# AWS·Supabase 인프라와 배포 워크플로
+/infra/                             @yangzari @amemochan
+/.github/workflows/worker-image.yml @yangzari @amemochan
+/.github/actions/                   @yangzari @amemochan

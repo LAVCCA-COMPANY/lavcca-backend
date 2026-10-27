@@ -1,0 +1,51 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RunWorker",
+      "Effect": "Allow",
+      "Action": "ecs:RunTask",
+      "Resource": "arn:aws:ecs:ap-northeast-2:__ACCOUNT_ID__:task-definition/lavcca-worker:*",
+      "Condition": { "ArnEquals": { "ecs:cluster": "arn:aws:ecs:ap-northeast-2:__ACCOUNT_ID__:cluster/lavcca-dev" } }
+    },
+    {
+      "Sid": "TagOnRun",
+      "Effect": "Allow",
+      "Action": "ecs:TagResource",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "ecs:CreateAction": "RunTask" } }
+    },
+    {
+      "Sid": "CountRunning",
+      "Effect": "Allow",
+      "Action": "ecs:ListTasks",
+      "Resource": "*",
+      "Condition": { "ArnEquals": { "ecs:cluster": "arn:aws:ecs:ap-northeast-2:__ACCOUNT_ID__:cluster/lavcca-dev" } }
+    },
+    {
+      "Sid": "PassWorkerRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::__ACCOUNT_ID__:role/LavccaWorkerExecutionRole",
+        "arn:aws:iam::__ACCOUNT_ID__:role/LavccaWorkerTaskRole"
+      ],
+      "Condition": { "StringEquals": { "iam:PassedToService": "ecs-tasks.amazonaws.com" } }
+    },
+    {
+      "Sid": "JobQueue",
+      "Effect": "Allow",
+      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:SendMessage"],
+      "Resource": "arn:aws:sqs:ap-northeast-2:__ACCOUNT_ID__:lavcca-dev-jobs"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": [
+        "arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/aws/lambda/lavcca-dev-dispatcher:*",
+        "arn:aws:logs:ap-northeast-2:__ACCOUNT_ID__:log-group:/aws/lambda/lavcca-dev-task-stopped:*"
+      ]
+    }
+  ]
+}
