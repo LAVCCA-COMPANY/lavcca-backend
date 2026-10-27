@@ -6,9 +6,9 @@ Agent rules (roles, branches, loop limits, approvals): @AGENTS.md
 
 Backend and AWS infrastructure for LAVCCA: the worker entry point that runs one analysis job
 on ECS, the API/dispatcher Lambdas, Supabase migrations, CloudFormation, and the worker image
-build/deploy pipeline. Since 2026-10-27 the **analysis engine lives in lavcca-ai** and the
-training/eval **data in lavcca-data** (history before the split stays here; `git log --follow`).
-Architecture and cross-repo contracts: lavcca-docs.
+build/deploy pipeline. Since 2026-10-27 the **analysis engine lives in ai** and the
+training/eval **data in data** (history before the split stays here; `git log --follow`).
+Architecture and cross-repo contracts: docs.
 
 ## Layout
 
@@ -16,7 +16,7 @@ Architecture and cross-repo contracts: lavcca-docs.
   --output-dir <dir> [--output-s3 s3://...] [--no-copyright]`). It imports the engine
   (`mvp_ver_1_9_3`) lazily inside `run_job`; tests replace it with a fake module.
 - `apps/worker/Dockerfile`, `.dockerignore` — the worker image. The build context is
-  `apps/worker/` **with lavcca-ai overlaid on it** at the commit/tag in
+  `apps/worker/` **with ai overlaid on it** at the commit/tag in
   `apps/worker/ai-engine.ref` (`.github/actions/build-worker`). Image `/app` = engine root +
   `worker.py`, same as before the split.
 - `apps/lambdas/` — API (`api.py`), SQS → ECS dispatcher (`dispatcher.py`), `supa.py`; drafts,
@@ -30,9 +30,9 @@ Architecture and cross-repo contracts: lavcca-docs.
 ## Rules
 
 - Only this repo deploys to AWS. Never create AWS roles for other repos.
-- Changing the engine version = a PR that edits `apps/worker/ai-engine.ref` (lavcca-ai tag).
+- Changing the engine version = a PR that edits `apps/worker/ai-engine.ref` (ai tag).
   If the engine interface changes (`analyze_only`, `finalize_reports`, `CopyrightRunner`,
-  `run_logging`, report file names), update `worker.py`, its tests and lavcca-docs together.
+  `run_logging`, report file names), update `worker.py`, its tests and docs together.
 - AWS changes go through CloudFormation Change Sets reviewed and approved by the PM; never edit
   IAM policies by hand. The OIDC trust uses the immutable subject
   (`repo:LAVCCA-COMPANY@298266724/lavcca-backend@1285873680:environment:lavcca-dev:ref:...`).
@@ -45,4 +45,4 @@ Architecture and cross-repo contracts: lavcca-docs.
     python -m pytest apps/worker/tests apps/lambdas/tests .claude/hooks -q
 
 Tests use mocks only (no AWS, Supabase or API keys). The image build needs the repository
-secret `LAVCCA_AI_READ_TOKEN` (read-only access to lavcca-ai). Python 3.11.
+secret `LAVCCA_AI_READ_TOKEN` (read-only access to ai). Python 3.11.

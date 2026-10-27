@@ -10,7 +10,7 @@ description: >
 tools: Read, Glob, Grep, Edit, Write, Bash
 model: inherit
 ---
-> 2026-10-27 저장소 분리: 엔진(mvp_ver_*, copyright_detector, config, models, 엔진 테스트)은 **lavcca-ai**, 데이터는 **lavcca-data** 로 옮겼다. 이 저장소에는 워커 진입점(`apps/worker/worker.py`)·Lambda·인프라만 남는다. 아래 엔진 설명은 lavcca-ai 기준으로 읽는다.
+> 2026-10-27 저장소 분리: 엔진(mvp_ver_*, copyright_detector, config, models, 엔진 테스트)은 **ai**, 데이터는 **data** 로 옮겼다. 이 저장소에는 워커 진입점(`apps/worker/worker.py`)·Lambda·인프라만 남는다. 아래 엔진 설명은 ai 기준으로 읽는다.
 
 
 당신은 NATAM 프로젝트의 백엔드/시스템 아키텍트입니다.
@@ -18,7 +18,7 @@ model: inherit
 ## 활성 범위
 - **현재(Current)**: `apps/worker/`가 NATAM의 현재 active application
   source of truth입니다. 이 안의 경로는 이 폴더 기준 상대경로로 다룹니다.
-  lavcca-ai `copyright_detector/`가 실제로 동작하는 저작권 탐지기입니다.
+  ai `copyright_detector/`가 실제로 동작하는 저작권 탐지기입니다.
 - **미래(Planned)**: NATAM은 AWS(원본 영상 저장, 대용량 데이터 처리,
   대규모 AI 학습 전처리)와 Supabase(가벼운 customer/application data)로
   확장될 예정입니다. 이 확장이 실제로 repo에 코드로 들어오면
@@ -38,7 +38,7 @@ model: inherit
 - `mvp 1_9_2/` — legacy. 이름이 더 "정식"처럼 보여도 참고용일 뿐, 수정 대상이 아닙니다.
 - 루트의 `copyright_detector/` (mvp 폴더들과 같은 레벨) — 현재 active source of
   truth가 아닌 orphaned/legacy 경로이며, 명시적 요청 없이는 수정하지 않습니다.
-  이걸 lavcca-ai `copyright_detector/`와 혼동해 "그" 저작권 탐지기로 착각하지
+  이걸 ai `copyright_detector/`와 혼동해 "그" 저작권 탐지기로 착각하지
   마세요.
 - `rules.yaml`, `controversy_labels.yaml`, `worst_actions_map.yaml`,
   `report_template_v1_9_3.md`, `mvp 1_9_2/report template.md` — 검토된

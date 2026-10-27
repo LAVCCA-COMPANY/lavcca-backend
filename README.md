@@ -10,8 +10,8 @@ LAVCCA 백엔드·AWS 인프라: API·인증 연동(Supabase)·S3 업로드·SQS
 | `infra/supabase/` | 마이그레이션·롤백·검증 SQL |
 | `.github/` | `worker-image`(빌드·스모크·Trivy·ECR 배포), `tests`(pytest), CODEOWNERS |
 
-분석 엔진은 [lavcca-ai](https://github.com/LAVCCA-COMPANY/lavcca-ai), 데이터는 [lavcca-data](https://github.com/LAVCCA-COMPANY/lavcca-data),
-아키텍처·계약·운영 문서는 [lavcca-docs](https://github.com/LAVCCA-COMPANY/lavcca-docs) 에 있다.
+분석 엔진은 [ai](https://github.com/LAVCCA-COMPANY/ai), 데이터는 [data](https://github.com/LAVCCA-COMPANY/data),
+아키텍처·계약·운영 문서는 [docs](https://github.com/LAVCCA-COMPANY/docs) 에 있다.
 
 ## 개발
 
@@ -21,9 +21,9 @@ pip install --require-hashes -r requirements-dev.txt
 python -m pytest apps/worker/tests apps/lambdas/tests .claude/hooks -q
 ```
 
-워커를 실제로 돌리려면 lavcca-ai 를 `ai-engine.ref` 커밋으로 받아 `apps/worker/` 에 겹쳐 놓고(CI 의 `build-worker` 와 같음)
-lavcca-ai 의 `requirements.txt` 를 설치한다. 배포 절차: lavcca-docs `deployment.md`, 인프라 상세: `infra/README.md`.
+워커를 실제로 돌리려면 ai 를 `ai-engine.ref` 커밋으로 받아 `apps/worker/` 에 겹쳐 놓고(CI 의 `build-worker` 와 같음)
+ai 의 `requirements.txt` 를 설치한다. 배포 절차: docs `deployment.md`, 인프라 상세: `infra/README.md`.
 
 ## 보안
 
-`apps/worker/app.py`(로컬 웹 화면)는 lavcca-ai 로 옮겨졌고 127.0.0.1 전용이다. 비밀값은 실행 환경변수·Secrets Manager 로만 넣는다.
+`apps/worker/app.py`(로컬 웹 화면)는 ai 로 옮겨졌고 127.0.0.1 전용이다. 비밀값은 실행 환경변수·Secrets Manager 로만 넣는다.

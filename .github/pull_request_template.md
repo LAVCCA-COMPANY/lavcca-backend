@@ -8,4 +8,4 @@
 
 - [ ] 비밀값·개인정보·원본 영상 없음
 - [ ] AWS·인프라 변경이면 Change Set 검토 결과 첨부(실행은 PM 승인 후)
-- [ ] `ai-engine.ref` 변경이면 lavcca-ai 태그·변경 내역 링크
+- [ ] `ai-engine.ref` 변경이면 ai 태그·변경 내역 링크

@@ -1,4 +1,4 @@
-# Python 테스트: 워커(apps/worker/tests) + Lambda(apps/lambdas/tests) + 에이전트 가드. 엔진 테스트는 lavcca-ai.
+# Python 테스트: 워커(apps/worker/tests) + Lambda(apps/lambdas/tests) + 에이전트 가드. 엔진 테스트는 ai.
 # 비밀값·OIDC·Environment 를 쓰지 않는다 → AWS·Supabase·유료 API 자격 증명이 잡에 없다(테스트는 전부 모의 객체).
 # 의존성은 해시 고정 잠금 requirements-dev.txt (만드는 법은 requirements-dev.in 머리말). Python 은 워커 이미지와 같은 3.11.
 name: tests

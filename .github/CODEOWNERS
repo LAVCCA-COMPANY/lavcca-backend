@@ -6,7 +6,7 @@
 # 기본: 모든 변경은 JH 리뷰
 *                                   @yangzari
 
-# 워커 진입점·이미지 빌드·엔진 버전 고정(엔진 자체는 lavcca-ai)
+# 워커 진입점·이미지 빌드·엔진 버전 고정(엔진 자체는 ai)
 /apps/worker/                       @yangzari @amemochan
 /apps/worker/ai-engine.ref          @yangzari @amemochan
 

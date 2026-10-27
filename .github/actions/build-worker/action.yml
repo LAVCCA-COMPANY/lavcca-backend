@@ -1,6 +1,6 @@
 # 워커 이미지 빌드 + 스모크 테스트 + Trivy 취약점 검사 (AWS 자격 증명 없이 실행).
 # worker-image.yml 의 PR 검사와 배포(publish) 잡이 같은 절차를 쓰도록 묶었다.
-# 엔진은 lavcca-ai(비공개)에서 apps/worker/ai-engine.ref 에 고정한 커밋/태그를 받아 apps/worker/ 에 겹쳐 놓는다
+# 엔진은 ai(비공개)에서 apps/worker/ai-engine.ref 에 고정한 커밋/태그를 받아 apps/worker/ 에 겹쳐 놓는다
 # → 이미지 /app 구성은 분리 전과 같다(엔진 루트 + worker.py).
 name: build-worker
 description: Build the Lavcca worker image, smoke-test it and scan it for vulnerabilities
@@ -12,7 +12,7 @@ inputs:
     description: '"1" fails the job on fixable CRITICAL vulnerabilities, "0" only reports'
     required: true
   ai-token:
-    description: read-only token for LAVCCA-COMPANY/lavcca-ai (secret LAVCCA_AI_READ_TOKEN)
+    description: read-only token for LAVCCA-COMPANY/ai (secret LAVCCA_AI_READ_TOKEN)
     required: true
 runs:
   using: composite
@@ -29,16 +29,16 @@ runs:
         AI_TOKEN: ${{ inputs.ai-token }}
       run: |
         if [ -z "$AI_TOKEN" ]; then
-          echo "::error::LAVCCA_AI_READ_TOKEN 미설정 — lavcca-ai(비공개)를 받을 수 없어 이미지를 만들 수 없습니다"
+          echo "::error::LAVCCA_AI_READ_TOKEN 미설정 — ai(비공개)를 받을 수 없어 이미지를 만들 수 없습니다"
           exit 1
         fi
         ref=$(tr -d '[:space:]' < apps/worker/ai-engine.ref)
         echo "ref=$ref" >> "$GITHUB_OUTPUT"
-        echo "lavcca-ai ref: $ref"
+        echo "ai ref: $ref"
 
     - uses: actions/checkout@v4
       with:
-        repository: LAVCCA-COMPANY/lavcca-ai
+        repository: LAVCCA-COMPANY/ai
         ref: ${{ steps.ai.outputs.ref }}
         token: ${{ inputs.ai-token }}
         path: _ai

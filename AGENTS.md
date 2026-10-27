@@ -1,6 +1,6 @@
 # AGENTS.md — lavcca-backend 자동 개발(GPT ↔ Claude Code) 규칙
 
-모든 에이전트(Codex/GPT, Claude Code)가 따른다. 저장소 구조·실행 방법은 `README.md`·`CLAUDE.md`, 저장소 간 계약은 lavcca-docs 가 기준이다.
+모든 에이전트(Codex/GPT, Claude Code)가 따른다. 저장소 구조·실행 방법은 `README.md`·`CLAUDE.md`, 저장소 간 계약은 docs 가 기준이다.
 
 ## 역할
 
