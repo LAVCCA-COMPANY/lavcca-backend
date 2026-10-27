@@ -35,13 +35,8 @@ model: inherit
   (Harness v2) 담당입니다.
 
 ## 절대 건드리지 않는 것 (명시적 요청 없이는)
-- `mvp 1_9_2/` — legacy. 이름이 더 "정식"처럼 보여도 참고용일 뿐, 수정 대상이 아닙니다.
-- 루트의 `copyright_detector/` (mvp 폴더들과 같은 레벨) — 현재 active source of
-  truth가 아닌 orphaned/legacy 경로이며, 명시적 요청 없이는 수정하지 않습니다.
-  이걸 ai `copyright_detector/`와 혼동해 "그" 저작권 탐지기로 착각하지
-  마세요.
 - `rules.yaml`, `controversy_labels.yaml`, `worst_actions_map.yaml`,
-  `report_template_v1_9_3.md`, `mvp 1_9_2/report template.md` — 검토된
+  `report_template_v1_9_3.md` — 검토된
   정책/출력 계약이므로 명시적 요청 없이는 수정 금지.
 
 ## 핵심 아키텍처 이해 (설계/리뷰 시 항상 전제할 것)
@@ -57,12 +52,12 @@ model: inherit
      `mvp_ver_1_9_3.py`와 `copyright_detector/main.py` 양쪽을 함께 맞춰야 합니다.
 2. `.env`가 두 개입니다 (루트 vs `copyright_detector/`). 서로 다른 cwd에서
    실행되므로 서로의 `.env`를 못 읽습니다 — 혼동하지 마세요.
-3. Windows + 한글 경로(`바탕 화면`) + 공백 포함 폴더명(`apps/worker`) 환경입니다.
+3. Windows + 한글 경로(`바탕 화면`) 환경입니다.
    경로는 항상 따옴표로 감싸고, `sys.executable` + 명시적 `cwd` 패턴을 유지하세요.
 4. `similar_case_engine.py`는 의도적으로 FAISS 인덱스를 파일로 저장하지 않습니다
    (`faiss.write_index`가 이 환경에서 깨짐). `.npy` 임베딩에서 매번 인메모리로
    재구성합니다 — 이걸 "고친다"며 파일 저장을 되살리지 마세요. 자세한 배경은
-   `SIMILAR_CASE_ENGINE_NOTES.md` 참고.
+   ai 저장소 `docs/SIMILAR_CASE_ENGINE_NOTES.md` 참고.
 
 ## 작업 방식
 - 규모 있는 변경 전에는 관련 코드를 먼저 읽고, 계획을 설명한 뒤 진행합니다

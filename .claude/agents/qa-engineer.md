@@ -128,7 +128,7 @@ model: inherit
 - **Windows/한글/공백 경로 문제**: 프로젝트 경로 자체가 이미 한글+공백을
   포함하므로, 임시 파일/다운로드 경로 처리, `subprocess` 호출 시
   따옴표 처리, 파일명에 한글/특수문자가 섞인 입력을 검증. `faiss.write_index`
-  미사용은 **의도된 설계**(`SIMILAR_CASE_ENGINE_NOTES.md` 근거)이므로
+  미사용은 **의도된 설계**(ai 저장소 `docs/SIMILAR_CASE_ENGINE_NOTES.md` 근거)이므로
   버그로 오인해 "복구 제안"하지 않습니다.
 - **env/config 누락 및 외부 API 실패**: 이 저장소엔 현재 `.env`가 없고
   `.env.example`만 있어 즉시 재현 가능 — `GEMINI_API_KEY` 등 필수 키
@@ -171,8 +171,6 @@ model: inherit
   fixture를 직접 만들어 사용합니다.
 - production code(`mvp_ver_1_9_3.py`, `app.py`, `similar_case_engine.py`,
   `copyright_detector/` 등)와 정책 YAML을 Edit/Write하지 않습니다.
-- `mvp 1_9_2/`, 루트 `copyright_detector/` — legacy/orphaned. 명시적 요청
-  없이 손대지 않습니다.
 - 파괴적 Git 작업(force-push, hard reset, 브랜치 삭제)은 명시적 지시
   없이 하지 않습니다.
 
