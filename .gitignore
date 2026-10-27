@@ -40,3 +40,6 @@ graphify-out/
 # 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
 apps/worker/reports/
 apps/worker/logs/
+
+# 개인 IDE 설정(팀 표준 아님: README 는 .venv 사용)
+.vscode/settings.json
