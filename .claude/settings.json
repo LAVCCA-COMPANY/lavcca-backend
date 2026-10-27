@@ -17,8 +17,7 @@
       "Bash(git filter-branch:*)"
     ],
     "ask": [
-      "Edit(mvp 1_9_2/**)",
-      "Write(mvp 1_9_2/**)",
+      "Edit(apps/worker/ai-engine.ref)",
       "Edit(**/rules.yaml)",
       "Edit(**/controversy_labels.yaml)",
       "Edit(**/worst_actions_map.yaml)",

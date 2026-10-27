@@ -40,10 +40,3 @@ graphify-out/
 # 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
 apps/worker/reports/
 apps/worker/logs/
-
-# SageMaker 연습 학습 산출물 (tools/sagemaker/train.py 기본 출력)
-apps/worker/out/
-
-# 뉴스 트렌드 원본·열기 표(apps/worker/trend_signals.py) — S3 로 주고받음, 커밋 안 함
-apps/worker/data/trends/raw/
-apps/worker/data/trends/table/
