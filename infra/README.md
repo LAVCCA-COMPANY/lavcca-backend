@@ -246,6 +246,26 @@ Transcribe 는 쓸 때만 과금(분 단위). 고객 음성이라 임시 오디�
 (`s3://lavcca-dev-customer-uploads/transcribe-tmp/`). 워커 태스크 역할에 그 경로의 S3 권한과
 `lavcca-asr-*` Transcribe 작업 권한이 들어 있다(CloudFormation `WorkerTaskRole`).
 
+## 워커 제한 시간·중지
+
+Fargate 는 태스크 실행 시간 제한이 없다. 멈춘 작업이 계속 과금되지 않게 워커가 스스로 끝낸다.
+
+- `WORKER_TIMEOUT_SEC`(CloudFormation 태스크 정의 3600, 0=끔): 넘으면 분석을 끊고 `failed`("제한 시간 … 초과")를 남기고 올린다.
+  그래도 300초 안에 안 끝나면 강제 종료(종료 코드 124) → task-stopped Lambda 가 `failed` 로 표시.
+- SIGTERM(ECS 중지, Fargate Spot 회수): 분석을 끊고 `retry_later`(75). 업로드·상태 기록 중에는 무시한다.
+  ECS 는 SIGTERM 뒤 `stopTimeout`(120초, Fargate 최대) 후 SIGKILL.
+- Fargate Spot(선택, dev 비용 절감): 클러스터 `lavcca-dev` 에 `FARGATE_SPOT` 용량 공급자가 연결돼 있다(고정비 없음).
+  쓰려면 dispatcher 환경변수 `CAPACITY_PROVIDER=FARGATE_SPOT`. 비우면 온디맨드. 회수된 작업은 `retry_later` 로 남는다(재투입은 아래 T5 미구현).
+
+## 이미지 받는 시간 (미해결)
+
+Fargate 는 이미지를 캐시하지 않아 작업마다 약 5GB 를 ECR 에서 받는다(시작 시간 실측 없음).
+줄이는 방법은 ECR 에 올린 뒤에야 할 수 있다:
+- SOCI 인덱스(지연 로딩, 플랫폼 1.4.0) — 이미지 푸시 뒤 인덱스를 만들어 같은 저장소에 올린다.
+  CI 에서 한다면 `worker-image.yml` publish 단계(OIDC 역할 `GitHubEcrPushRole`)에 추가 — 그 역할에 인덱스 푸시 권한도 필요.
+- 이미지 자체 줄이기(T9 lazy import, 모델 가중치 분리).
+첫 배포 후 `job_result.json` 의 단계 시간과 ECS 태스크의 `pullStartedAt`~`pullStoppedAt` 으로 먼저 잰다.
+
 ## 아직 안 한 것 (코드)
 
 - `retry_later` 재투입: 워커는 Gemini 429·5xx 일시 장애(전사 실패, NATAM 평가 실패, Tier2 판정 보류)면
