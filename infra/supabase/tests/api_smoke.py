@@ -20,7 +20,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "mvp 1_9_3"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "apps" / "worker"))
 from worker import affected_rows   # noqa: E402  (워커와 같은 Content-Range 해석)
 
 REF = "vbfurkpxfudyksfuzusw"   # Lavcca dev

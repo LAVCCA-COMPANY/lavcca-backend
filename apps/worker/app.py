@@ -92,7 +92,7 @@ def _sanitize_html(html_text: str) -> str:
     s.close()
     return ''.join(s.out)
 
-app = Flask(__name__, template_folder=str(SCRIPT_DIR.parent / "templates"))
+app = Flask(__name__, template_folder=str(SCRIPT_DIR / "templates"))
 
 # 시스템 초기화 (서버 시작 시 한 번만)
 system = mvp.CrisisConsultantSystem(

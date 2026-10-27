@@ -1,4 +1,4 @@
-# 위기 엔진(mvp 1_9_3) 의존성. 2026-10-12 이 PC에서 확인한 버전.
+# 위기 엔진(apps/worker) 의존성. 2026-10-12 이 PC에서 확인한 버전.
 # 저작권 감지기는 copyright_detector/requirements.txt 를 따로 쓴다.
 # torch 휠은 이 PC에서 2.6.0+cu124 (CUDA 12.4). 컨테이너(Dockerfile)는 CPU 휠
 #   torch 2.6.0+cpu / torchvision 0.21.0+cpu 를 먼저 깔아 이 고정을 만족시킨다.

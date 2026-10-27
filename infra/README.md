@@ -27,22 +27,22 @@
 
 | 경로 | 내용 | 검증 |
 |---|---|---|
-| `mvp 1_9_3/worker.py` | 작업 1개 실행. 로컬 파일 또는 s3:// 입력, `--output-s3` 업로드, Supabase 상태 기록(선택) | 로컬 실제 영상 1개 실행, 단위 테스트 |
-| `mvp 1_9_3/Dockerfile` | 워커 이미지(Python 3.11) | GitHub Actions `worker-image` 빌드·스모크 |
+| `apps/worker/worker.py` | 작업 1개 실행. 로컬 파일 또는 s3:// 입력, `--output-s3` 업로드, Supabase 상태 기록(선택) | 로컬 실제 영상 1개 실행, 단위 테스트 |
+| `apps/worker/Dockerfile` | 워커 이미지(Python 3.11) | GitHub Actions `worker-image` 빌드·스모크 |
 | `infra/aws/cloudformation/lavcca-worker-dev.yaml` | **1차 배포 스택**: ECR, ECS 클러스터·태스크 정의, 로그 그룹, 워커 IAM 역할 2개, GitHub OIDC 푸시 역할, 보안 그룹, 빈 시크릿 | cfn-lint, Access Analyzer |
 | `.github/workflows/worker-image.yml` | PR: 빌드·스모크·Trivy 보고 / main: 승인 후 OIDC 로 ECR 푸시(태그 = Git SHA) | actionlint |
 | `infra/supabase/migrations/0001_jobs.sql` | jobs·job_steps·feedback·copyright_matches·labels + RLS + anon/authenticated 최소 권한 | **dev 적용됨**(2026-10-21) |
 | `infra/supabase/migrations/0002_service_role_grants.sql` | service_role 에 5개 테이블 SELECT/INSERT/UPDATE/DELETE | **dev 적용됨**(2026-10-21) |
 | `infra/supabase/tests/`, `rollback/` | 카탈로그 검증(읽기 전용)·RLS 동작 테스트(ROLLBACK)·PostgREST 점검(`api_smoke.py`)·되돌리기 | dev 실행: 검증 8/8, RLS PASS, API 17/17 |
-| `infra/aws/lambdas/api.py` | 업로드·제출·다운로드 API (T5) | 단위 테스트(가짜 S3/SQS/Supabase) |
-| `infra/aws/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 (T5) | 단위 테스트(가짜 ECS/SQS) |
-| `infra/aws/lambdas/supa.py` | Lambda 용 Supabase REST(표준 라이브러리만) | 단위 테스트 |
+| `apps/lambdas/api.py` | 업로드·제출·다운로드 API (T5) | 단위 테스트(가짜 S3/SQS/Supabase) |
+| `apps/lambdas/dispatcher.py` | SQS → ECS RunTask, 동시 실행 제한, 죽은 태스크 처리 (T5) | 단위 테스트(가짜 ECS/SQS) |
+| `apps/lambdas/supa.py` | Lambda 용 Supabase REST(표준 라이브러리만) | 단위 테스트 |
 | `infra/aws/iam/*.json` | Lambda 역할 2개(api·dispatcher) 정책 + Lambda 신뢰 정책 (T5) | Access Analyzer |
 | `infra/aws/cloudformation/lavcca-ml-dev.yaml` | SageMaker 학습 실행 역할 `LavccaSageMakerExecutionRole`(학습 컴퓨트는 만들지 않음) | cfn-lint, Access Analyzer |
 | `infra/aws/iam/identity-center/*-inline-policy.json` | 권한 세트 AI-Dev·Data 인라인 정책 **제안본**(PM 이 `sso-admin put-inline-policy-to-permission-set` 로 적용) | Access Analyzer |
 | `infra/aws/s3/customer-uploads-lifecycle.json` | 업로드 버킷 수명 주기 전체본(기존 2개 + `transcribe-tmp/` 1일) | — |
 
-테스트: `cd "mvp 1_9_3" && python -m pytest tests -q` · `cd infra/aws/lambdas && python -m pytest tests -q`
+테스트: `cd "apps/worker" && python -m pytest tests -q` · `cd apps/lambdas && python -m pytest tests -q`
 
 ## T3. 1차 워커 배포 (PM)
 
@@ -217,7 +217,7 @@ Supabase MCP 는 `read_only=true` 로 둔다. 다음 마이그레이션도 새 �
 2. IAM 역할(`infra/aws/iam/`, 신뢰 정책 `lambda-trust-policy.json`):
    - `LavccaApiLambdaRole` ← `api-lambda-policy.json`
    - `LavccaDispatcherLambdaRole` ← `dispatcher-lambda-policy.json` (워커 역할 2개 PassRole, `lavcca-worker` RunTask)
-3. Lambda 3개 (Python 3.12, 같은 zip: `cd infra/aws/lambdas && zip ../lambdas.zip supa.py api.py dispatcher.py`):
+3. Lambda 3개 (Python 3.12, 같은 zip: `cd apps/lambdas && zip ../lambdas.zip supa.py api.py dispatcher.py`):
    - `lavcca-dev-dispatcher` 핸들러 `dispatcher.dispatch` — **예약 동시성 1**, SQS 트리거 배치 크기 1, `ReportBatchItemFailures` 켬
    - `lavcca-dev-task-stopped` 핸들러 `dispatcher.task_stopped` — EventBridge 규칙: source `aws.ecs`, detail-type `ECS Task State Change`, `lastStatus=STOPPED`, `clusterArn=lavcca-dev`
    - `lavcca-dev-api` 핸들러 `api.handler` — Function URL(인증 NONE, 인증은 Supabase 토큰으로 코드에서) + CORS(웹 도메인만)

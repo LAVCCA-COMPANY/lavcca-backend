@@ -7,16 +7,16 @@
 *                                   @yangzari
 
 # 업무 규칙·정책 YAML, 리포트 템플릿 (검토된 정책/출력 계약)
-/mvp\ 1_9_3/config/                 @yangzari
+/apps/worker/config/                 @yangzari
 
 # 모델·학습 데이터·평가 기준 (골든셋 게이트 대상)
-/mvp\ 1_9_3/models/                 @yangzari
-/mvp\ 1_9_3/data/controversy_samples.json   @yangzari
-/mvp\ 1_9_3/data/golden_set.json            @yangzari
-/mvp\ 1_9_3/data/eval_baseline.json         @yangzari
+/apps/worker/models/                 @yangzari
+/apps/worker/data/controversy_samples.json   @yangzari
+/apps/worker/data/golden_set.json            @yangzari
+/apps/worker/data/eval_baseline.json         @yangzari
 
 # 저작권 감지기 (서브프로세스 계약)
-/mvp\ 1_9_3/copyright_detector/      @yangzari
+/apps/worker/copyright_detector/      @yangzari
 
 # 에이전트 권한·훅·CI — 권한 변경은 사람 승인 필수
 /.claude/                           @yangzari

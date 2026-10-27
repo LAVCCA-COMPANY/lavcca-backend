@@ -18,7 +18,7 @@ model: inherit
 데이터가 정확하고 일관적인지 검증하는 것**이 본연의 임무입니다.
 
 ## 활성 범위
-- **현재(Current)**: `mvp 1_9_3/`가 현재 active application source of
+- **현재(Current)**: `apps/worker/`가 현재 active application source of
   truth입니다.
 - 검사 대상 데이터 자산: `casedb/`(casedb_news.jsonl 원본 스냅샷,
   casedb_meta.jsonl, casedb_embeddings.npy, casedb_manifest.json,
@@ -100,7 +100,7 @@ model: inherit
    요약만 담고 원문 전체를 그대로 붙여넣지 않습니다.
 6. generated DB/corpus/embedding/model artifact(`.sqlite`, `.npy`,
   `.joblib`, `casedb/` 산출물 등)를 임의로 commit하지 않습니다.
-7. `mvp 1_9_3/`를 현재 active source of truth로 취급하되(영구 고정된
+7. `apps/worker/`를 현재 active source of truth로 취급하되(영구 고정된
    전체 범위가 아니라 현재 시점 기준이며, 실제 코드가 확장되면 범위도
    함께 넓어짐), legacy/orphaned 경로는 명시적 요청 없이 손대지 않습니다.
 8. similar_case_engine의 Windows/한글경로 제약(`faiss.write_index` 재도입

@@ -35,12 +35,12 @@ copyright_detector/_gitignore_test_tmp/
 graphify-out/
 
 # 위기 엔진 실행 산출물. copyright_detector/reports/ 는 소스라 여기 넣지 않음
-mvp 1_9_3/reports/
-mvp 1_9_3/logs/
+apps/worker/reports/
+apps/worker/logs/
 
 # SageMaker 연습 학습 산출물 (tools/sagemaker/train.py 기본 출력)
-mvp 1_9_3/out/
+apps/worker/out/
 
-# 뉴스 트렌드 원본·열기 표(mvp 1_9_3/trend_signals.py) — S3 로 주고받음, 커밋 안 함
-mvp 1_9_3/data/trends/raw/
-mvp 1_9_3/data/trends/table/
+# 뉴스 트렌드 원본·열기 표(apps/worker/trend_signals.py) — S3 로 주고받음, 커밋 안 함
+apps/worker/data/trends/raw/
+apps/worker/data/trends/table/

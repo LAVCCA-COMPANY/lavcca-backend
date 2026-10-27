@@ -1,4 +1,4 @@
-# Lavcca(NATAM 엔진) 분석 워커 이미지 (위기 분석 + 저작권 감지기, 큰 이미지 1개). 빌드 컨텍스트 = mvp 1_9_3/
+# Lavcca(NATAM 엔진) 분석 워커 이미지 (위기 분석 + 저작권 감지기, 큰 이미지 1개). 빌드 컨텍스트 = apps/worker/
 #
 #   docker build -t lavcca-worker .
 #   docker run --rm \

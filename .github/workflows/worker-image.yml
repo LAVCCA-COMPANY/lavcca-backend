@@ -18,22 +18,22 @@ on:
         default: false
   pull_request:
     paths:
-      - "mvp 1_9_3/**"
-      - "!mvp 1_9_3/tests/**"
-      - "!mvp 1_9_3/tools/**"
-      - "!mvp 1_9_3/data/**"
-      - "!mvp 1_9_3/docs/**"
+      - "apps/worker/**"
+      - "!apps/worker/tests/**"
+      - "!apps/worker/tools/**"
+      - "!apps/worker/data/**"
+      - "!apps/worker/docs/**"
       - ".github/workflows/worker-image.yml"
       - ".github/actions/build-worker/**"
       - ".github/scripts/worker_smoke.py"
   push:
     branches: ["main"]
     paths:
-      - "mvp 1_9_3/**"
-      - "!mvp 1_9_3/tests/**"
-      - "!mvp 1_9_3/tools/**"
-      - "!mvp 1_9_3/data/**"
-      - "!mvp 1_9_3/docs/**"
+      - "apps/worker/**"
+      - "!apps/worker/tests/**"
+      - "!apps/worker/tools/**"
+      - "!apps/worker/data/**"
+      - "!apps/worker/docs/**"
       - ".github/workflows/worker-image.yml"
       - ".github/actions/build-worker/**"
       - ".github/scripts/worker_smoke.py"

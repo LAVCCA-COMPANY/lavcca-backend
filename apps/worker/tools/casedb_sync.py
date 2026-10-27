@@ -40,7 +40,7 @@ BASE_URL = f"https://app.nocodb.com/api/v2/public/shared-view/{VIEW_ID}/rows"
 
 PAGE_SIZE = 1000
 
-# 파일 경로(mvp 1_9_3/casedb 고정 → 실행 CWD와 무관. similar_case_engine 과 같은 폴더)
+# 파일 경로(apps/worker/casedb 고정 → 실행 CWD와 무관. similar_case_engine 과 같은 폴더)
 APP_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR  = os.path.join(APP_DIR, "casedb")
 JSONL     = os.path.join(DATA_DIR, "casedb_news.jsonl")

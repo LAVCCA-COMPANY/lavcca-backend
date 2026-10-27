@@ -1,7 +1,7 @@
 """
 api.py · dispatcher.py · supa.py 테스트. AWS·Supabase 는 부르지 않는다(가짜 클라이언트).
 
-실행:  cd infra/aws/lambdas && python -m pytest tests -q
+실행:  cd apps/lambdas && python -m pytest tests -q
 """
 import io
 import json

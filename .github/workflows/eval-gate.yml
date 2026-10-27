@@ -7,19 +7,19 @@ name: eval-gate
 on:
   pull_request:
     paths:
-      - "mvp 1_9_3/models/controversy_model.joblib"
-      - "mvp 1_9_3/data/controversy_samples.json"
-      - "mvp 1_9_3/classifier_model.py"
-      - "mvp 1_9_3/tools/eval_harness.py"
-      - "mvp 1_9_3/data/golden_set.json"
-      - "mvp 1_9_3/data/eval_baseline.json"
+      - "apps/worker/models/controversy_model.joblib"
+      - "apps/worker/data/controversy_samples.json"
+      - "apps/worker/classifier_model.py"
+      - "apps/worker/tools/eval_harness.py"
+      - "apps/worker/data/golden_set.json"
+      - "apps/worker/data/eval_baseline.json"
 
 jobs:
   gate:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: "mvp 1_9_3"
+        working-directory: "apps/worker"
     steps:
       - uses: actions/checkout@v4
 

@@ -16,7 +16,7 @@ import sys
 import time
 from pathlib import Path
 
-APP_DIR = Path(__file__).resolve().parents[2]   # mvp 1_9_3/ (SageMaker 에선 /opt/ml/code)
+APP_DIR = Path(__file__).resolve().parents[2]   # apps/worker/ (SageMaker 에선 /opt/ml/code)
 sys.path.insert(0, str(APP_DIR))
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")   # Windows cp949 콘솔
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")

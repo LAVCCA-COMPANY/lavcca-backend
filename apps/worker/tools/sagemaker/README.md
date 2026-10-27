@@ -3,7 +3,7 @@
 SageMaker 사전 연습 1단계. `train.py` 하나가 로컬과 SageMaker script mode에서 똑같이 돈다.
 이 폴더의 코드는 AWS를 호출하지 않는다(boto3·sagemaker SDK 없음).
 
-## 실행 (mvp 1_9_3/ 에서)
+## 실행 (apps/worker/ 에서)
 
 ```bash
 python tools/sagemaker/train.py            # 홀드아웃 평가만 → out/metrics.json
@@ -16,8 +16,8 @@ python tools/sagemaker/train.py --final    # + 전체 데이터 최종 모델 �
 
 | 무엇 | 환경변수 (SageMaker가 설정) | 없을 때 (로컬) | 인자로 덮어쓰기 |
 |---|---|---|---|
-| 학습 데이터 폴더 | `SM_CHANNEL_TRAIN` (`/opt/ml/input/data/train`) | `mvp 1_9_3/data/` | `--data-dir` |
-| 모델·지표 저장 폴더 | `SM_MODEL_DIR` (`/opt/ml/model`) | `mvp 1_9_3/out/` | `--model-dir` |
+| 학습 데이터 폴더 | `SM_CHANNEL_TRAIN` (`/opt/ml/input/data/train`) | `apps/worker/data/` | `--data-dir` |
+| 모델·지표 저장 폴더 | `SM_MODEL_DIR` (`/opt/ml/model`) | `apps/worker/out/` | `--model-dir` |
 
 - 데이터 폴더에서 `controversy_samples.json` 한 파일만 읽는다. `golden_set*.json`은 평가 전용이라 학습에 쓰지 않는다.
 - `models/`(서비스 모델 폴더)를 저장 위치로 주면 바로 종료한다. 서비스 모델은 이 스크립트로 덮어쓰지 않는다.
@@ -79,9 +79,9 @@ val_trigger_recall=0.9437
 
 ## SageMaker로 올릴 때 (3단계, 실행 미확인)
 
-- `train.py`는 `mvp 1_9_3/` 루트의 `classifier_model.py`, `output_filter.py`를 import한다.
+- `train.py`는 `apps/worker/` 루트의 `classifier_model.py`, `output_filter.py`를 import한다.
   그래서 `source_dir`은 `tools/sagemaker/`가 아니라 이 모듈들이 들어간 폴더여야 하고, `entry_point`는 그 안의 `tools/sagemaker/train.py`가 된다.
-  `mvp 1_9_3/` 전체를 올리면 모델·영상 등 불필요한 파일까지 올라가므로, 필요한 파일만 담은 임시 폴더를 만드는 쪽을 검토.
+  `apps/worker/` 전체를 올리면 모델·영상 등 불필요한 파일까지 올라가므로, 필요한 파일만 담은 임시 폴더를 만드는 쪽을 검토.
 - SageMaker 프레임워크 컨테이너는 `source_dir` 루트의 `requirements.txt`를 설치한다(실행 미확인). 이 폴더의 `requirements.txt`를 그 위치로 복사해야 한다.
 - scikit-learn 프레임워크 컨테이너가 1.8.0을 제공하는지는 확인 안 함. 다르면 `requirements.txt`로 1.8.0을 설치하거나, 서비스 쪽 버전과 맞춰야 joblib 로드가 안전하다.
 - 런처 코드(Estimator 등)는 SDK 버전마다 API가 달라 현재 공식 문서를 기준으로 작성한다.

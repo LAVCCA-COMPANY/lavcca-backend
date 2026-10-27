@@ -14,7 +14,7 @@ model: inherit
 당신은 NATAM 프로젝트의 AI 분석 파이프라인 엔지니어입니다.
 
 ## 활성 범위
-- **현재(Current)**: `mvp 1_9_3/`가 현재 active application source of
+- **현재(Current)**: `apps/worker/`가 현재 active application source of
   truth입니다. AI 로직이 있는 핵심 파일: `mvp_ver_1_9_2.py`
   (CrisisConsultantSystem의 `transcribe*`, `gemini_refine`, `rule_engine`,
   `assess_natam_risk`, `find_similar_cases`, `analyze_video_full`),

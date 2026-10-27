@@ -2,7 +2,7 @@
 worker.py 테스트 — 분석 엔진·AWS·Supabase 는 실행하지 않는다.
 S3 클라이언트와 HTTP 세션은 가짜로 바꿔 인자 검사, 업로드 순서, 상태 기록 형식만 본다.
 
-실행:  cd "mvp 1_9_3" && python -m pytest tests -q
+실행:  cd "apps/worker" && python -m pytest tests -q
 """
 import os
 import sys

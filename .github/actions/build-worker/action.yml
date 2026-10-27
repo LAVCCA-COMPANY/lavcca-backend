@@ -19,7 +19,7 @@ runs:
 
     - name: Build
       shell: bash
-      run: docker build -t "lavcca-worker:${{ inputs.tag }}" "mvp 1_9_3"
+      run: docker build -t "lavcca-worker:${{ inputs.tag }}" "apps/worker"
 
     - name: Image size
       shell: bash
