@@ -1,6 +1,8 @@
 # CLAUDE.md
 
 Guidance for Claude Code (and other agents) working in this repository.
+Automated-development rules (GPT ↔ Claude Code roles, branches, test-fix
+loop limits, approvals) are in @AGENTS.md.
 
 ## What this repo is
 
@@ -180,6 +182,7 @@ Python 3.11. Test dependencies are the hashed lock `requirements-dev.txt`
     pip install --require-hashes -r requirements-dev.txt
     cd "mvp 1_9_3" && python -m pytest tests -q        # engine
     python -m pytest infra/aws/lambdas/tests -q        # Lambdas, from repo root
+    python -m pytest .claude/hooks -q                  # agent shell guard rules
 
 Tests use mocks only; they need no API keys, AWS or Supabase access.
 `copyright_detector/tools/`
