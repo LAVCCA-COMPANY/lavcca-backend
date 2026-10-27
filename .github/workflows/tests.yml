@@ -1,0 +1,44 @@
+# Python 테스트: 엔진(mvp 1_9_3/tests) + Lambda(infra/aws/lambdas/tests).
+# 비밀값·OIDC·Environment 를 쓰지 않는다 → AWS·Supabase·유료 API 자격 증명이 잡에 없다(테스트는 전부 모의 객체).
+# 의존성은 해시 고정 잠금 requirements-dev.txt (만드는 법은 requirements-dev.in 머리말). Python 은 워커 이미지와 같은 3.11.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install
+        run: pip install --require-hashes -r requirements-dev.txt
+
+      - name: Engine tests
+        working-directory: "mvp 1_9_3"
+        run: python -m pytest tests -q
+
+      # 엔진 테스트가 실패해도 Lambda 결과는 따로 본다
+      - name: Lambda tests
+        if: ${{ !cancelled() }}
+        run: python -m pytest infra/aws/lambdas/tests -q
