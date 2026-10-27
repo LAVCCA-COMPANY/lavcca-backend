@@ -173,10 +173,16 @@ These are not interchangeable — because the detector runs with its own
 
 ## Testing
 
-There is no CI. A small pytest suite in `mvp 1_9_3/tests/` covers the
-copyright result hand-off and the detector's video cache; run it from
-`mvp 1_9_3/` with `python -m pytest tests -q` (needs `pytest`, `sqlalchemy`,
-`structlog`, `python-dotenv`). `copyright_detector/tools/`
+CI (`.github/workflows/tests.yml`) runs on every PR and on pushes to `main`,
+Python 3.11. Test dependencies are the hashed lock `requirements-dev.txt`
+(direct deps and the regenerate command are in `requirements-dev.in`):
+
+    pip install --require-hashes -r requirements-dev.txt
+    cd "mvp 1_9_3" && python -m pytest tests -q        # engine
+    python -m pytest infra/aws/lambdas/tests -q        # Lambdas, from repo root
+
+Tests use mocks only; they need no API keys, AWS or Supabase access.
+`copyright_detector/tools/`
 contains an eval harness and sample labels, but that's a manual evaluation
 tool, not CI. Do not claim something is "tested" or "verified" unless you
 actually ran it in this session — describe what you ran and its output.
