@@ -42,3 +42,8 @@ jobs:
       - name: Lambda tests
         if: ${{ !cancelled() }}
         run: python -m pytest infra/aws/lambdas/tests -q
+
+      # 에이전트 셸 가드(main 푸시·강제 푸시·비밀 파일 차단) 규칙
+      - name: Agent guard tests
+        if: ${{ !cancelled() }}
+        run: python -m pytest .claude/hooks -q

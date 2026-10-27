@@ -26,11 +26,14 @@ SECRET_PATTERNS = [
 ]
 SECRET_ALLOW = [r"\.env\.example"]
 
+# "git -C <경로> push", "git -c k=v push" 처럼 하위 명령 앞에 붙는 전역 옵션도 건너뛴다
+GIT = r"""\bgit(?:\s+(?:-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+)|--?[\w-]+(?:=\S+)?))*\s+"""
+
 GIT_BLOCK = [
-    (r"\bgit\s+push\b.*(\s--force\b|\s-f\b|\s--force-with-lease\b)", "강제 푸시는 금지입니다(JH 직접)."),
-    (r"\bgit\s+filter-(repo|branch)\b",                              "히스토리 재작성은 금지입니다(JH 직접)."),
-    (r"\bgit\s+push\b[^|;&]*[\s:+](main|master)(\s|$)",                     "main 직접 푸시는 금지입니다. 브랜치 + PR 로 올리세요."),
-    (r"\bgit\s+reset\s+--hard\b",                                    "git reset --hard 는 사용자 확인 후에만 실행하세요."),
+    (GIT + r"push\b.*(\s--force\b|\s-f\b|\s--force-with-lease\b)", "강제 푸시는 금지입니다(JH 직접)."),
+    (GIT + r"filter-(repo|branch)\b",                              "히스토리 재작성은 금지입니다(JH 직접)."),
+    (GIT + r"push\b[^|;&]*(?:[\s:+]|refs/heads/)(main|master)(\s|$)", "main 직접 푸시는 금지입니다. 브랜치 + PR 로 올리세요."),
+    (GIT + r"reset\s+--hard\b",                                    "git reset --hard 는 사용자 확인 후에만 실행하세요."),
 ]
 
 
