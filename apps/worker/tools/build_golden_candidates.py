@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # apps/worker/ (paths·엔진 모듈)
 import paths
 
 SAMPLES_PATH = paths.SAMPLES_JSON

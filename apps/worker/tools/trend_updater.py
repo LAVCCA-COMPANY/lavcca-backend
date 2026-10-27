@@ -30,7 +30,7 @@ import yaml
 from google import genai
 
 # 기존 시스템과 동일한 키/모델 재사용
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # mvp 1_9_3/ (paths·엔진 모듈)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # apps/worker/ (paths·엔진 모듈)
 import paths
 from mvp_ver_1_9_2 import API_KEY, GEN_MODEL, _api_is_transient, _install_gemini_defaults, _thinking_config
 

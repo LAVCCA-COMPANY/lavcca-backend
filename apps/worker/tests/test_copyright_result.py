@@ -4,7 +4,7 @@ run_copyright_detection() 회귀 테스트 (Ponytail Audit #2).
 실제 copyright_detector 는 실행하지 않는다. subprocess.run 을 가짜로 바꿔
 main.py 의 결과 저장 동작(--output 폴더, 없으면 cwd/results)만 흉내 낸다.
 
-실행:  cd "mvp 1_9_3" && python -m pytest tests -q
+실행:  cd "apps/worker" && python -m pytest tests -q
 """
 import json
 import os

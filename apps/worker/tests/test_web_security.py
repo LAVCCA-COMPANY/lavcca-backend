@@ -7,7 +7,7 @@ app.py 웹 보안 회귀 테스트 (P0 보안 점검).
 - 직접 실행 시 localhost(127.0.0.1)에만 바인딩한다.
 
 실제 엔진(mvp_ver_1_9_3 → Gemini 등)은 가짜 모듈로 대체하고, 소켓 연결은 차단한다.
-실행:  cd "mvp 1_9_3" && python -m pytest tests -q
+실행:  cd "apps/worker" && python -m pytest tests -q
 """
 import json
 import os
@@ -131,6 +131,12 @@ def web(tmp_path, monkeypatch):
 
     yield types.SimpleNamespace(app=appmod, client=client, run=run, calls=calls, tmp=tmp_path)
     sys.modules.pop("app", None)
+
+
+# ── 0. 웹 화면(templates/index.html)이 실제로 렌더링된다 ──────────────
+def test_index_page_renders(web):
+    r = web.client.get("/")
+    assert r.status_code == 200 and b"<html" in r.data.lower()
 
 
 # ── 1. 서버 로컬 경로는 파일로 분석하지 않는다 ─────────────────────────

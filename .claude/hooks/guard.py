@@ -17,7 +17,7 @@ except Exception:
     pass
 
 SECRET_PATTERNS = [
-    r"(^|[\s/\\\"'])\.env(\b|$)",            # .env, mvp 1_9_3/.env (단 .env.example 은 허용)
+    r"(^|[\s/\\\"'])\.env(\b|$)",            # .env, apps/worker/.env (단 .env.example 은 허용)
     r"google-credentials\.json",
     r"credentials[^\s]*\.json",
     r"\.sqlite3?\b",

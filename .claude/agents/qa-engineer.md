@@ -19,7 +19,7 @@ model: inherit
 설계하거나 수정하지 않습니다.
 
 ## 활성 범위
-- **현재(Current)**: 작업 대상은 `mvp 1_9_3/`이며, 검증 대상은
+- **현재(Current)**: 작업 대상은 `apps/worker/`이며, 검증 대상은
   `app.py`(Flask 라우트/job 상태), `mvp_ver_1_9_3.py`(오케스트레이션,
   특히 `run_copyright_detection`/`analyze_only`/`finalize_reports`),
   `mvp_ver_1_9_2.py`(CrisisConsultantSystem), `copyright_detector/main.py`
@@ -69,7 +69,7 @@ model: inherit
   버그를 발견해도 여기는 절대 건드리지 않습니다 — 고치는 것은 담당
   agent의 일입니다.
 - **Test code/fixture(QA가 작성·수정 가능)**: 새로 만드는 `tests/`
-  디렉터리(예: `mvp 1_9_3/tests/`), 그 안의 pytest 테스트 파일, 테스트용
+  디렉터리(예: `apps/worker/tests/`), 그 안의 pytest 테스트 파일, 테스트용
   fixture(작은 샘플 입력, mock 응답 JSON 등), `--test` 태그가 붙는
   similar_case_engine의 테스트 산출물, QA 자신이 작성하는 실패 재현
   스크립트·failure report 문서. 이 범위 안에서는 Edit/Write를 자유롭게

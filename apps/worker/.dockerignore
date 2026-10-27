@@ -1,4 +1,4 @@
-# 컨테이너 이미지에서 뺄 것. 빌드 컨텍스트 = mvp 1_9_3/
+# 컨테이너 이미지에서 뺄 것. 빌드 컨텍스트 = apps/worker/
 # (copyright_detector/.dockerignore 는 그 폴더를 컨텍스트로 쓸 때만 적용되므로 여기에도 같은 항목을 둔다)
 
 # 비밀값 — 실행 시 Secrets Manager/환경변수로 주입
@@ -38,6 +38,7 @@ tools/
 data/
 docs/
 tests/
+templates/       # 로컬 Flask(app.py) 화면 — 워커 이미지에는 불필요(루트 templates/ 에서 옮겨 옴)
 _deprecated/
 copyright_detector/font_legacy/      # 폰트 감지(비활성, 재개발 예정)
 copyright_detector/models/font_classifier*
