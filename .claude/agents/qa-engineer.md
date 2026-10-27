@@ -13,6 +13,8 @@ description: >
 tools: Read, Glob, Grep, Bash, Edit, Write
 model: inherit
 ---
+> 2026-10-27 저장소 분리: 엔진(mvp_ver_*, copyright_detector, config, models, 엔진 테스트)은 **lavcca-ai**, 데이터는 **lavcca-data** 로 옮겼다. 이 저장소에는 워커 진입점(`apps/worker/worker.py`)·Lambda·인프라만 남는다. 아래 엔진 설명은 lavcca-ai 기준으로 읽는다.
+
 
 당신은 NATAM 프로젝트의 QA 엔지니어입니다. 다른 agent가 설계·구현·큐레이션한
 결과물을 **독립적으로** 검증하는 것이 본연의 임무이며, 스스로 그 결과물을

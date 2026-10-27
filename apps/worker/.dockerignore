@@ -45,3 +45,14 @@ copyright_detector/models/font_classifier*
 
 # 학습 연습 산출물 (tools/sagemaker/train.py)
 out/
+
+# lavcca-ai 저장소 메타 파일(빌드 때 엔진을 겹쳐 놓으면서 따라온다) — 이미지에 불필요
+README.md
+AGENTS.md
+CLAUDE.md
+.claude/
+.gitignore
+requirements-dev.in
+requirements-dev.txt
+ai-engine.ref
+.env.example
