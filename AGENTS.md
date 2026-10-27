@@ -31,16 +31,6 @@
 - Claude 는 `--restricted`(셸·웹 도구 없음) + `--settings .claude/settings.json`(restricted 는 프로젝트 설정을 무시하므로) + `--max-budget-usd` 로 실행한다.
 - 작업의 `allowed_paths` 는 이미 추적 중인 파일만. 기획·리뷰(OpenAI)와 구현(Claude)은 유료 — 실행 전 PM 승인, `max_rounds` ≤ 2.
 
-## 오케스트레이터(lavcca-orchestrator-mvp) 실행 방식
-
-- 오케스트레이터는 **저장소 밖**에 두고, 작업마다 **새 worktree**(`git worktree add <폴더> -b ai/<작업ID>-<설명> <기준>`)를 `--repo` 로 준다.
-  미추적 파일이 있는 작업 폴더에서는 시작하지 않는다(설계상 거부). 새 worktree 에는 `.env`·`casedb/` 같은 무시 대상 파일이 없다.
-- 오케스트레이터는 커밋·push·PR 을 하지 않는다. 결과(`runs/*.json`)와 diff 를 사람이 확인한 뒤 커밋하고 PR 을 연다.
-- Claude 는 `--restricted`(셸·웹 도구 없음)로 실행되며 이 모드는 프로젝트 설정을 무시한다 → `--settings .claude/settings.json` 을 함께 넘긴다.
-- 테스트 명령(저장소 루트, Python 3.11 venv): `python -m pytest apps/worker/tests apps/lambdas/tests .claude/hooks -q` + `git diff --check`.
-- 작업의 `allowed_paths` 는 **이미 추적 중인 파일**만(새 파일 생성은 경계 위반으로 멈춘다).
-- 기획·리뷰(OpenAI API)와 구현(Claude)은 둘 다 유료다. 실행 전 PM 승인, `max_rounds` 는 2 이하로 둔다.
-
 ## 승인 없이 하지 않는 것
 
 - 수정: `.github/`, `.claude/`, `infra/`, `apps/worker/Dockerfile`, `apps/worker/ai-engine.ref`, 의존성 파일
