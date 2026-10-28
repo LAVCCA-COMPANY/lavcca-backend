@@ -1,6 +1,7 @@
 """Minimal Microsoft Graph (personal OneDrive) client: conditional upload + read-back verification.
 Every write goes through an upload session (if-match / conflictBehavior=fail are honoured there,
-not on simple PUT). An upload counts only after a fresh GET shows the expected sha1."""
+not on simple PUT). An upload counts only after a fresh GET shows the expected content hash
+(sha1Hash where OneDrive still reports it, else quickXorHash)."""
 import json, time, hashlib, urllib.request, urllib.error
 from urllib.parse import quote
 
@@ -68,6 +69,50 @@ def sha1_file(path):
         for b in iter(lambda: f.read(1 << 20), b""):
             h.update(b)
     return h.hexdigest().upper()
+
+
+_QX_MASK = (1 << 160) - 1
+QX_CHUNK = 160 * 65536  # read size; must stay a multiple of 160 so lanes line up across chunks
+
+
+def quickxor_file(path):
+    """OneDrive QuickXorHash (base64), per Microsoft's reference implementation: byte j is xored into a
+    160-bit circular register at bit (j*11) % 160, then the length (8 bytes LE) is xored into the top
+    8 bytes. Personal OneDrive is replacing sha1Hash with this since 2023-07."""
+    acc, n = 0, 0  # acc: 160-byte lanes, byte j lands in lane j % 160 (its rotation depends only on that)
+    with open(path, "rb") as f:
+        while True:
+            chunk = f.read(QX_CHUNK)
+            if not chunk:
+                break
+            n += len(chunk)
+            mv = memoryview(chunk)
+            for r in range(0, len(chunk), 160):  # a short last row is zero-padded on the high side
+                acc ^= int.from_bytes(mv[r:r + 160], "little")
+    h = 0
+    for i, b in enumerate(acc.to_bytes(160, "little")):
+        if b:
+            v = b << ((i * 11) % 160)
+            h ^= (v & _QX_MASK) | (v >> 160)
+    out = bytearray(h.to_bytes(20, "little"))
+    for k, lb in enumerate(n.to_bytes(8, "little")):
+        out[12 + k] ^= lb
+    import base64
+    return base64.b64encode(bytes(out)).decode()
+
+
+def remote_hash(item):
+    """(kind, value) of the content hash Graph reports for a file item; (None, None) if none."""
+    hashes = ((item or {}).get("file") or {}).get("hashes") or {}
+    if hashes.get("sha1Hash"):
+        return "sha1", hashes["sha1Hash"].upper()
+    if hashes.get("quickXorHash"):
+        return "quickxor", hashes["quickXorHash"]
+    return None, None
+
+
+def local_hash(path, kind):
+    return sha1_file(path) if kind == "sha1" else quickxor_file(path)
 
 
 def urllib_http(method, url, headers, body):
@@ -166,15 +211,14 @@ class Graph:
         return result
 
     def upload_verified(self, remote_path, local_path, if_match=None):
-        want = sha1_file(local_path)
         up = self.upload(remote_path, local_path, if_match)
         fresh = self.item(remote_path)  # never trust the upload response alone
-        got = ((fresh or {}).get("file") or {}).get("hashes", {}).get("sha1Hash")
         if not fresh or fresh.get("id") != (up or {}).get("id"):
             raise VerifyError(f"{remote_path}: item missing or replaced after upload")
-        if not got:
-            # shortcut: personal OneDrive reports sha1Hash; add quickXorHash if G10 shows it missing.
-            raise VerifyError(f"{remote_path}: no sha1Hash in metadata")
-        if got.upper() != want:
-            raise VerifyError(f"{remote_path}: remote sha1 {got} != local {want}")
+        kind, got = remote_hash(fresh)
+        if not kind:
+            raise VerifyError(f"{remote_path}: no sha1Hash or quickXorHash in metadata")
+        want = local_hash(local_path, kind)
+        if got != want:
+            raise VerifyError(f"{remote_path}: remote {kind} {got} != local {want}")
         return fresh

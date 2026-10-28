@@ -1,7 +1,7 @@
 """GitHub Actions job: OneDrive vault <-> runner mirror around ci.run (engine unchanged).
 
-  token refresh -> remote lock -> mirror restore (sha1-verified) -> ci.run -> upload what the engine
-  changed (if-match eTags, read-back sha1) -> state.json + cursor last -> release lock
+  token refresh -> remote lock -> mirror restore (hash-verified) -> ci.run -> upload what the engine
+  changed (if-match eTags, read-back hash) -> state.json + cursor last -> release lock
 
 OneDrive is the only source of truth; the cached mirror only saves downloads.
 exit: 0 ok | 10 audit mismatch (uploaded, job fails) | 73 locked | 75 transient | 78 re-auth needed
@@ -68,28 +68,27 @@ def walk_remote(g, remote_root, scope, rel=""):
 
 def restore_mirror(g, remote_root, local_root, scope):
     """Make local_root equal to OneDrive for every file in scope. Returns the manifest
-    {rel: {"id", "eTag", "sha1"}} used for conditional uploads. Raises on any unverifiable file."""
+    {rel: {"id", "eTag", "hash"}} used for conditional uploads. Raises on any unverifiable file."""
     manifest = {}
     for rel, it in walk_remote(g, remote_root, scope):
-        sha = ((it.get("file") or {}).get("hashes") or {}).get("sha1Hash")
-        if not sha:
-            raise graph.VerifyError(f"{rel}: no sha1Hash")  # shortcut: see graph.upload_verified
-        sha = sha.upper()
+        kind, want = graph.remote_hash(it)
+        if not kind:
+            raise graph.VerifyError(f"{rel}: no content hash in metadata")
         dst = os.path.join(local_root, *rel.split("/"))
-        if not (os.path.isfile(dst) and graph.sha1_file(dst) == sha):
+        if not (os.path.isfile(dst) and graph.local_hash(dst, kind) == want):
             data = g.download(it)
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             fd, tmp = tempfile.mkstemp(dir=os.path.dirname(dst), prefix=".dl_")
             with os.fdopen(fd, "wb") as f:
                 f.write(data)
-            if graph.sha1_file(tmp) != sha:
+            if graph.local_hash(tmp, kind) != want:
                 os.remove(tmp)
-                raise graph.VerifyError(f"{rel}: downloaded bytes do not match sha1Hash")
+                raise graph.VerifyError(f"{rel}: downloaded bytes do not match {kind}")
             os.replace(tmp, dst)
         mtime = (it.get("fileSystemInfo") or {}).get("lastModifiedDateTime")
         if mtime:  # engine conflict guards compare mtimes; download time would mislead them
             os.utime(dst, (_iso_to_ts(mtime), _iso_to_ts(mtime)))
-        manifest[rel] = {"id": it["id"], "eTag": it["eTag"], "sha1": sha}
+        manifest[rel] = {"id": it["id"], "eTag": it["eTag"], "hash": f"{kind}:{want}"}
     for rel in snapshot(local_root, scope.download):  # cached files deleted remotely
         if rel not in manifest:
             os.remove(os.path.join(local_root, *rel.split("/")))

@@ -118,6 +118,15 @@ class TestMirror(Base):
         self.assertTrue(os.path.exists(self.local("Daily/photo.png")))
         self.assertEqual(sum(1 for _, u, _ in self.drive.calls if u.startswith("https://dl/")) - gets, 1)  # only a.md
 
+    def test_quickxor_only_drive(self):
+        self.drive.quickxor_only = True
+        manifest = ods.restore_mirror(self.g, R, self.mirror, self.scope)
+        self.assertTrue(all(m["hash"].startswith("quickxor:") for m in manifest.values()))
+        self.drive.corrupt_download.add(f"{R}/{ROOT}/02/a.md")
+        shutil.rmtree(self.mirror)
+        with self.assertRaises(graph.VerifyError):
+            ods.restore_mirror(self.g, R, self.mirror, self.scope)
+
     def test_corrupt_download_rejected(self):
         self.drive.corrupt_download.add(f"{R}/{ROOT}/02/a.md")
         with self.assertRaises(graph.VerifyError):

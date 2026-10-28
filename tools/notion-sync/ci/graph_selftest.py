@@ -79,11 +79,14 @@ def main():
         lm = (it.get("fileSystemInfo") or {}).get("lastModifiedDateTime")
         samples.append({"sha1_present": bool(sha), "quickxor_present": bool(quick),
                         "sha1_equal": bool(sha) and os.path.isfile(local) and graph.sha1_file(local) == sha.upper(),
+                        "quickxor_equal": bool(quick) and os.path.isfile(local) and graph.quickxor_file(local) == quick,
                         "mtime_delta_s": abs(ods._iso_to_ts(lm) - os.path.getmtime(local)) if lm and os.path.isfile(local) else None})
         n += 1
         if n >= 10:
             break
-    record("G10_sha1", bool(samples) and all(s["sha1_equal"] for s in samples),
+    # pass if every file is verifiable by at least one hash the runner implements
+    record("G10_hash", bool(samples) and all(s["sha1_equal"] or s["quickxor_equal"] for s in samples),
+           quickxor_equal=sum(s["quickxor_equal"] for s in samples),
            files=len(samples), sha1_present=sum(s["sha1_present"] for s in samples),
            quickxor_present=sum(s["quickxor_present"] for s in samples))
     deltas = [s["mtime_delta_s"] for s in samples if s["mtime_delta_s"] is not None]

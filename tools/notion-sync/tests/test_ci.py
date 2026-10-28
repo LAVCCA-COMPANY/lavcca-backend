@@ -156,7 +156,8 @@ class FakeDrive:
         self.sessions, self.seq = {}, 0
         self.ignore_writes = False            # simulate "success" that does not change the file
         self.fail_first = []                  # statuses to answer before serving normally
-        self.no_sha1 = False
+        self.no_sha1 = False                  # no content hash at all
+        self.quickxor_only = False            # what personal OneDrive reports since sha1 was phased out
         self.fail_upload = set()              # paths whose upload session always answers 503
         self.corrupt_download = set()         # paths whose downloadUrl serves wrong bytes
 
@@ -167,6 +168,12 @@ class FakeDrive:
     def meta(self, path):
         f = self.files[path]
         hashes = {} if self.no_sha1 else {"sha1Hash": hashlib.sha1(f["data"]).hexdigest().upper()}
+        if self.quickxor_only and not self.no_sha1:
+            fd, tmp = tempfile.mkstemp()
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(f["data"])
+            hashes = {"quickXorHash": graph.quickxor_file(tmp)}
+            os.remove(tmp)
         return {"id": f["id"], "name": path.rsplit("/", 1)[-1], "eTag": f["etag"], "size": len(f["data"]),
                 "file": {"hashes": hashes}, "fileSystemInfo": {"lastModifiedDateTime": f.get("mtime", "2026-01-01T00:00:00Z")},
                 "@microsoft.graph.downloadUrl": f"https://dl/{f['id']}"}
@@ -279,6 +286,13 @@ class TestGraphUpload(unittest.TestCase):
         self.assertEqual(self.drive.files[self.remote]["data"], b"old")
 
     def test_success_response_but_file_unchanged_detected(self):
+        self.g.upload_verified(self.remote, self.local(b"old"))
+        self.drive.ignore_writes = True
+        with self.assertRaises(graph.VerifyError):
+            self.g.upload_verified(self.remote, self.local(b"new"), if_match=self.drive.files[self.remote]["etag"])
+
+    def test_quickxor_only_drive_verified(self):
+        self.drive.quickxor_only = True
         self.g.upload_verified(self.remote, self.local(b"old"))
         self.drive.ignore_writes = True
         with self.assertRaises(graph.VerifyError):
