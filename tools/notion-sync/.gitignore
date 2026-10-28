@@ -6,3 +6,6 @@ logs/
 backups/
 mirror/
 tmp_attachments/
+.dev.vars
+.wrangler/
+node_modules/
