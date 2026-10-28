@@ -1,0 +1,46 @@
+# Notion → Obsidian 동기화(tools/notion-sync) 테스트: 엔진·러너·브랜드 호환(Python) + Webhook Worker(Node).
+# 비밀값·OIDC·Environment 를 쓰지 않는다 → 테스트는 전부 가짜 Notion·Graph 서버와 임시 폴더.
+name: notion-sync-test
+
+on:
+  pull_request:
+    paths:
+      - "tools/notion-sync/**"
+      - ".github/workflows/notion-sync*.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "tools/notion-sync/**"
+      - ".github/workflows/notion-sync*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  notion-sync-unittest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: tools/notion-sync
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 엔진은 표준 라이브러리만 쓴다: 설치할 것이 없다
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Worker tests
+        if: ${{ !cancelled() }}
+        run: node --version && node --test worker/index.test.mjs

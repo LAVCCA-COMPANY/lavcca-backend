@@ -1,0 +1,8 @@
+# real config / runtime data never live in git (public repo): config comes from the NOTION_SYNC_CONFIG secret
+config.json
+state.json
+incremental_cursor.json
+logs/
+backups/
+mirror/
+tmp_attachments/

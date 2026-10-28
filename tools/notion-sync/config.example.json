@@ -1,0 +1,29 @@
+{
+  "notion_version": "2025-09-03",
+  "lavcca_root_id": "<notion root page id>",
+  "first_sync_ids": [],
+  "review_ids": [],
+  "excluded_ids": [],
+  "bootstrap_migration_completed_at": "2026-09-30T22:11:23+09:00",
+  "vault_root": "<runner: set by ci/onedrive_sync.py>",
+  "lavcca_root_path": "<runner: set by ci/onedrive_sync.py>",
+  "protected_relative_paths": [
+    "06_KNOWLEDGE",
+    "99_ARCHIVE",
+    "_migration",
+    "_sync"
+  ],
+  "protected_vault_root_paths": [
+    ".obsidian",
+    "1. 일간",
+    "2. 주간",
+    "3. 월간",
+    "4. 연간",
+    "무제.canvas"
+  ],
+  "max_pagination_pages": 500,
+  "api_page_size": 100,
+  "owner_roots": {
+    "02_MEMBER_A": "<frontmatter owner>"
+  }
+}
