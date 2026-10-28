@@ -1,0 +1,105 @@
+# Notion → LAVCCA-COMPANY/docs(obsidian-vault/Notion) 게시 (tools/notion-sync/ci/docs_publish.py).
+# 공개 저장소 보호:
+#   - 비밀값은 Environment "notion-sync"(배포 브랜치 main 만)에만 둔다 → 다른 브랜치·fork PR 실행에는 비밀값이 없다.
+#   - 로그에는 개수만 나온다. 문서 내용·경로는 비공개 docs 저장소에만 간다.
+#   - docs 쓰기는 GitHub App 설치 토큰(docs 저장소 하나, Contents 쓰기)으로만 한다. id-token 권한 없음 → AWS 와 무관.
+# 트리거: Webhook Worker(workflow_dispatch, Actions:write 전용 토큰), 30분마다 변경 검색(웹훅 누락 복구),
+#   하루 한 번 전체 대조(삭제·이동 감지). 공개 저장소라 Actions 시간은 무료.
+name: notion-sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "dry-run 은 docs 에 push 하지 않는다"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      full:
+        description: "전체 크롤 강제"
+        type: boolean
+        default: false
+      hint:
+        description: "Webhook Worker 가 넘기는 변경 힌트(JSON). 비워 두면 Notion 검색으로만 판단"
+        type: string
+        default: ""
+  schedule:
+    - cron: "*/30 * * * *"  # 변경 검색(웹훅 누락 복구). GitHub 은 지연·생략할 수 있다
+    - cron: "41 18 * * *"   # 전체 대조(KST 03:41)
+
+# 모든 트리거를 통틀어 한 번에 하나만 실행(state.json·push 경합 방지). 대기 중인 실행은 최신 1개만 남는다.
+concurrency:
+  group: lavcca-notion-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: notion-sync
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.NOTION_SYNC_APP_ID }}
+          private-key: ${{ secrets.NOTION_SYNC_APP_KEY }}
+          owner: LAVCCA-COMPANY
+          repositories: docs
+
+      - uses: actions/checkout@v4
+        with:
+          repository: LAVCCA-COMPANY/docs
+          token: ${{ steps.app-token.outputs.token }}
+          path: docs-repo
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: publish
+        id: publish
+        working-directory: tools/notion-sync
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_SYNC_CONFIG: ${{ secrets.NOTION_SYNC_CONFIG }}
+          NOTION_SYNC_ROOT_ID: ${{ vars.NOTION_SYNC_ROOT_ID }}  # 비우면 config 의 LAVCCA 루트 전체
+          FULL: ${{ inputs.full || github.event.schedule == '41 18 * * *' }}
+        run: |
+          args=(--docs "$GITHUB_WORKSPACE/docs-repo")
+          if [ "$FULL" = "true" ]; then args+=(--full); fi
+          set +e
+          python -m ci.docs_publish "${args[@]}"
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # 10 = 쓴 결과가 state 와 다름: 게시는 하고 잡을 실패시켜 알린다
+          if [ "$code" != 0 ] && [ "$code" != 10 ]; then exit "$code"; fi
+
+      - name: commit and push
+        working-directory: docs-repo
+        env:
+          DRY_RUN: ${{ inputs.mode == 'dry-run' }}
+        run: |
+          git add -A obsidian-vault/Notion .notion-sync
+          if git diff --cached --quiet; then echo "변경 없음"; exit 0; fi
+          echo "변경 파일 $(git diff --cached --name-only | wc -l)개"
+          if [ "$DRY_RUN" = "true" ]; then echo "dry-run: push 안 함"; exit 0; fi
+          git -c user.name="lavcca-notion-sync[bot]" -c user.email="lavcca-notion-sync[bot]@users.noreply.github.com" \
+            commit -q -m "notion-sync: Notion 변경 반영 (run ${GITHUB_RUN_ID})"
+          # 다른 사람이 docs main 에 push 했으면 rebase 후 재시도(이 경로는 봇만 쓰므로 충돌하지 않는다)
+          for i in 1 2 3; do
+            if git push -q origin HEAD:main; then exit 0; fi
+            sleep $((i * 5)); git pull -q --rebase origin main
+          done
+          exit 1
+
+      - name: audit mismatch
+        if: steps.publish.outputs.code == '10'
+        run: echo "게시는 했지만 파일과 state.json 이 다르다. 다음 전체 대조를 확인할 것"; exit 10

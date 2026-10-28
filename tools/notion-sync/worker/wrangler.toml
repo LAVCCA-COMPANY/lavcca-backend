@@ -1,0 +1,18 @@
+# Cloudflare Workers Free: deploy with `npx wrangler deploy` from this folder after `npx wrangler login`.
+# Secrets (never here): `npx wrangler secret put NOTION_VERIFICATION_TOKEN`, `npx wrangler secret put GITHUB_TOKEN`
+#   GITHUB_TOKEN = fine-grained PAT, repository LAVCCA-COMPANY/lavcca-backend only, permission Actions: write.
+name = "lavcca-notion-webhook"
+main = "index.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+crons = ["* * * * *"]  # flushes events held back by the throttle
+
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_ID_FROM__wrangler_kv_namespace_create_lavcca-notion-webhook"
+
+[vars]
+GITHUB_REPO = "LAVCCA-COMPANY/lavcca-backend"
+GITHUB_WORKFLOW = "notion-sync.yml"
+THROTTLE_SECONDS = "60"  # public repo: Actions minutes are free, so favour latency (target: PC within ~3 min)
