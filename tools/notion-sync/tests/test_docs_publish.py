@@ -185,6 +185,53 @@ class TestDocsPublish(unittest.TestCase):
         self.pub()
         self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/같은 이름 (b2b2b2b2).md", "LAVCCA/같은 이름.md"])
 
+    def test_same_title_siblings_with_shared_id_prefix_get_distinct_paths(self):
+        # regression (Actions run 40712670458): ids created together share the first 8 hex, so the old
+        # "(nid[:8])" suffix collided from the third sibling on -> overwritten file, audit exit 10
+        ids = ["2d2de6a22dbe80" + s for s in ("4c9ba3efc53daff988", "cab668e0a0b4698e63", "d4b5b2e73d8c0d32c4")]
+        self.n.edit(ROOT, [child(i, "") for i in ids])
+        for i in ids:
+            self.n.add(i, "", {"type": "page_id", "page_id": ROOT}, [para("본문 " + i)])
+        code, rep = self.pub()
+        self.assertEqual((code, len(rep["created"]), rep["updated"]), (0, 4, []))  # root + 3
+        paths = {self.state()["items"][i]["obsidian_path"] for i in ids}
+        self.assertEqual(len(paths), 3)
+        for i in ids:
+            self.assertIn("본문 " + i, self.read(self.state()["items"][i]["obsidian_path"]))
+
+    def test_audit_flags_two_pages_on_one_path(self):
+        self.pub()
+        st = self.state()
+        st["items"][B]["obsidian_path"] = st["items"][A]["obsidian_path"]
+        st["items"][B].pop("notion_last_edited_time")
+        with open(os.path.join(self.docs, ".notion-sync", "state.json"), "w", encoding="utf-8") as f:
+            json.dump(st, f)
+        code, rep = dp.publish(self.n, CFG, self.docs)
+        self.assertEqual(code, dp.EXIT_AUDIT)
+        self.assertIn("path shared by two pages", [p["problem"] for p in rep["audit"]])
+
+    def test_carriage_returns_are_normalised(self):
+        self.n.edit(A, [para("줄1\r\n줄2\r줄3")])
+        self.pub()
+        self.assertIn("줄1\n줄2\n줄3", self.read("LAVCCA/회의록.md"))
+
+    def test_engine_exclusion_lists_do_not_drop_pages(self):
+        # PM decision: everything under the LAVCCA root is published; the OneDrive engine's
+        # excluded_ids/review_ids (still present in older configs) must not hide pages from docs
+        code, rep = dp.publish(self.n, {**CFG, "excluded_ids": [A], "review_ids": [B]}, self.docs)
+        self.assertEqual(code, 0)
+        self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/기획 설계.md", "LAVCCA/회의록.md"])
+
+    def test_credentials_are_reported_by_kind_but_page_is_still_published(self):
+        self.n.edit(A, [para("계정 비밀번호: hunter2 / key AKIAABCDEFGHIJKLMNOP")])
+        self.n.edit(B, [para("계정 정보는 비밀번호 관리자에 있음")])  # mention without a value: not a finding
+        code, rep = self.pub()
+        self.assertEqual(code, 0)
+        self.assertEqual(rep["credential_findings"], {A: ["aws_access_key", "password_value"]})
+        self.assertIn("LAVCCA/회의록.md", self.files())
+        self.assertEqual(self.state()["items"][A]["status"], "active")
+        self.assertNotIn("hunter2", json.dumps(rep["credential_findings"]))
+
     def test_plan_seeds(self):
         self.assertIsNone(dp.plan_seeds({}, CFG, None, lambda s: []))
         st = {"cursor": "2026-10-28T01:00:00Z"}
