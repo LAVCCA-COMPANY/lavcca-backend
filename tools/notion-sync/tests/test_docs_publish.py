@@ -215,10 +215,12 @@ class TestDocsPublish(unittest.TestCase):
         self.pub()
         self.assertIn("줄1\n줄2\n줄3", self.read("LAVCCA/회의록.md"))
 
-    def test_excluded_subtree_is_not_published(self):
-        code, rep = dp.publish(self.n, {**CFG, "excluded_ids": [A]}, self.docs)
-        self.assertEqual((code, rep["excluded"]), (0, [A]))
-        self.assertNotIn("LAVCCA/회의록.md", self.files())
+    def test_engine_exclusion_lists_do_not_drop_pages(self):
+        # PM decision: everything under the LAVCCA root is published; the OneDrive engine's
+        # excluded_ids/review_ids (still present in older configs) must not hide pages from docs
+        code, rep = dp.publish(self.n, {**CFG, "excluded_ids": [A], "review_ids": [B]}, self.docs)
+        self.assertEqual(code, 0)
+        self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/기획 설계.md", "LAVCCA/회의록.md"])
 
     def test_credentials_are_reported_by_kind_but_page_is_still_published(self):
         self.n.edit(A, [para("계정 비밀번호: hunter2 / key AKIAABCDEFGHIJKLMNOP")])

@@ -156,8 +156,7 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
     items, dbs = state["items"], state.setdefault("databases", {})
     root_id = ca.norm_id(cfg["lavcca_root_id"])
     report = {"started_at": now.isoformat(), "full": seeds is None, "created": [], "updated": [], "deleted": [],
-              "restored": [], "renamed": [], "render_warnings": {}, "excluded": [], "credential_findings": {}}
-    skip = {ca.norm_id(i) for i in (cfg.get("excluded_ids") or []) + (cfg.get("review_ids") or [])}
+              "restored": [], "renamed": [], "render_warnings": {}, "credential_findings": {}}
     fetched = {}  # nid -> (page, blocks, folder of parent)
 
     def folder_of(nid):
@@ -178,9 +177,6 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
         items[nid] = {"notion_id": nid, "obsidian_path": rel, "status": "new"}
 
     def visit(nid, parent_folder, recurse_all):
-        if nid in skip:  # config excluded/review: the page and everything below it stay out of docs
-            report["excluded"].append(nid)
-            return "excluded"
         code, page = api("GET", f"/pages/{nid}")
         if code in (403, 404) or (code == 200 and (page.get("in_trash") or page.get("archived"))):
             return "gone"
@@ -399,7 +395,7 @@ def main():
         ca.atomic_write_bytes(state_path, (json.dumps(st, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
     # Actions logs of the public backend repo are world-readable: counts only.
     print(json.dumps({"full": report["full"], **{k: len(report[k]) for k in
-                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings", "excluded")},
+                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings")},
                       "audit_problems": len(report.get("audit") or []), "error": bool(report.get("error")),
                       "credential_pages": len(report["credential_findings"]),
                       "credential_kinds": dict(Counter(k for ks in report["credential_findings"].values() for k in ks)),
