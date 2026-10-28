@@ -4,7 +4,21 @@
 > `NATAM/` 폴더, `project: NATAM`, `natam_*` 설정 키, `NATAM_*` 환경변수, `~/.natam/secrets.env` 는 그대로 동작한다.
 > 실제 Vault 를 옮기는 절차는 `docs/brand-migration.md`.
 
-## 클라우드 실행 (lavcca-backend)
+## 클라우드 실행 (lavcca-backend → docs) — 현재 경로
+
+```
+Notion Webhook → worker/ (서명 검증·중복 제거·60초 묶음·실패 시 503) → workflow_dispatch notion-sync.yml
+  → ci/docs_publish.py: 변경 검색(ci/run.search_since + 웹훅 힌트) → 바뀐/새 페이지만 조회 → 렌더(canary_apply 렌더러)
+  → LAVCCA-COMPANY/docs obsidian-vault/Notion/ 에 쓰기 → 봇 커밋·push (GitHub App 설치 토큰, docs 만)
+```
+- 엔진(`notion_sync.py`)과 달리 생성·제목 변경·삭제를 처리한다: 경로는 처음 한 번 정하고 바꾸지 않는다(링크 보존),
+  삭제는 `_deleted/` 로 옮긴다. 이 폴더는 봇만 쓰므로 충돌 판정 대신 git 기록이 백업이다.
+- Environment `notion-sync`: 비밀값 `NOTION_TOKEN`, `NOTION_SYNC_CONFIG`, `NOTION_SYNC_APP_KEY`; 변수 `NOTION_SYNC_APP_ID`,
+  `NOTION_SYNC_ROOT_ID`(선택, 시험용 하위 트리). 팀 설정·복구 절차는 docs `notion-obsidian-sync.md`.
+- 로컬 실행: `python -m ci.docs_publish --docs <docs clone> --config <config.json> [--full]` (토큰: `~/.lavcca/secrets.env`).
+- 종료 코드: 0 성공 · 2 Notion 조회 실패(아무것도 쓰지 않음) · 10 쓴 결과와 state 불일치.
+
+## 클라우드 실행 (OneDrive, 보류 — Microsoft Graph 앱 등록 차단으로 실행 경로에서 뺐다)
 
 ```
 Notion Webhook → worker/ (Cloudflare Worker: 서명 검증·중복 제거·5분 묶음·실패 시 503)

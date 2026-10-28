@@ -27,8 +27,9 @@ Architecture and cross-repo contracts: docs.
   manual: `lavcca-dev` environment approval → OIDC → ECR push. `auth_check_only=true` only
   checks OIDC → AWS. `tests.yml` — pytest.
 - `tools/notion-sync/` — Notion → Obsidian one-way sync (stdlib Python 3.12 engine, GitHub Actions
-  runner for OneDrive, Cloudflare webhook Worker). Own workflows `notion-sync-test.yml` (mocks
-  only) and `notion-sync.yml` (Environment `notion-sync`, main only, no OIDC). Real config and
+  publisher into the private docs repo `obsidian-vault/Notion/`, Cloudflare webhook Worker). Own workflows
+  `notion-sync-test.yml` (mocks only) and `notion-sync.yml` (Environment `notion-sync`, main only, no OIDC,
+  writes docs via a GitHub App installation token). Real config and
   tokens live only in that Environment's secrets; see `tools/notion-sync/README.md`.
 
 ## Rules
