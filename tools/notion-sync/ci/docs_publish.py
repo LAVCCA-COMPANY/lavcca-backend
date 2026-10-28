@@ -24,6 +24,12 @@ STATE_DIR = ".notion-sync"
 EXIT_CRAWL, EXIT_AUDIT = 2, cirun.EXIT_AUDIT_MISMATCH
 MAX_ATTACHMENT = 50 * 1024 * 1024  # GitHub rejects files over 100 MB
 BAD_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f]')
+# The docs repo is shared with the whole team: a page that looks like it holds credentials is not
+# published (reported as withheld, retried every run) until the secret is removed in Notion.
+SENSITIVE = re.compile(
+    r"(?:secret_|ntn_)[A-Za-z0-9]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{30,}|AKIA[0-9A-Z]{16}"
+    r"|sk-[A-Za-z0-9_-]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    r"|(?:비밀번호|비번|패스워드|password|passwd|pw)\s*[:=：]\s*\S", re.I)
 
 
 class CrawlError(Exception):
@@ -141,7 +147,8 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
     items, dbs = state["items"], state.setdefault("databases", {})
     root_id = ca.norm_id(cfg["lavcca_root_id"])
     report = {"started_at": now.isoformat(), "full": seeds is None, "created": [], "updated": [], "deleted": [],
-              "restored": [], "renamed": [], "render_warnings": {}}
+              "restored": [], "renamed": [], "render_warnings": {}, "excluded": [], "withheld": []}
+    skip = {ca.norm_id(i) for i in (cfg.get("excluded_ids") or []) + (cfg.get("review_ids") or [])}
     fetched = {}  # nid -> (page, blocks, folder of parent)
 
     def folder_of(nid):
@@ -153,12 +160,18 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
             return
         taken = {p["obsidian_path"].lower() for p in items.values()}
         name = safe_name(ca.page_title(page))
-        rel = f"{parent_folder}/{name}.md".lstrip("/")
-        if rel.lower() in taken:
-            rel = f"{parent_folder}/{name} ({nid[:8]}).md".lstrip("/")
+        # ids share a time-based prefix (siblings created together often match in the first 8 hex),
+        # so the short suffix uses the random tail and every candidate is re-checked.
+        for cand in (name, f"{name} ({nid[-8:]})", f"{name} ({nid})"):
+            rel = f"{parent_folder}/{cand}.md".lstrip("/")
+            if rel.lower() not in taken:
+                break
         items[nid] = {"notion_id": nid, "obsidian_path": rel, "status": "new"}
 
     def visit(nid, parent_folder, recurse_all):
+        if nid in skip:  # config excluded/review: the page and everything below it stay out of docs
+            report["excluded"].append(nid)
+            return "excluded"
         code, page = api("GET", f"/pages/{nid}")
         if code in (403, 404) or (code == 200 and (page.get("in_trash") or page.get("archived"))):
             return "gone"
@@ -243,6 +256,15 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
         props, md = ca.render_properties(page, ctx), ca.render_blocks(blocks, ctx)
         parts = [p for p in ("\n".join(props), md) if p]
         body = f"\n# {title}\n" + ("\n" + "\n\n".join(parts) + "\n" if parts else "")
+        body = body.replace("\r\n", "\n").replace("\r", "\n")  # CR in Notion text: the audit parser rejects it
+        if SENSITIVE.search(title + "\n" + body):
+            report["withheld"].append(nid)
+            st.update(status="withheld", title=title)
+            st.pop("notion_last_edited_time", None)
+            for bid, a in att.used.items():  # its freshly downloaded files stay out too
+                if bid not in state["attachments"]:
+                    os.remove(os.path.join(root, *a["local_path"].split("/")))
+            continue
         fm = "\n".join([
             "---",
             f"notion_id: {nid}",
@@ -272,8 +294,14 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
     state["attachments"].update(used_atts)
 
     os.makedirs(os.path.dirname(state_path), exist_ok=True)
-    report["audit"] = plan.audit_mirror(root, {"items": {n: s for n, s in items.items() if s.get("status") == "active"},
-                                               "attachments": state["attachments"]})
+    active = {n: s for n, s in items.items() if s.get("status") == "active"}
+    report["audit"] = plan.audit_mirror(root, {"items": active, "attachments": state["attachments"]})
+    seen = set()
+    for s in active.values():  # two pages on one path: one of them silently overwrote the other
+        key = unicodedata.normalize("NFC", s["obsidian_path"]).lower()
+        if key in seen:
+            report["audit"].append({"path": s["obsidian_path"], "problem": "path shared by two pages"})
+        seen.add(key)
     ca.atomic_write_bytes(state_path, (json.dumps(state, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
     return (EXIT_AUDIT if report["audit"] else 0), report
 
@@ -355,7 +383,11 @@ def main():
     started = datetime.now(timezone.utc)
     seeds = None if a.full else plan_seeds(state, cfg, event,
                                            lambda since: cirun.search_since(token, cfg["notion_version"], since))
-    code, report = publish(api, cfg, a.docs, a.vault, a.root, seeds)
+    try:
+        code, report = publish(api, cfg, a.docs, a.vault, a.root, seeds)
+    except Exception as e:  # noqa: BLE001  public log: exception type only (messages can carry titles/paths)
+        print(json.dumps({"error": type(e).__name__, "exit": 1}))
+        sys.exit(1)
     if code in (0, EXIT_AUDIT):  # advance the cursor only after a complete run
         with open(state_path, encoding="utf-8") as f:
             st = json.load(f)
@@ -363,7 +395,7 @@ def main():
         ca.atomic_write_bytes(state_path, (json.dumps(st, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
     # Actions logs of the public backend repo are world-readable: counts only.
     print(json.dumps({"full": report["full"], **{k: len(report[k]) for k in
-                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings")},
+                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings", "excluded", "withheld")},
                       "audit_problems": len(report.get("audit") or []), "error": bool(report.get("error")),
                       "exit": code}))
     sys.exit(code)

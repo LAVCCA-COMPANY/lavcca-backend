@@ -185,6 +185,53 @@ class TestDocsPublish(unittest.TestCase):
         self.pub()
         self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/같은 이름 (b2b2b2b2).md", "LAVCCA/같은 이름.md"])
 
+    def test_same_title_siblings_with_shared_id_prefix_get_distinct_paths(self):
+        # regression (Actions run 40712670458): ids created together share the first 8 hex, so the old
+        # "(nid[:8])" suffix collided from the third sibling on -> overwritten file, audit exit 10
+        ids = ["2d2de6a22dbe80" + s for s in ("4c9ba3efc53daff988", "cab668e0a0b4698e63", "d4b5b2e73d8c0d32c4")]
+        self.n.edit(ROOT, [child(i, "") for i in ids])
+        for i in ids:
+            self.n.add(i, "", {"type": "page_id", "page_id": ROOT}, [para("본문 " + i)])
+        code, rep = self.pub()
+        self.assertEqual((code, len(rep["created"]), rep["updated"]), (0, 4, []))  # root + 3
+        paths = {self.state()["items"][i]["obsidian_path"] for i in ids}
+        self.assertEqual(len(paths), 3)
+        for i in ids:
+            self.assertIn("본문 " + i, self.read(self.state()["items"][i]["obsidian_path"]))
+
+    def test_audit_flags_two_pages_on_one_path(self):
+        self.pub()
+        st = self.state()
+        st["items"][B]["obsidian_path"] = st["items"][A]["obsidian_path"]
+        st["items"][B].pop("notion_last_edited_time")
+        with open(os.path.join(self.docs, ".notion-sync", "state.json"), "w", encoding="utf-8") as f:
+            json.dump(st, f)
+        code, rep = dp.publish(self.n, CFG, self.docs)
+        self.assertEqual(code, dp.EXIT_AUDIT)
+        self.assertIn("path shared by two pages", [p["problem"] for p in rep["audit"]])
+
+    def test_carriage_returns_are_normalised(self):
+        self.n.edit(A, [para("줄1\r\n줄2\r줄3")])
+        self.pub()
+        self.assertIn("줄1\n줄2\n줄3", self.read("LAVCCA/회의록.md"))
+
+    def test_excluded_subtree_is_not_published(self):
+        code, rep = dp.publish(self.n, {**CFG, "excluded_ids": [A]}, self.docs)
+        self.assertEqual((code, rep["excluded"]), (0, [A]))
+        self.assertNotIn("LAVCCA/회의록.md", self.files())
+
+    def test_page_with_credentials_is_withheld_with_its_attachments(self):
+        img = {"type": "image", "id": C, "has_children": False, "last_edited_time": "t",
+               "image": {"type": "file", "caption": [], "file": {"url": "https://s3/pic.png"}}}
+        self.n.edit(A, [para("계정 비밀번호: hunter2"), img])
+        _, rep = self.pub()
+        self.assertEqual(rep["withheld"], [A])
+        self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/기획 설계.md"])
+        self.assertEqual(self.state()["items"][A]["status"], "withheld")
+        self.n.edit(A, [para("계정 정보는 비밀번호 관리자에 있음")], t="2026-10-28T06:00:00.000Z")
+        _, rep = self.pub()
+        self.assertEqual((rep["withheld"], rep["created"]), ([], [A]))
+
     def test_plan_seeds(self):
         self.assertIsNone(dp.plan_seeds({}, CFG, None, lambda s: []))
         st = {"cursor": "2026-10-28T01:00:00Z"}
