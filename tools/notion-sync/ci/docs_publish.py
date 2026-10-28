@@ -117,6 +117,23 @@ def http_download(url):
     return data
 
 
+NOTION_FILE_URL = re.compile(r"^https://(?:prod-files-secure\.s3\.[a-z0-9-]+\.amazonaws\.com/"
+                             r"|s3\.[a-z0-9-]+\.amazonaws\.com/secure\.notion-static\.com/|file\.notion\.so/)")
+
+
+def hosted_links_as_files(blocks):
+    """A bookmark/embed/link_preview pointing at a Notion-hosted file carries a signed URL that changes on
+    every fetch and expires within the hour: turn it into a file block so it is downloaded like one."""
+    for b in blocks:
+        t = b.get("type")
+        url = (b.get(t) or {}).get("url") or "" if t in ("bookmark", "embed", "link_preview") else ""
+        if NOTION_FILE_URL.match(url):
+            b["file"] = {"type": "file", "file": {"url": url}, "caption": (b[t].get("caption") or []),
+                         "name": os.path.basename(urllib.parse.unquote(urllib.parse.urlparse(url).path))}
+            b["type"] = "file"
+        hosted_links_as_files(b.get("_children") or [])
+
+
 def child_refs(blocks):
     """child_page / child_database ids anywhere in a block tree, in document order."""
     for b in blocks:
@@ -191,6 +208,7 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
             blocks = ca.fetch_block_tree(api, nid, cfg)
         except ca.ContentFetchError as e:
             raise CrawlError(str(e))
+        hosted_links_as_files(blocks)
         fetched[nid] = (page, blocks)
         kids = []
         for kind, cid, title in child_refs(blocks):
@@ -283,9 +301,9 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
             report["created" if old is None else "updated"].append(nid)
         if st.get("title") and st["title"] != title:
             report["renamed"].append(nid)
+            st["last_successful_sync"] = now.strftime("%Y-%m-%dT%H:%M:%SZ")  # only on a write: no-op runs leave state as is
         used_atts.update(att.used)
-        st.update(title=title, local_content_hash=ca.sha256_text(body), status="active",
-                  last_successful_sync=now.strftime("%Y-%m-%dT%H:%M:%SZ"))
+        st.update(title=title, local_content_hash=ca.sha256_text(body), status="active")
         if ctx.critical:  # published with visible placeholders; leave the edit time unrecorded -> retried next run
             report["render_warnings"][nid] = ctx.critical[:10]
             st.pop("notion_last_edited_time", None)
@@ -342,6 +360,19 @@ def _mark_gone(api, nid, items, root, root_id, report):
     report["deleted"].append(nid)
 
 
+def advance_cursor(state_path, before, started):
+    """Move the cursor to `started` only if the run changed state.json (or there is no cursor yet): a run
+    that found nothing new must leave the file byte-identical, or every scheduled run would commit. The
+    older cursor stays correct -- pages edited since then are recorded and skipped as unchanged."""
+    st = json.loads(_read(state_path))
+    strip = lambda d: {k: v for k, v in d.items() if k != "cursor"}  # noqa: E731
+    if st.get("cursor") and strip(st) == strip(before):
+        return False
+    st["cursor"] = started.isoformat().replace("+00:00", "Z")
+    ca.atomic_write_bytes(state_path, (json.dumps(st, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
+    return True
+
+
 def plan_seeds(state, cfg, event, search):
     """None = full crawl. Otherwise page ids to re-read: edited since the cursor (search) + webhook hints."""
     cursor = state.get("cursor")
@@ -388,11 +419,8 @@ def main():
     except Exception as e:  # noqa: BLE001  public log: exception type only (messages can carry titles/paths)
         print(json.dumps({"error": type(e).__name__, "exit": 1}))
         sys.exit(1)
-    if code in (0, EXIT_AUDIT):  # advance the cursor only after a complete run
-        with open(state_path, encoding="utf-8") as f:
-            st = json.load(f)
-        st["cursor"] = started.isoformat().replace("+00:00", "Z")
-        ca.atomic_write_bytes(state_path, (json.dumps(st, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
+    if code in (0, EXIT_AUDIT):  # never after an incomplete run: the next run retries the same window
+        advance_cursor(state_path, state, started)
     # Actions logs of the public backend repo are world-readable: counts only.
     print(json.dumps({"full": report["full"], **{k: len(report[k]) for k in
                       ("created", "updated", "deleted", "restored", "renamed", "render_warnings")},

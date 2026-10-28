@@ -232,6 +232,50 @@ class TestDocsPublish(unittest.TestCase):
         self.assertEqual(self.state()["items"][A]["status"], "active")
         self.assertNotIn("hunter2", json.dumps(rep["credential_findings"]))
 
+    def test_full_rerun_without_edits_leaves_state_byte_identical(self):
+        # regression (docs run 40721699709): last_successful_sync was restamped on every page each run
+        self.pub()
+        path = os.path.join(self.docs, ".notion-sync", "state.json")
+        before = open(path, "rb").read()
+        dp.publish(self.n, CFG, self.docs, now=dp.datetime(2030, 1, 1, tzinfo=dp.timezone.utc))
+        self.assertEqual(open(path, "rb").read(), before)
+
+    def test_cursor_advances_only_when_state_changed(self):
+        self.pub()
+        path = os.path.join(self.docs, ".notion-sync", "state.json")
+        t1, t2 = dp.datetime(2026, 10, 29, 1, tzinfo=dp.timezone.utc), dp.datetime(2026, 10, 29, 2, tzinfo=dp.timezone.utc)
+        self.assertTrue(dp.advance_cursor(path, {}, t1))  # first cursor
+        before = self.state()
+        bytes_before = open(path, "rb").read()
+        self.assertFalse(dp.advance_cursor(path, before, t2))  # nothing changed: file untouched
+        self.assertEqual(open(path, "rb").read(), bytes_before)
+        self.n.edit(A, [para("새 내용")])
+        dp.publish(self.n, CFG, self.docs, seeds=[A])
+        self.assertTrue(dp.advance_cursor(path, before, t2))
+        self.assertEqual(self.state()["cursor"], "2026-10-29T02:00:00Z")
+
+    def test_link_to_notion_hosted_file_is_downloaded_not_linked(self):
+        # regression: an embed of an uploaded .aac kept its signed S3 URL -> changed every run, expired in 1 h
+        def embed(sig):
+            return {"type": "embed", "id": C, "has_children": False, "last_edited_time": "2026-10-28T01:00:00.000Z",
+                    "embed": {"caption": [], "url": "https://prod-files-secure.s3.us-west-2.amazonaws.com/ws/f/"
+                                                     f"%EC%9D%B8%ED%84%B0%EB%B7%B0.aac?X-Amz-Signature={sig}"}}
+        self.n.edit(A, [embed("1")])
+        got = []
+        self.pub(download=lambda url: got.append(url) or b"AAC")
+        md = self.read("LAVCCA/회의록.md")
+        self.assertIn(f"[인터뷰.aac](../_attachments/{C}.aac)", md)
+        self.assertNotIn("X-Amz", md)
+        self.n.edit(A, [embed("2")], t="2026-10-28T09:00:00.000Z")
+        _, rep = self.pub(download=lambda url: got.append(url) or b"AAC")
+        self.assertEqual((len(got), rep["updated"]), (1, []))
+
+    def test_ordinary_embed_stays_a_link(self):
+        self.n.edit(A, [{"type": "embed", "id": C, "has_children": False,
+                         "embed": {"caption": [], "url": "https://www.youtube.com/watch?v=x"}}])
+        self.pub(download=lambda url: self.fail("must not download"))
+        self.assertIn("(https://www.youtube.com/watch?v=x)", self.read("LAVCCA/회의록.md"))
+
     def test_plan_seeds(self):
         self.assertIsNone(dp.plan_seeds({}, CFG, None, lambda s: []))
         st = {"cursor": "2026-10-28T01:00:00Z"}
