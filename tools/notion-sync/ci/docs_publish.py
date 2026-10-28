@@ -15,6 +15,7 @@ usage: python -m ci.docs_publish --docs <checkout> [--vault obsidian-vault] [--r
 exit:  0 ok | 2 Notion unreachable / crawl incomplete (nothing written) | 10 audit mismatch after write
 """
 import os, re, sys, json, time, shutil, argparse, unicodedata, urllib.request, urllib.error, urllib.parse
+from collections import Counter
 from datetime import datetime, timezone
 
 import canary_apply as ca
@@ -24,12 +25,20 @@ STATE_DIR = ".notion-sync"
 EXIT_CRAWL, EXIT_AUDIT = 2, cirun.EXIT_AUDIT_MISMATCH
 MAX_ATTACHMENT = 50 * 1024 * 1024  # GitHub rejects files over 100 MB
 BAD_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f]')
-# The docs repo is shared with the whole team: a page that looks like it holds credentials is not
-# published (reported as withheld, retried every run) until the secret is removed in Notion.
-SENSITIVE = re.compile(
-    r"(?:secret_|ntn_)[A-Za-z0-9]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{30,}|AKIA[0-9A-Z]{16}"
-    r"|sk-[A-Za-z0-9_-]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-    r"|(?:비밀번호|비번|패스워드|password|passwd|pw)\s*[:=：]\s*\S", re.I)
+# Report only (every page is published): which kinds of credential a page appears to contain, so a
+# person can check before an apply. Kinds and counts only -- never the matched value.
+CREDENTIAL_KINDS = {
+    "notion_token": re.compile(r"(?:secret_|ntn_)[A-Za-z0-9]{30,}"),
+    "github_token": re.compile(r"gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{30,}"),
+    "aws_access_key": re.compile(r"AKIA[0-9A-Z]{16}"),
+    "api_key": re.compile(r"sk-[A-Za-z0-9_-]{20,}|xox[abpr]-[A-Za-z0-9-]{10,}"),
+    "private_key": re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    "password_value": re.compile(r"(?:비밀번호|비번|패스워드|password|passwd)\s*[:=：]\s*\S", re.I),
+}
+
+
+def credential_kinds(text):
+    return sorted(k for k, rx in CREDENTIAL_KINDS.items() if rx.search(text))
 
 
 class CrawlError(Exception):
@@ -147,7 +156,7 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
     items, dbs = state["items"], state.setdefault("databases", {})
     root_id = ca.norm_id(cfg["lavcca_root_id"])
     report = {"started_at": now.isoformat(), "full": seeds is None, "created": [], "updated": [], "deleted": [],
-              "restored": [], "renamed": [], "render_warnings": {}, "excluded": [], "withheld": []}
+              "restored": [], "renamed": [], "render_warnings": {}, "excluded": [], "credential_findings": {}}
     skip = {ca.norm_id(i) for i in (cfg.get("excluded_ids") or []) + (cfg.get("review_ids") or [])}
     fetched = {}  # nid -> (page, blocks, folder of parent)
 
@@ -257,14 +266,9 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
         parts = [p for p in ("\n".join(props), md) if p]
         body = f"\n# {title}\n" + ("\n" + "\n\n".join(parts) + "\n" if parts else "")
         body = body.replace("\r\n", "\n").replace("\r", "\n")  # CR in Notion text: the audit parser rejects it
-        if SENSITIVE.search(title + "\n" + body):
-            report["withheld"].append(nid)
-            st.update(status="withheld", title=title)
-            st.pop("notion_last_edited_time", None)
-            for bid, a in att.used.items():  # its freshly downloaded files stay out too
-                if bid not in state["attachments"]:
-                    os.remove(os.path.join(root, *a["local_path"].split("/")))
-            continue
+        kinds = credential_kinds(title + "\n" + body)
+        if kinds:
+            report["credential_findings"][nid] = kinds
         fm = "\n".join([
             "---",
             f"notion_id: {nid}",
@@ -395,8 +399,10 @@ def main():
         ca.atomic_write_bytes(state_path, (json.dumps(st, ensure_ascii=False, indent=1, sort_keys=True) + "\n").encode())
     # Actions logs of the public backend repo are world-readable: counts only.
     print(json.dumps({"full": report["full"], **{k: len(report[k]) for k in
-                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings", "excluded", "withheld")},
+                      ("created", "updated", "deleted", "restored", "renamed", "render_warnings", "excluded")},
                       "audit_problems": len(report.get("audit") or []), "error": bool(report.get("error")),
+                      "credential_pages": len(report["credential_findings"]),
+                      "credential_kinds": dict(Counter(k for ks in report["credential_findings"].values() for k in ks)),
                       "exit": code}))
     sys.exit(code)
 

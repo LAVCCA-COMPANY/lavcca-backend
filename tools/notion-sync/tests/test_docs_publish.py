@@ -220,17 +220,15 @@ class TestDocsPublish(unittest.TestCase):
         self.assertEqual((code, rep["excluded"]), (0, [A]))
         self.assertNotIn("LAVCCA/회의록.md", self.files())
 
-    def test_page_with_credentials_is_withheld_with_its_attachments(self):
-        img = {"type": "image", "id": C, "has_children": False, "last_edited_time": "t",
-               "image": {"type": "file", "caption": [], "file": {"url": "https://s3/pic.png"}}}
-        self.n.edit(A, [para("계정 비밀번호: hunter2"), img])
-        _, rep = self.pub()
-        self.assertEqual(rep["withheld"], [A])
-        self.assertEqual(self.files(), ["LAVCCA.md", "LAVCCA/기획 설계.md"])
-        self.assertEqual(self.state()["items"][A]["status"], "withheld")
-        self.n.edit(A, [para("계정 정보는 비밀번호 관리자에 있음")], t="2026-10-28T06:00:00.000Z")
-        _, rep = self.pub()
-        self.assertEqual((rep["withheld"], rep["created"]), ([], [A]))
+    def test_credentials_are_reported_by_kind_but_page_is_still_published(self):
+        self.n.edit(A, [para("계정 비밀번호: hunter2 / key AKIAABCDEFGHIJKLMNOP")])
+        self.n.edit(B, [para("계정 정보는 비밀번호 관리자에 있음")])  # mention without a value: not a finding
+        code, rep = self.pub()
+        self.assertEqual(code, 0)
+        self.assertEqual(rep["credential_findings"], {A: ["aws_access_key", "password_value"]})
+        self.assertIn("LAVCCA/회의록.md", self.files())
+        self.assertEqual(self.state()["items"][A]["status"], "active")
+        self.assertNotIn("hunter2", json.dumps(rep["credential_findings"]))
 
     def test_plan_seeds(self):
         self.assertIsNone(dp.plan_seeds({}, CFG, None, lambda s: []))
