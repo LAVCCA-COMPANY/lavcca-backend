@@ -152,6 +152,39 @@ def child_refs(blocks):
         yield from child_refs(b.get("_children") or [])
 
 
+DB_PLACEHOLDER = re.compile(r"^(?P<indent>[ \t>]*)(?P<line>.*<!-- notion-sync: child_database (?P<id>[0-9a-f]{32}); "
+                            r"its rows are synced as separate pages -->)$", re.M)
+
+
+def row_date(page):
+    """ISO start date of a page's first date property (by name); '' when it has none. Shown, never invented."""
+    props = (page or {}).get("properties") or {}
+    for name in sorted(props):
+        v = props[name] or {}
+        if v.get("type") == "date" and (v.get("date") or {}).get("start"):
+            return v["date"]["start"][:10]
+    return ""
+
+
+def db_row_links(md, dbs, rows_meta, id_map):
+    """Under each inline-database placeholder, list the database's rows as wikilinks, so the rows are part
+    of the graph. The placeholder line stays as it was. Only rows that have a page in this run or the
+    last are listed (no links to missing files), each once, ordered by date, title, id (dateless last)."""
+    def sub(m):
+        rows = list(dict.fromkeys(r for r in (dbs.get(m["id"]) or {}).get("rows") or []
+                                  if r in id_map and r in rows_meta))
+        if not rows:
+            return m.group(0)
+        rows.sort(key=lambda r: (rows_meta[r][1] or "9999-99-99", rows_meta[r][0], r))
+        lines = []
+        for r in rows:
+            title, date = rows_meta[r]
+            label = title.replace("|", " ").replace("]]", "] ]")
+            lines.append(f"{m['indent']}- [[{id_map[r][:-3]}|{label}]]" + (f" · {date}" if date else ""))
+        return m.group(0) + "\n" + "\n".join(lines)
+    return DB_PLACEHOLDER.sub(sub, md)
+
+
 def db_rows(api, db_id, cfg):
     code, db = api("GET", f"/databases/{db_id}")
     if code != 200:
@@ -226,8 +259,9 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
                 kids.append((cid, folder_of(nid)))
             else:
                 dfolder = f"{folder_of(nid)}/{safe_name(title)}"
-                dbs[cid] = {"folder": dfolder, "parent": nid}
-                kids += [(ca.norm_id(r["id"]), dfolder) for r in db_rows(api, cid, cfg)]
+                rows = [ca.norm_id(r["id"]) for r in db_rows(api, cid, cfg)]
+                dbs[cid] = {"folder": dfolder, "parent": nid, "rows": rows}  # rows: listed in the parent page
+                kids += [(r, dfolder) for r in rows]
         st["children"] = [k for k, _ in kids]
         # shortcut: a full crawl re-fetches every block tree (~2 calls/page, ~1 min per 100 pages);
         # reuse st["children"] for unchanged pages if reconcile runs get slow.
@@ -272,7 +306,34 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
         for nid in [n for n in items if n not in reached and items[n].get("status") != "deleted"]:
             _mark_gone(api, nid, items, root, root_id, report)
 
+    # A database row that was added, renamed, re-dated or removed changes the row list in its parent page,
+    # which an incremental run would not otherwise re-read: fetch those parents too.
+    row_db = {r: cid for cid, db in dbs.items() for r in db.get("rows") or []}
+    for n, (page, _) in fetched.items():  # a row created since the last run is not in the recorded list yet
+        dbid = ca.norm_id((page.get("parent") or {}).get("database_id") or "")
+        if dbid in dbs:
+            row_db.setdefault(n, dbid)
+    stale = {dbs[row_db[n]]["parent"] for n in report["deleted"] if n in row_db}
+    for n, (page, _) in list(fetched.items()):
+        if n in row_db and (items[n].get("status") != "active" or items[n].get("row_date", "") != row_date(page)
+                            or items[n].get("title") != (ca.page_title(page) or ca.EMPTY_TITLE)):
+            stale.add(dbs[row_db[n]]["parent"])
+    try:
+        for p in sorted(stale - set(fetched)):
+            if items.get(p, {}).get("status") == "active":
+                visit(p, os.path.dirname(items[p]["obsidian_path"]), False)
+    except CrawlError as e:
+        report["error"] = str(e)
+        return EXIT_CRAWL, report
+    row_db = {r: cid for cid, db in dbs.items() for r in db.get("rows") or []}
+
     id_map = {n: f"{root_dir}/{s['obsidian_path']}" for n, s in items.items() if s.get("status") != "deleted"}
+    rows_meta = {}  # title and date shown in parent row lists: this run's Notion data, else the last recorded
+    for n, s in items.items():
+        if n in fetched:
+            rows_meta[n] = (ca.page_title(fetched[n][0]) or ca.EMPTY_TITLE, row_date(fetched[n][0]))
+        elif s.get("status") == "active":
+            rows_meta[n] = (s.get("title") or ca.EMPTY_TITLE, s.get("row_date", ""))
     used_atts = {}
     for nid, (page, blocks) in fetched.items():
         st = items[nid]
@@ -287,6 +348,11 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
         ctx = ca.RenderContext(id_map, "", att)
         title = ca.page_title(page) or ca.EMPTY_TITLE
         props, md = ca.render_properties(page, ctx), ca.render_blocks(blocks, ctx)
+        md = db_row_links(md, dbs, rows_meta, id_map)
+        if row_date(page) and nid in row_db:
+            st["row_date"] = row_date(page)
+        else:
+            st.pop("row_date", None)
         parts = [p for p in ("\n".join(props), md) if p]
         body = f"\n# {title}\n" + ("\n" + "\n\n".join(parts) + "\n" if parts else "")
         body = body.replace("\r\n", "\n").replace("\r", "\n")  # CR in Notion text: the audit parser rejects it

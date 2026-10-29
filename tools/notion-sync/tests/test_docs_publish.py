@@ -49,10 +49,10 @@ class FakeNotion:
             return (200, self.pages[nid]) if nid in self.pages else (404, {})
         if kind == "blocks":
             return (200, {"results": self.blocks.get(nid, []), "has_more": False})
-        if kind == "databases":
-            return 200, {"id": nid, "data_sources": [{"id": DS}]}
-        return 200, {"results": [p for p in self.pages.values()
-                                 if (p["parent"] or {}).get("database_id") == DB], "has_more": False}
+        if kind == "databases":  # one data source per database, queried by the database's own id
+            return 200, {"id": nid, "data_sources": [{"id": nid}]}
+        return 200, {"results": [p for p in self.pages.values() if not p.get("in_trash")
+                                 and (p["parent"] or {}).get("database_id") == nid], "has_more": False}
 
 
 class TestDocsPublish(unittest.TestCase):
@@ -354,6 +354,111 @@ class TestDocsPublish(unittest.TestCase):
                          "embed": {"caption": [], "url": "https://www.youtube.com/watch?v=x"}}])
         self.pub(download=lambda url: self.fail("must not download"))
         self.assertIn("(https://www.youtube.com/watch?v=x)", self.read("LAVCCA/회의록.md"))
+
+    # ---- inline databases: rows listed as links in the parent page ----
+    def db_setup(self, rows, db=DB, parent=B, title="근무/훈련"):
+        """rows: [(nid, title, date or None)] in the database `db` placed on page `parent`."""
+        self.n.edit(parent, [para("본문"), {"type": "child_database", "id": db, "has_children": False,
+                                            "child_database": {"title": title}}])
+        for nid, t, date in rows:
+            self.n.add(nid, t, {"type": "data_source_id", "data_source_id": db, "database_id": db}, [para("행")])
+            if date:
+                self.n.pages[nid]["properties"]["날짜"] = {"type": "date", "date": {"start": date}}
+
+    def row_lines(self, rel="LAVCCA/기획 설계.md"):
+        return [l for l in self.read(rel).split("\n") if l.startswith("- [[")]
+
+    def links_resolve(self):
+        for rel in self.files():
+            if not rel.endswith(".md") or rel.startswith("_"):
+                continue
+            for t in re.findall(r"\[\[Notion/([^\]|]+)\|", self.read(rel)):
+                self.assertTrue(os.path.isfile(os.path.join(self.root, *(t + ".md").split("/"))), t)
+
+    def test_inline_database_rows_are_listed_in_the_parent_page(self):
+        R1, R2, R3 = "e1" * 16, "e2" * 16, "e3" * 16
+        self.db_setup([(R1, "당직", "2026-01-12"), (R2, "혹한기", "2026-01-05"), (R3, "메모", None)])
+        code, _ = self.pub()
+        md = self.read("LAVCCA/기획 설계.md")
+        self.assertIn(f"근무/훈련 <!-- notion-sync: child_database {DB}; its rows are synced as separate pages -->", md)
+        self.assertEqual(self.row_lines(), [  # by date, dateless last; date only where Notion has one
+            "- [[Notion/LAVCCA/기획 설계/근무 훈련/혹한기|혹한기]] · 2026-01-05",
+            "- [[Notion/LAVCCA/기획 설계/근무 훈련/당직|당직]] · 2026-01-12",
+            "- [[Notion/LAVCCA/기획 설계/근무 훈련/메모|메모]]"])
+        self.links_resolve()
+
+    def test_empty_database_keeps_only_the_placeholder(self):
+        self.db_setup([])
+        self.pub()
+        self.assertIn(f"<!-- notion-sync: child_database {DB};", self.read("LAVCCA/기획 설계.md"))
+        self.assertEqual(self.row_lines(), [])
+
+    def test_duplicate_row_titles_link_to_their_own_files(self):
+        R1, R2 = "2f2de6a22dbe80aa1111111111111111", "2f2de6a22dbe80aa2222222222222222"
+        self.db_setup([(R1, "당직", "2026-02-01"), (R2, "당직", "2026-02-08")])
+        self.pub()
+        lines = self.row_lines()
+        self.assertEqual(len(lines), 2)
+        targets = [re.search(r"\[\[([^|]+)\|", l).group(1) for l in lines]
+        self.assertEqual(len(set(targets)), 2)  # never two links to one file
+        self.links_resolve()
+
+    def test_korean_special_characters_and_nested_placeholder(self):
+        R1 = "e4" * 16
+        self.n.edit(B, [{"type": "toggle", "id": "88" * 16, "has_children": True,
+                         "toggle": {"rich_text": [{"type": "text", "plain_text": "토글"}]},
+                         "_children": []}])
+        self.n.blocks["88" * 16] = [{"type": "child_database", "id": DB, "has_children": False,
+                                     "child_database": {"title": "근무/훈련 (A) [x]"}}]
+        self.n.add(R1, "경계지원파견 (1차)", {"type": "data_source_id", "data_source_id": DB, "database_id": DB}, [para("행")])
+        self.pub()
+        md = self.read("LAVCCA/기획 설계.md")
+        placeholder = next(l for l in md.split("\n") if "child_database" in l)
+        indent = placeholder[:len(placeholder) - len(placeholder.lstrip(" \t>"))]
+        self.assertIn(f"\n{indent}- [[Notion/LAVCCA/기획 설계/근무 훈련 (A) x/경계지원파견 (1차)|경계지원파견 (1차)]]", md)
+        self.links_resolve()
+
+    def test_row_title_change_updates_the_parent_list_incrementally(self):
+        R1 = "e5" * 16
+        self.db_setup([(R1, "당직", "2026-01-12")])
+        self.pub()
+        self.n.edit(R1, title="당직 (변경)", t="2026-10-29T01:00:00.000Z")
+        _, rep = self.pub(seeds=[R1])  # only the row is seeded, as a webhook would
+        self.assertIn(B, rep["updated"])
+        self.assertEqual(self.row_lines(), ["- [[Notion/LAVCCA/기획 설계/근무 훈련/당직|당직 (변경)]] · 2026-01-12"])
+
+    def test_row_added_and_removed_incrementally(self):
+        R1, R2 = "e6" * 16, "e7" * 16
+        self.db_setup([(R1, "당직", "2026-01-12")])
+        self.pub()
+        self.n.add(R2, "혹한기", {"type": "data_source_id", "data_source_id": DB, "database_id": DB}, [para("행")])
+        self.pub(seeds=[R2])
+        self.assertEqual(len(self.row_lines()), 2)
+        self.n.pages[R1]["in_trash"] = True
+        _, rep = self.pub(seeds=[R1])
+        self.assertEqual(rep["deleted"], [R1])
+        self.assertEqual(self.row_lines(), ["- [[Notion/LAVCCA/기획 설계/근무 훈련/혹한기|혹한기]]"])
+        self.links_resolve()
+
+    def test_row_without_a_page_is_never_linked(self):
+        R1, GONE = "e8" * 16, "e9" * 16
+        self.db_setup([(R1, "당직", None), (GONE, "사라진 행", None)])
+        real_call = self.n.__call__
+
+        def no_gone(method, path, body=None):  # the query lists it but the page is not readable
+            return (404, {}) if path == f"/pages/{GONE}" else real_call(method, path, body)
+        dp.publish(no_gone, CFG, self.docs, download=lambda u: b"")
+        self.assertEqual(self.row_lines(), ["- [[Notion/LAVCCA/기획 설계/근무 훈련/당직|당직]]"])
+        self.links_resolve()
+
+    def test_row_lists_are_stable_on_rerun(self):
+        self.db_setup([("ea" * 16, "당직", "2026-01-12"), ("eb" * 16, "혹한기", "2026-01-05")])
+        self.pub()
+        before = {f: self.read(f) for f in self.files()}
+        _, rep = self.pub()
+        self.assertEqual((rep["created"], rep["updated"]), ([], []))
+        self.assertEqual({f: self.read(f) for f in self.files()}, before)
+        self.assertEqual(self.state()["databases"][DB]["rows"], ["ea" * 16, "eb" * 16])
 
     def test_plan_seeds(self):
         self.assertIsNone(dp.plan_seeds({}, CFG, None, lambda s: []))
