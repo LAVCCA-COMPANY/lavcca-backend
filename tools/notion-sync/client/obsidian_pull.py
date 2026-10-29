@@ -147,8 +147,11 @@ def apply(dst, trash, want, creates, updates, deletes):
 
 # ---- git (never interactive) ----
 def _git(repo, *args):
+    # The task runs under pythonw (no console): without CREATE_NO_WINDOW, Windows opens a new terminal
+    # window for every console child (git, and git-remote-https/credential helpers under it) -- a
+    # visible flash every minute. 0 on other platforms.
     return subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
-                          env=dict(os.environ, **GIT_ENV))
+                          env=dict(os.environ, **GIT_ENV), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def _git_error(step, r):
