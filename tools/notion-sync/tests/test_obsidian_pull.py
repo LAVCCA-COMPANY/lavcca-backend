@@ -137,6 +137,18 @@ class TestObsidianPull(unittest.TestCase):
         os.utime(lock, (0, 0))  # older than an hour: crashed run
         self.assertEqual(self.run_pull()[0], 0)
 
+    def test_main_runs_without_stdout_like_pythonw_and_logs_to_file(self):
+        # regression: the scheduled task runs pythonw, where sys.stdout is None; reconfigure() crashed with exit 1
+        log = os.path.join(self.state, "logs", "pull.log")
+        argv = ["obsidian_pull.py", "--vault", self.vault, "--repo", self.repo, "--state", self.state,
+                "--no-fetch", "--apply", "--log", log]
+        with mock.patch.object(op.sys, "argv", argv), mock.patch.object(op.sys, "stdout", None):
+            with self.assertRaises(SystemExit) as e:
+                op.main()
+        self.assertEqual(e.exception.code, 0)
+        self.assertIn('"create": 3', read(log))
+        self.assertTrue(os.path.isfile(os.path.join(self.dst, "LAVCCA.md")))
+
     def test_git_failure_stops_before_any_write(self):
         with mock.patch.object(op, "git_update", return_value="git merge failed: not possible to fast-forward"):
             code = op.run(self.vault, self.repo, self.state, True, fetch=True, out=lambda s: None)
