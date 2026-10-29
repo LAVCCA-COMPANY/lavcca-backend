@@ -106,6 +106,19 @@ class TestDocsPublish(unittest.TestCase):
         self.assertIn("수정된 회의", md)
         self.assertIn('aliases: ["회의록 v2"]', md)
 
+    def test_second_edit_within_the_same_minute_is_not_missed(self):
+        # last_edited_time has minute precision: edit -> sync -> edit again in the same minute keeps the
+        # same timestamp. A webhook makes that common, so a seeded page is always re-read.
+        self.pub()
+        self.n.edit(A, [para("첫 수정")], t="2026-10-28T02:00:00.000Z")
+        self.pub(seeds=[A])
+        self.n.edit(A, [para("같은 분 두 번째 수정")], t="2026-10-28T02:00:00.000Z")
+        _, rep = self.pub(seeds=[A])
+        self.assertEqual(rep["updated"], [A])
+        self.assertIn("같은 분 두 번째 수정", self.read("LAVCCA/회의록.md"))
+        _, rep = self.pub(seeds=[A])  # re-read but identical: nothing written
+        self.assertEqual(rep["updated"], [])
+
     def test_incremental_new_child_page_is_created_under_parent(self):
         self.pub()
         self.n.add(C, "새 문서", {"type": "page_id", "page_id": A}, [para("new")])

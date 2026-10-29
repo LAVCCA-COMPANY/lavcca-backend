@@ -211,9 +211,9 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
             raise CrawlError(f"page {nid}: HTTP {code}")
         place(page, parent_folder)
         st = items[nid]
-        if st.get("notion_last_edited_time") == page["last_edited_time"] and st.get("status") == "active" \
-                and not recurse_all:
-            return "unchanged"
+        # No "last_edited_time unchanged -> skip": it has minute precision, so a second edit within the
+        # minute after a sync would be missed. Pages reach here only as seeds (webhook/search) or new
+        # children, and the file is rewritten only when its bytes differ.
         try:
             blocks = ca.fetch_block_tree(api, nid, cfg)
         except ca.ContentFetchError as e:
