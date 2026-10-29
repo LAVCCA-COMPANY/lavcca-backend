@@ -234,6 +234,19 @@ class TestObsidianPull(unittest.TestCase):
         op._prune_trash(trash, now)
         self.assertEqual(sorted(os.listdir(trash)), ["20261020T000000Z"])
 
+    def test_git_runs_without_a_console_window(self):
+        # regression: under pythonw every minute's `git ls-remote` opened a visible terminal window
+        seen = {}
+
+        def fake(cmd, **kw):
+            seen.update(kw)
+            return mock.Mock(returncode=0, stdout="abc\trefs/heads/main\n", stderr="")
+        with mock.patch.object(op.subprocess, "run", side_effect=fake):
+            self.assertEqual(op.remote_head(self.repo), ("abc", None))
+        self.assertEqual(seen["creationflags"], getattr(op.subprocess, "CREATE_NO_WINDOW", 0))
+        if os.name == "nt":
+            self.assertEqual(seen["creationflags"], 0x08000000)
+
     def test_git_never_prompts_and_auth_errors_point_to_login(self):
         seen = {}
 
