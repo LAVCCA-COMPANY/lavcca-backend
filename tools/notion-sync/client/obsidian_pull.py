@@ -187,7 +187,8 @@ def main():
     ap.add_argument("--no-fetch", action="store_true")
     ap.add_argument("--log", help="append output to this file instead of printing")
     a = ap.parse_args()
-    sys.stdout.reconfigure(encoding="utf-8")  # Korean Windows consoles default to cp949, which lacks some title chars
+    if sys.stdout:  # pythonw (the scheduled task) has no stdout at all
+        sys.stdout.reconfigure(encoding="utf-8")  # Korean Windows consoles default to cp949, which lacks some title chars
     if a.log:
         os.makedirs(os.path.dirname(a.log), exist_ok=True)
         if os.path.isfile(a.log) and os.path.getsize(a.log) > 1024 * 1024:
