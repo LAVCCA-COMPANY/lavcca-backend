@@ -23,7 +23,8 @@ from ci import plan, run as cirun
 
 STATE_DIR = ".notion-sync"
 EXIT_CRAWL, EXIT_AUDIT = 2, cirun.EXIT_AUDIT_MISMATCH
-MAX_ATTACHMENT = 95 * 1024 * 1024  # GitHub rejects files over 100 MB (warns above 50 MB)
+# Larger files (e.g. interview recordings) stay in Notion and are linked by block: keeps the docs repo small.
+MAX_ATTACHMENT = 50 * 1024 * 1024
 BAD_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f]')
 # Report only (every page is published): which kinds of credential a page appears to contain, so a
 # person can check before an apply. Kinds and counts only -- never the matched value.
@@ -80,9 +81,9 @@ class Attachments:
     """Download Notion-hosted files into _attachments/ (signed URLs expire after an hour). Plugs into
     canary_apply.render_file in place of attachment_sync.PageAttachments."""
 
-    def __init__(self, root, md_rel, recorded, download, page_url=""):
+    def __init__(self, root, md_rel, recorded, download, page_id=""):
         self.root, self.md_dir, self.recorded, self.download = root, os.path.dirname(md_rel), recorded, download
-        self.page_url = page_url
+        self.page_id = page_id
         self.used = {}
 
     def is_recorded(self, bid):
@@ -104,8 +105,8 @@ class Attachments:
         if not (rec.get("edited") == edited and rec.get("local_path") == rel and os.path.isfile(path)):
             try:
                 data = self.download(url)
-            except TooLarge:  # cannot live in git: a stable link to the block in Notion, not a placeholder
-                return f"{self.page_url}#{bid}", None
+            except TooLarge:  # stays in Notion: ids-only link, unchanged by renames or re-signed URLs
+                return f"https://www.notion.so/{self.page_id}#{bid}", None
             except Exception as e:  # noqa: BLE001  any failure -> placeholder, page retried next run
                 return None, {"type": f"{t}:download_failed", "id": bid, "error": type(e).__name__}
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -118,6 +119,8 @@ class Attachments:
 
 def http_download(url):
     with urllib.request.urlopen(url, timeout=120) as r:
+        if int(r.headers.get("Content-Length") or 0) > MAX_ATTACHMENT:
+            raise TooLarge()  # decided from the header: the body is never read
         data = r.read(MAX_ATTACHMENT + 1)
     if len(data) > MAX_ATTACHMENT:
         raise TooLarge()
@@ -280,7 +283,7 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 os.replace(src, dst)
             report["restored"].append(nid)
-        att = Attachments(root, st["obsidian_path"], state["attachments"], download, page.get("url") or "")
+        att = Attachments(root, st["obsidian_path"], state["attachments"], download, nid)
         ctx = ca.RenderContext(id_map, "", att)
         title = ca.page_title(page) or ca.EMPTY_TITLE
         props, md = ca.render_properties(page, ctx), ca.render_blocks(blocks, ctx)
