@@ -23,7 +23,7 @@ from ci import plan, run as cirun
 
 STATE_DIR = ".notion-sync"
 EXIT_CRAWL, EXIT_AUDIT = 2, cirun.EXIT_AUDIT_MISMATCH
-MAX_ATTACHMENT = 50 * 1024 * 1024  # GitHub rejects files over 100 MB
+MAX_ATTACHMENT = 95 * 1024 * 1024  # GitHub rejects files over 100 MB (warns above 50 MB)
 BAD_CHARS = re.compile(r'[\\/:*?"<>|#^\[\]\x00-\x1f]')
 # Report only (every page is published): which kinds of credential a page appears to contain, so a
 # person can check before an apply. Kinds and counts only -- never the matched value.
@@ -72,12 +72,17 @@ def safe_name(title):
     return name or "Untitled"
 
 
+class TooLarge(Exception):
+    pass
+
+
 class Attachments:
     """Download Notion-hosted files into _attachments/ (signed URLs expire after an hour). Plugs into
     canary_apply.render_file in place of attachment_sync.PageAttachments."""
 
-    def __init__(self, root, md_rel, recorded, download):
+    def __init__(self, root, md_rel, recorded, download, page_url=""):
         self.root, self.md_dir, self.recorded, self.download = root, os.path.dirname(md_rel), recorded, download
+        self.page_url = page_url
         self.used = {}
 
     def is_recorded(self, bid):
@@ -99,6 +104,8 @@ class Attachments:
         if not (rec.get("edited") == edited and rec.get("local_path") == rel and os.path.isfile(path)):
             try:
                 data = self.download(url)
+            except TooLarge:  # cannot live in git: a stable link to the block in Notion, not a placeholder
+                return f"{self.page_url}#{bid}", None
             except Exception as e:  # noqa: BLE001  any failure -> placeholder, page retried next run
                 return None, {"type": f"{t}:download_failed", "id": bid, "error": type(e).__name__}
             os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -113,7 +120,7 @@ def http_download(url):
     with urllib.request.urlopen(url, timeout=120) as r:
         data = r.read(MAX_ATTACHMENT + 1)
     if len(data) > MAX_ATTACHMENT:
-        raise ValueError("attachment too large")
+        raise TooLarge()
     return data
 
 
@@ -273,7 +280,7 @@ def publish(api, cfg, docs, vault="obsidian-vault", root_dir="Notion", seeds=Non
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 os.replace(src, dst)
             report["restored"].append(nid)
-        att = Attachments(root, st["obsidian_path"], state["attachments"], download)
+        att = Attachments(root, st["obsidian_path"], state["attachments"], download, page.get("url") or "")
         ctx = ca.RenderContext(id_map, "", att)
         title = ca.page_title(page) or ca.EMPTY_TITLE
         props, md = ca.render_properties(page, ctx), ca.render_blocks(blocks, ctx)

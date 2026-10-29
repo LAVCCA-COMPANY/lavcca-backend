@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ci/docs_publish.py against an in-memory fake Notion: create, no-op rerun, edit, rename, delete/restore,
 incremental new page, database rows, attachments, link integrity."""
-import os, re, sys, json, shutil, tempfile, unittest
+import io, os, re, sys, json, shutil, tempfile, unittest
 
 CODE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, CODE_DIR)
@@ -269,6 +269,45 @@ class TestDocsPublish(unittest.TestCase):
         self.n.edit(A, [embed("2")], t="2026-10-28T09:00:00.000Z")
         _, rep = self.pub(download=lambda url: got.append(url) or b"AAC")
         self.assertEqual((len(got), rep["updated"]), (1, []))
+
+    def test_recording_size_fits_the_attachment_limit(self):
+        # regression (run 40813421566): a 61,491,649-byte interview recording hit the old 50 MiB cap
+        self.assertGreater(dp.MAX_ATTACHMENT, 61_491_649)
+        self.assertLess(dp.MAX_ATTACHMENT, 100 * 1000 * 1000)  # GitHub's hard per-file limit
+
+    def test_http_download_refuses_files_over_the_limit(self):
+        from unittest import mock
+
+        class Resp(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                self.close()
+        with mock.patch.object(dp, "MAX_ATTACHMENT", 4), \
+                mock.patch.object(dp.urllib.request, "urlopen", lambda url, timeout: Resp(b"12345")):
+            with self.assertRaises(dp.TooLarge):
+                dp.http_download("https://x")
+        with mock.patch.object(dp, "MAX_ATTACHMENT", 5), \
+                mock.patch.object(dp.urllib.request, "urlopen", lambda url, timeout: Resp(b"12345")):
+            self.assertEqual(dp.http_download("https://x"), b"12345")
+
+    def test_file_too_large_for_git_links_to_notion_block_stably(self):
+        img = {"type": "audio", "id": C, "has_children": False, "last_edited_time": "t",
+               "audio": {"type": "file", "caption": [], "name": "rec.aac", "file": {"url": "https://s3/rec.aac?sig=1"}}}
+        self.n.edit(A, [img])
+
+        def too_big(url):
+            raise dp.TooLarge()
+        _, rep = self.pub(download=too_big)
+        md = self.read("LAVCCA/회의록.md")
+        self.assertIn(f"[rec.aac](https://www.notion.so/{A}#{C})", md)
+        self.assertEqual(rep["render_warnings"], {})
+        self.assertNotIn(C, self.state()["attachments"])
+        img["audio"]["file"]["url"] = "https://s3/rec.aac?sig=2"
+        self.n.edit(A, [img], t="2026-10-28T09:00:00.000Z")
+        _, rep = self.pub(download=too_big)
+        self.assertEqual(rep["updated"], [])
 
     def test_ordinary_embed_stays_a_link(self):
         self.n.edit(A, [{"type": "embed", "id": C, "has_children": False,
