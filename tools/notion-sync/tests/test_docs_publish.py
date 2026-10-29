@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ci/docs_publish.py against an in-memory fake Notion: create, no-op rerun, edit, rename, delete/restore,
 incremental new page, database rows, attachments, link integrity."""
-import os, re, sys, json, shutil, tempfile, unittest
+import io, os, re, sys, json, shutil, tempfile, unittest
 
 CODE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, CODE_DIR)
@@ -269,6 +269,72 @@ class TestDocsPublish(unittest.TestCase):
         self.n.edit(A, [embed("2")], t="2026-10-28T09:00:00.000Z")
         _, rep = self.pub(download=lambda url: got.append(url) or b"AAC")
         self.assertEqual((len(got), rep["updated"]), (1, []))
+
+    def test_recording_over_the_limit_stays_in_notion(self):
+        # run 40813421566: a 61,491,649-byte interview recording -> kept in Notion, linked by block
+        self.assertLess(dp.MAX_ATTACHMENT, 61_491_649)
+        self.assertEqual(dp.MAX_ATTACHMENT, 50 * 1024 * 1024)  # existing attachments keep the same rule
+
+    def test_http_download_refuses_large_files(self):
+        from unittest import mock
+
+        class Resp(io.BytesIO):
+            def __init__(self, data, length=None):
+                super().__init__(data)
+                self.headers = {} if length is None else {"Content-Length": str(length)}
+                self.reads = 0
+
+            def read(self, *a):
+                self.reads += 1
+                return super().read(*a)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                self.close()
+        big = Resp(b"", length=61_491_649)  # header says too large: body never read
+        with mock.patch.object(dp.urllib.request, "urlopen", lambda url, timeout: big):
+            with self.assertRaises(dp.TooLarge):
+                dp.http_download("https://x")
+        self.assertEqual(big.reads, 0)
+        with mock.patch.object(dp, "MAX_ATTACHMENT", 4),                 mock.patch.object(dp.urllib.request, "urlopen", lambda url, timeout: Resp(b"12345")):
+            with self.assertRaises(dp.TooLarge):  # no Content-Length: the size cap still holds
+                dp.http_download("https://x")
+        with mock.patch.object(dp, "MAX_ATTACHMENT", 5),                 mock.patch.object(dp.urllib.request, "urlopen", lambda url, timeout: Resp(b"12345", 5)):
+            self.assertEqual(dp.http_download("https://x"), b"12345")
+
+    def test_large_file_links_to_notion_block_and_survives_url_and_title_changes(self):
+        def rec(sig):
+            return {"type": "audio", "id": C, "has_children": False, "last_edited_time": "t",
+                    "audio": {"type": "file", "caption": [], "name": "rec.aac",
+                              "file": {"url": f"https://prod-files-secure.s3.us-west-2.amazonaws.com/w/f/rec.aac?X-Amz-Signature={sig}"}}}
+        self.n.edit(A, [rec("1")])
+
+        def too_big(url):
+            raise dp.TooLarge()
+        _, rep = self.pub(download=too_big)
+        md = self.read("LAVCCA/회의록.md")
+        self.assertIn(f"[rec.aac](https://www.notion.so/{A}#{C})", md)
+        self.assertNotIn("X-Amz", md)
+        self.assertNotIn("notion-sync:", md)  # no placeholder
+        self.assertEqual(rep["render_warnings"], {})
+        self.assertNotIn(C, self.state()["attachments"])
+        self.assertFalse(os.path.exists(os.path.join(self.root, "_attachments")))
+        self.n.edit(A, [rec("2")], t="2026-10-28T09:00:00.000Z")  # Notion re-signed the URL
+        _, rep = self.pub(download=too_big)
+        self.assertEqual(rep["updated"], [])
+        self.n.edit(A, title="회의록 v2", t="2026-10-28T10:00:00.000Z")  # rename: page URL slug changes too
+        self.n.pages[A]["url"] = "https://www.notion.so/v2-" + A
+        self.pub(download=too_big)
+        self.assertIn(f"[rec.aac](https://www.notion.so/{A}#{C})", self.read("LAVCCA/회의록.md"))
+
+    def test_small_attachments_still_download(self):
+        img = {"type": "image", "id": C, "has_children": False, "last_edited_time": "t",
+               "image": {"type": "file", "caption": [], "file": {"url": "https://s3/pic.png"}}}
+        self.n.edit(A, [img])
+        self.pub(download=lambda url: b"x" * 1024)
+        self.assertIn(f"_attachments/{C}.png", self.files())
 
     def test_ordinary_embed_stays_a_link(self):
         self.n.edit(A, [{"type": "embed", "id": C, "has_children": False,
