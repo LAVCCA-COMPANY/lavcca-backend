@@ -204,6 +204,36 @@ class TestObsidianPull(unittest.TestCase):
         self.assertFalse(os.path.exists(self.dst))
         self.assertEqual(op.load_state(self.state)["last_error"], err)
 
+    def test_remote_failure_leaves_an_existing_lavcca_untouched(self):
+        self.run_fetch(remote="sha1", t=1000.0)
+        snapshot = lambda: {r: open(p, "rb").read() for r, p in op.existing_files(self.dst).items()}  # noqa: E731
+        before, marker = snapshot(), read(os.path.join(self.dst, op.OWNER_FILE))
+        write(os.path.join(self.src, "LAVCCA", "회의록.md"), "# v2\n")  # even with newer content on disk
+        for err in ("git ls-remote failed (network or GitHub, retried next run): Could not resolve host",
+                    "GitHub sign-in needed (ls-remote). Run once in PowerShell: python x --login"):
+            with mock.patch.object(op, "remote_head", return_value=(None, err)):
+                code = op.run(self.vault, self.repo, self.state, True, out=lambda s: None,
+                              now=lambda: 1000.0 + op.OWNER_REFRESH + 60, me="PC-A")
+            self.assertEqual(code, 3)
+            self.assertEqual(snapshot(), before)
+            self.assertEqual(read(os.path.join(self.dst, op.OWNER_FILE)), marker)  # not even the marker
+        # fetch/merge failing after a successful ls-remote is the same: nothing written
+        code, _, _ = self.run_fetch(remote="sha2", local="sha1", t=1000.0 + 120, update_err="git merge failed")
+        self.assertEqual((code, snapshot()), (3, before))
+        self.assertFalse(os.path.isdir(os.path.join(self.state, "trash")))
+        self.assert_personal_untouched()
+
+    def test_trash_keeps_30_days_and_prunes_older_runs(self):
+        trash = os.path.join(self.state, "trash")
+        old, recent = os.path.join(trash, "20260901T000000Z"), os.path.join(trash, "20261020T000000Z")
+        for d in (old, recent):
+            write(os.path.join(d, "LAVCCA", "x.md"), "이전 판")
+        now = 2_000_000_000.0
+        os.utime(old, (now - 31 * 86400, now - 31 * 86400))
+        os.utime(recent, (now - 29 * 86400, now - 29 * 86400))
+        op._prune_trash(trash, now)
+        self.assertEqual(sorted(os.listdir(trash)), ["20261020T000000Z"])
+
     def test_git_never_prompts_and_auth_errors_point_to_login(self):
         seen = {}
 
