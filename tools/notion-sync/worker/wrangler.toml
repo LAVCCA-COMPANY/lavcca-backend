@@ -12,6 +12,9 @@ crons = ["* * * * *"]  # flushes events held back by the throttle
 binding = "KV"
 id = "REPLACE_WITH_ID_FROM__wrangler_kv_namespace_create_lavcca-notion-webhook"
 
+[observability]
+enabled = true  # Workers Logs (free plan), see `log` in index.js
+
 [vars]
 GITHUB_REPO = "LAVCCA-COMPANY/lavcca-backend"
 GITHUB_WORKFLOW = "notion-sync.yml"

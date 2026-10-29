@@ -117,3 +117,35 @@ test("id list is capped so client_payload stays small", async () => {
   for (let i = 0; i < 80; i++) await handle(req(event(`e${i}`, `p${i}`)), env, T);
   assert.equal(JSON.parse(await kv.get("pending")).ids.length, 50);
 });
+
+test("GitHub 200 (run details) counts as dispatched", async () => {
+  githubStatus = 200;
+  const r = await handle(req(event("e1")), env, T);
+  assert.equal(await r.text(), "dispatched");
+  assert.equal(await kv.get("pending"), null);
+});
+
+test("oversized body is refused before signature work", async () => {
+  const big = new Request("https://w.example/", { method: "POST", body: "x".repeat(70 * 1024) });
+  assert.equal((await handle(big, env, T)).status, 413);
+  assert.equal(dispatched.length, 0);
+});
+
+test("logs carry outcome, type, attempt and lag only -- no body, ids or tokens", async () => {
+  const lines = [];
+  const orig = console.log;
+  console.log = (s) => lines.push(s);
+  try {
+    const ev = { ...event("e1", "page-secret-id"), attempt_number: 2, timestamp: new Date(T - 4000).toISOString() };
+    await handle(req(ev), env, T);
+    await handle(req(event("e2"), { secret: "other" }), env, T);
+    await handle(req({ verification_token: "secret_handshake" }), { ...env, NOTION_VERIFICATION_TOKEN: "" }, T);
+  } finally {
+    console.log = orig;
+  }
+  assert.deepEqual(JSON.parse(lines[0]), { outcome: "dispatched", type: "page.content_updated", attempt: 2, lag_ms: 4000 });
+  assert.deepEqual(JSON.parse(lines[1]), { outcome: "bad_signature" });
+  assert.deepEqual(JSON.parse(lines[2]), { outcome: "verification_token_stored" });
+  const all = lines.join("\n");
+  for (const leak of ["page-secret-id", "secret_handshake", SECRET, "ghp_x"]) assert.ok(!all.includes(leak), leak);
+});

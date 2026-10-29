@@ -5,6 +5,11 @@
 // GITHUB_REPO ("owner/name"), GITHUB_WORKFLOW (default notion-sync.yml), THROTTLE_SECONDS (default 300).
 const enc = new TextEncoder();
 const MAX_IDS = 50;
+const MAX_BODY = 64 * 1024; // Notion events are a few hundred bytes
+
+// Workers Logs (private to the Cloudflare account): outcome, event type, attempt and delivery lag only --
+// never the body, page ids or any token.
+const log = (o) => console.log(JSON.stringify(o));
 
 async function validSignature(secret, body, header) {
   const hex = (header || "").startsWith("sha256=") ? header.slice(7) : "";
@@ -27,7 +32,7 @@ async function dispatch(env, pending) {
       },
       body: JSON.stringify({ ref: "main", inputs: { mode: "apply", hint: JSON.stringify(pending) } }),
     });
-    return r.status === 204;
+    return r.status === 204 || r.status === 200; // 200 when GitHub returns run details
   } catch {
     return false;
   }
@@ -55,7 +60,9 @@ async function sendOrQueue(env, pending, now) {
 
 export async function handle(request, env, now = Date.now()) {
   if (request.method !== "POST") return new Response("method not allowed", { status: 405 });
+  if (Number(request.headers.get("content-length") || 0) > MAX_BODY) return new Response("too large", { status: 413 });
   const body = await request.text();
+  if (body.length > MAX_BODY) return new Response("too large", { status: 413 });
   let msg;
   try {
     msg = JSON.parse(body);
@@ -66,10 +73,12 @@ export async function handle(request, env, now = Date.now()) {
     // one-time subscription handshake: the owner reads it from KV, pastes it into Notion,
     // stores it as the NOTION_VERIFICATION_TOKEN secret, then deletes this KV key.
     await env.KV.put("verification_token", msg.verification_token);
+    log({ outcome: "verification_token_stored" });
     return new Response("ok");
   }
   if (!env.NOTION_VERIFICATION_TOKEN ||
       !(await validSignature(env.NOTION_VERIFICATION_TOKEN, body, request.headers.get("X-Notion-Signature")))) {
+    log({ outcome: "bad_signature" });
     return new Response("bad signature", { status: 401 });
   }
   if (!msg.id || (await env.KV.get(`ev:${msg.id}`))) return new Response("duplicate");
@@ -78,6 +87,8 @@ export async function handle(request, env, now = Date.now()) {
   if (id && !pending.ids.includes(id) && pending.ids.length < MAX_IDS) pending.ids.push(id);
   if (msg.type && !pending.types.includes(msg.type)) pending.types.push(msg.type);
   const outcome = await sendOrQueue(env, pending, now);
+  const lag = Date.parse(msg.timestamp);
+  log({ outcome, type: msg.type, attempt: msg.attempt_number, lag_ms: Number.isNaN(lag) ? null : now - lag });
   if (outcome === "dispatch_failed") return new Response("dispatch failed", { status: 503 }); // Notion retries
   await env.KV.put(`ev:${msg.id}`, "1", { expirationTtl: 86400 });
   return new Response(outcome);
@@ -86,7 +97,9 @@ export async function handle(request, env, now = Date.now()) {
 export async function flush(env, now = Date.now()) {
   const raw = await env.KV.get("pending");
   if (!raw) return "idle";
-  return sendOrQueue(env, JSON.parse(raw), now);
+  const outcome = await sendOrQueue(env, JSON.parse(raw), now);
+  log({ outcome, source: "cron" });
+  return outcome;
 }
 
 export default {
