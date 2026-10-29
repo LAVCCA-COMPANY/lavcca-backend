@@ -10,8 +10,13 @@ REST API quota) and LAVCCA/ unchanged (file names, sizes, mtimes -- no reads, so
 online-only files stay online) ends without touching anything. A full byte comparison runs when
 either side changed and at least hourly.
 
-Several PCs can share one OneDrive vault: LAVCCA/.lavcca-sync-owner.json names the PC that writes.
-The others stand by (exit 0) and take over once the owner has not refreshed it for 30 minutes.
+Policy: one vault per team member, installed on one PC. If the same OneDrive vault is installed on several
+PCs anyway, LAVCCA/.lavcca-sync-owner.json names the PC that writes; the others stand by (exit 0) and take
+over once the owner has not refreshed it for 30 minutes. This is a best-effort marker, NOT a distributed
+lock: OneDrive carries it with a delay (seconds to minutes, longer offline) and the PCs' clocks may differ,
+so two PCs can both write during that window (first install, both just started, one offline). They write
+the same Notion content atomically, so the cost is an occasional OneDrive conflict copy, which the next full
+comparison moves to trash -- not lost or mixed content.
 
 Links: the publisher writes vault-absolute wikilinks as [[Notion/...]]; they are rewritten to
 [[LAVCCA/...]] here. Attachment links are relative and keep working because the layout is kept.
