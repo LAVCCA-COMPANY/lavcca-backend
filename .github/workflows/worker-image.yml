@@ -1,8 +1,8 @@
 # 워커 컨테이너 이미지: PR 은 빌드·스모크·취약점 보고만, main 은 승인 후 ECR 푸시.
 #   build   (pull_request)          AWS 자격 증명 없음. 취약점은 보고만(실패 아님).
-#   publish (main push / 수동 실행)   GitHub Environment "lavcca-dev" 승인 → OIDC → ECR 푸시(태그 = Git SHA).
+#   publish (main push / 수동 실행)   GitHub Environment "lavcca-dev" 승인 → OIDC → staging ECR 푸시(태그 = Git SHA).
 #                                    fixable CRITICAL 취약점·스모크 실패면 푸시하지 않는다.
-# ECS 태스크 정의 갱신·실행은 여기서 하지 않는다(PM 이 CloudFormation ImageTag 로 반영, infra/README.md).
+# 운영 ECR(lavcca-worker) 반영·ECS 태스크 정의 갱신은 여기서 하지 않는다(PM 이 staging digest 를 승격).
 # 필요 설정(PM): Environment lavcca-dev — 배포 브랜치 main(+1차 배포 동안 chore/lavcca-worker-deploy), Required reviewers,
 #   변수 LAVCCA_ECR_PUSH_ROLE_ARN = 스택 출력 GitHubEcrPushRoleArn,
 #   저장소 OIDC sub 사용자 지정 ["repo","context","ref"] + use_immutable_subject (infra/README.md T3-3).
@@ -47,7 +47,7 @@ concurrency:
 
 env:
   AWS_REGION: ap-northeast-2
-  ECR_REPOSITORY: lavcca-worker
+  ECR_REPOSITORY: lavcca-worker-staging   # 운영 lavcca-worker 는 PM 승격 전용
 
 jobs:
   build:
@@ -142,22 +142,31 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Push (tag = Git SHA, immutable)
+        id: push
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
           TAG: ${{ github.sha }}
         run: |
           docker tag "lavcca-worker:$TAG" "$REGISTRY/$ECR_REPOSITORY:$TAG"
           docker push "$REGISTRY/$ECR_REPOSITORY:$TAG"
+          # 승격은 태그가 아니라 레지스트리가 기록한 이 digest 로 지정한다
+          digest=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$TAG" \
+                     --query 'imageDetails[0].imageDigest' --output text)
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "digest 조회 실패: $digest"; exit 1; }
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
       - name: ECR scan result
         env:
           TAG: ${{ github.sha }}
+          DIGEST: ${{ steps.push.outputs.digest }}
         run: |
-          aws ecr wait image-scan-complete --repository-name "$ECR_REPOSITORY" --image-id imageTag="$TAG"
-          counts=$(aws ecr describe-image-scan-findings --repository-name "$ECR_REPOSITORY" --image-id imageTag="$TAG" \
+          aws ecr wait image-scan-complete --repository-name "$ECR_REPOSITORY" --image-id imageDigest="$DIGEST"
+          counts=$(aws ecr describe-image-scan-findings --repository-name "$ECR_REPOSITORY" --image-id imageDigest="$DIGEST" \
                      --query 'imageScanFindings.findingSeverityCounts' --output json)
           {
-            echo "### lavcca-worker:$TAG"
-            echo "ECR basic scan: \`$counts\`"
-            echo "다음 단계(PM): CloudFormation 스택 lavcca-worker-dev 의 ImageTag=$TAG 로 갱신 후 run-task"
+            echo "### $ECR_REPOSITORY:$TAG"
+            echo "- digest: \`$DIGEST\`"
+            echo "- commit: \`$GITHUB_SHA\` (ref \`$GITHUB_REF\`, run $GITHUB_RUN_ID)"
+            echo "- ECR basic scan: \`$counts\`"
+            echo "다음 단계(PM): 이 digest 를 확인·승인한 뒤 운영 lavcca-worker 로 승격(태그 $TAG)"
           } >> "$GITHUB_STEP_SUMMARY"
